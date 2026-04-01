@@ -43,19 +43,13 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    name: SSH deploy to hosting-1
-    runs-on: ubuntu-latest
+    name: Deploy on hosting-1
+    runs-on: [self-hosted, linux, deploy]
     needs: build-and-push
 
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: hosting-1.russellpreece.com
-          port: 22
-          username: root
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            cd /opt/preecemeet
-            docker compose pull auth-api
-            docker compose up -d auth-api
+      - name: Pull and restart auth-api
+        run: |
+          cd /opt/preecemeet
+          docker compose pull auth-api
+          docker compose up -d auth-api
