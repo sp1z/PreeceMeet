@@ -78,7 +78,8 @@ app.MapPost("/api/auth/verify-totp", async (
     if (string.IsNullOrWhiteSpace(req.TempToken) || string.IsNullOrWhiteSpace(req.Code))
         return Results.BadRequest(new { error = "tempToken and code are required." });
 
-    var email = tokens.Consume(req.TempToken);
+    // Peek at the token without consuming it yet, so a wrong code allows retry.
+    var email = tokens.Peek(req.TempToken);
     if (email is null)
         return Results.Unauthorized();
 
@@ -93,6 +94,9 @@ app.MapPost("/api/auth/verify-totp", async (
 
     if (!isValid)
         return Results.Unauthorized();
+
+    // Code is correct — now consume the token so it can't be reused.
+    tokens.Consume(req.TempToken);
 
     // Mark TOTP as configured on first successful verify.
     if (!user.TotpConfigured)

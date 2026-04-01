@@ -12,6 +12,7 @@ public partial class TotpSetupWindow : Window
 {
     private readonly AuthService _authService;
     private readonly string      _tempToken;
+    private bool _inFlight;
 
     public VerifyTotpResponse? AuthResult { get; private set; }
 
@@ -61,6 +62,8 @@ public partial class TotpSetupWindow : Window
 
     private async Task DoVerifyAsync()
     {
+        if (_inFlight) return;
+
         var code = TxtCode.Text.Trim();
         if (code.Length != 6 || !code.All(char.IsDigit))
         {
@@ -68,6 +71,7 @@ public partial class TotpSetupWindow : Window
             return;
         }
 
+        _inFlight = true;
         SetBusy(true);
         HideError();
 
@@ -83,6 +87,7 @@ public partial class TotpSetupWindow : Window
         }
         finally
         {
+            _inFlight = false;
             SetBusy(false);
         }
     }

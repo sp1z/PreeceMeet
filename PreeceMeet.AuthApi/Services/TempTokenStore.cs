@@ -25,6 +25,18 @@ public class TempTokenStore
         return token;
     }
 
+    /// <summary>Returns the email for a valid token without removing it, or null if invalid/expired.</summary>
+    public string? Peek(string token)
+    {
+        if (!_tokens.TryGetValue(token, out var entry))
+            return null;
+
+        if (entry.ExpiresAt < DateTimeOffset.UtcNow)
+            return null;
+
+        return entry.Email;
+    }
+
     /// <summary>Validates and consumes the token. Returns the associated email or null if invalid/expired.</summary>
     public string? Consume(string token)
     {
