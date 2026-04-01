@@ -20,6 +20,16 @@ public class LoginResponse
 
     [JsonPropertyName("tempToken")]
     public string TempToken { get; set; } = string.Empty;
+
+    /// <summary>True on first login — client should show QR setup flow.</summary>
+    [JsonPropertyName("totpSetup")]
+    public bool TotpSetup { get; set; }
+
+    [JsonPropertyName("totpSecret")]
+    public string TotpSecret { get; set; } = string.Empty;
+
+    [JsonPropertyName("otpUri")]
+    public string OtpUri { get; set; } = string.Empty;
 }
 
 // ── TOTP ──────────────────────────────────────────────────────────────────────

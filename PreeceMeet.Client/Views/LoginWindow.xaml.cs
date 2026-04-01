@@ -56,14 +56,29 @@ public partial class LoginWindow : Window
 
             if (loginResult.RequireTotp)
             {
-                var totpWindow = new TotpWindow(_authService, loginResult.TempToken) { Owner = this };
-                if (totpWindow.ShowDialog() == true && totpWindow.AuthResult is not null)
+                VerifyTotpResponse? result;
+
+                if (loginResult.TotpSetup)
                 {
-                    PersistRememberMe(email);
-                    AuthResult   = totpWindow.AuthResult;
-                    DialogResult = true;
-                    Close();
+                    // First login — show QR setup window.
+                    var setupWindow = new TotpSetupWindow(
+                        _authService, loginResult.TempToken,
+                        loginResult.OtpUri, loginResult.TotpSecret) { Owner = this };
+                    if (setupWindow.ShowDialog() != true || setupWindow.AuthResult is null) return;
+                    result = setupWindow.AuthResult;
                 }
+                else
+                {
+                    // Normal login — ask for code.
+                    var totpWindow = new TotpWindow(_authService, loginResult.TempToken) { Owner = this };
+                    if (totpWindow.ShowDialog() != true || totpWindow.AuthResult is null) return;
+                    result = totpWindow.AuthResult;
+                }
+
+                PersistRememberMe(email);
+                AuthResult   = result;
+                DialogResult = true;
+                Close();
             }
             else
             {

@@ -53,7 +53,17 @@ app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db, TempTok
         return Results.Unauthorized();
 
     var tempToken = tokens.Issue(user.Email);
-    return Results.Ok(new { requireTotp = true, tempToken });
+
+    // First-time login: return TOTP secret so client can display QR for setup.
+    if (!user.TotpConfigured)
+    {
+        var issuer  = Uri.EscapeDataString("PreeceMeet");
+        var account = Uri.EscapeDataString(user.Email);
+        var otpUri  = $"otpauth://totp/{issuer}:{account}?secret={user.TotpSecret}&issuer={issuer}&algorithm=SHA1&digits=6&period=30";
+        return Results.Ok(new { requireTotp = true, tempToken, totpSetup = true, totpSecret = user.TotpSecret, otpUri });
+    }
+
+    return Results.Ok(new { requireTotp = true, tempToken, totpSetup = false });
 });
 
 // ── Auth: verify TOTP and exchange for LiveKit token ─────────────────────────
@@ -83,6 +93,13 @@ app.MapPost("/api/auth/verify-totp", async (
 
     if (!isValid)
         return Results.Unauthorized();
+
+    // Mark TOTP as configured on first successful verify.
+    if (!user.TotpConfigured)
+    {
+        user.TotpConfigured = true;
+        await db.SaveChangesAsync();
+    }
 
     var livekitToken = livekit.GenerateToken(email, room);
     return Results.Ok(new { livekitToken, livekitUrl });

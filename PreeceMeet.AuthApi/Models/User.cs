@@ -9,4 +9,6 @@ public class User
     /// <summary>Base32-encoded TOTP secret.</summary>
     public string TotpSecret { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    /// <summary>True once the user has scanned the QR and verified their first TOTP code.</summary>
+    public bool TotpConfigured { get; set; } = false;
 }
