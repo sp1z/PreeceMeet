@@ -23,7 +23,7 @@ public class LiveKitTokenService
     /// </summary>
     public string GenerateToken(string identity, string? roomName = null)
     {
-        var grant = new VideoGrant
+        var grant = new VideoGrants
         {
             RoomJoin     = true,
             CanPublish   = true,
