@@ -1,0 +1,61 @@
+name: Build & Deploy Auth API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'PreeceMeet.AuthApi/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/sp1z/preecemeet-auth
+
+jobs:
+  build-and-push:
+    name: Build Docker image and push to GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./PreeceMeet.AuthApi
+          file: ./PreeceMeet.AuthApi/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: SSH deploy to hosting-1
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: hosting-1.russellpreece.com
+          port: 21280
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/preecemeet
+            docker compose pull auth-api
+            docker compose up -d auth-api

@@ -1,0 +1,81 @@
+name: Build & Release WPF Client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'PreeceMeet.Client/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows installer via Velopack
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Generate app icon (if not committed)
+        shell: pwsh
+        run: |
+          $ico = "PreeceMeet.Client/Resources/app.ico"
+          if (-not (Test-Path $ico)) {
+            & "PreeceMeet.Client/Resources/create-icon.ps1"
+          }
+
+      - name: Restore dependencies
+        run: dotnet restore PreeceMeet.Client/PreeceMeet.Client.csproj
+
+      - name: Build & publish (self-contained, win-x64)
+        run: >
+          dotnet publish PreeceMeet.Client/PreeceMeet.Client.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output publish/
+          -p:PublishSingleFile=false
+          -p:PublishReadyToRun=true
+
+      - name: Install Velopack CLI
+        run: dotnet tool install -g vpk
+
+      - name: Derive version from git tag
+        id: version
+        shell: bash
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          VER=${TAG#v}
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+      - name: Pack installer with Velopack
+        run: >
+          vpk pack
+          --packId PreeceMeet
+          --packVersion ${{ steps.version.outputs.version }}
+          --packDir publish/
+          --mainExe PreeceMeet.exe
+          --outputDir releases/
+          --icon PreeceMeet.Client/Resources/app.ico
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: PreeceMeet v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          files: releases/**
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

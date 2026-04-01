@@ -1,0 +1,91 @@
+name: Build & Release WPF Client (canonical)
+
+# Primary WPF client build workflow - scoped to PreeceMeet.Client/** changes.
+# This supersedes any earlier build.yml that targeted the legacy PreeceMeet/ folder.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'PreeceMeet.Client/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── .NET setup ──────────────────────────────────────────────────────────
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # ── Generate app icon (if not committed) ───────────────────────────────
+      - name: Generate app icon
+        shell: pwsh
+        run: |
+          $ico = "PreeceMeet.Client/Resources/app.ico"
+          if (-not (Test-Path $ico)) {
+            & "PreeceMeet.Client/Resources/create-icon.ps1"
+          }
+
+      # ── Restore & build ─────────────────────────────────────────────────────
+      - name: Restore dependencies
+        run: dotnet restore PreeceMeet.Client/PreeceMeet.Client.csproj
+
+      - name: Build (Release)
+        run: >
+          dotnet publish PreeceMeet.Client/PreeceMeet.Client.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output publish/
+          -p:PublishSingleFile=false
+          -p:PublishReadyToRun=true
+
+      # ── Install Velopack CLI ────────────────────────────────────────────────
+      - name: Install vpk CLI
+        run: dotnet tool install -g vpk
+
+      # ── Derive version from git tag or use 1.0.0 ────────────────────────────
+      - name: Set version
+        id: version
+        shell: bash
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          VER=${TAG#v}
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+
+      # ── Pack with Velopack ───────────────────────────────────────────────────
+      - name: Pack installer
+        run: >
+          vpk pack
+          --packId PreeceMeet
+          --packVersion ${{ steps.version.outputs.version }}
+          --packDir publish/
+          --mainExe PreeceMeet.exe
+          --outputDir releases/
+          --icon PreeceMeet.Client/Resources/app.ico
+
+      # ── Publish GitHub Release ───────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: PreeceMeet v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          files: releases/**
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>PreeceMeet</AssemblyName>
+    <RootNamespace>PreeceMeet</RootNamespace>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+    <Company>sp1z</Company>
+    <Product>PreeceMeet</Product>
+    <Description>Native LiveKit video conferencing client for meet.russellpreece.com</Description>
+    <Copyright>Copyright © 2025 sp1z</Copyright>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <SelfContained>false</SelfContained>
+    <Platforms>AnyCPU</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- LiveKit .NET client SDK -->
+    <PackageReference Include="LiveKit.NET" Version="0.3.3" />
+    <!-- JSON serialization -->
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <!-- HTTP client factory -->
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+    <!-- Velopack for self-updating installer -->
+    <PackageReference Include="Velopack" Version="0.0.1298" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\app.ico" Condition="Exists('Resources\app.ico')" />
+  </ItemGroup>
+
+</Project>

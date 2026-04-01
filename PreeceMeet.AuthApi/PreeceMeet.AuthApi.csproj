@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PreeceMeet.AuthApi</RootNamespace>
+    <AssemblyName>PreeceMeet.AuthApi</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- EF Core with SQLite -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <!-- bcrypt password hashing -->
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <!-- TOTP -->
+    <PackageReference Include="Otp.NET" Version="1.4.0" />
+    <!-- LiveKit server SDK for token generation -->
+    <PackageReference Include="Livekit.Server.Sdk.Dotnet" Version="1.1.0" />
+  </ItemGroup>
+
+</Project>

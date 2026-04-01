@@ -1,0 +1,45 @@
+## .NET / MSBuild
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.vsidx
+
+## Publish output
+publish/
+releases/
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+## Rider
+.idea/
+
+## OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## Velopack
+*.nupkg
+
+## Secrets
+*.dat
+*.pfx
+*.p12
+
+## Log files
+*.log
+
+## SQLite databases (dev)
+*.db
+*.db-shm
+*.db-wal
+
+## Environment / local overrides
+.env
+appsettings.Local.json
