@@ -77,5 +77,13 @@ jobs:
           prerelease: false
           files: releases/**
           generate_release_notes: true
+          body: |
+            ## Installation
+            1. Download `PreeceMeet-win-Setup.exe` below and run it
+            2. Installs to `%LocalAppData%\PreeceMeet`, creates a desktop shortcut
+            3. Updates are checked automatically on launch
+
+            ## Requirements
+            - Windows 10 x64 or later (runtime is bundled — no .NET install needed)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
