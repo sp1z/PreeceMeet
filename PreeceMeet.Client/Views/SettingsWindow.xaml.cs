@@ -37,18 +37,8 @@ public partial class SettingsWindow : Window
         CmbCamera.Items.Add("Default");
         CmbMic.Items.Add("Default");
 
-        try
-        {
-            var devices = LiveKit.Room.GetLocalDevices();
-            foreach (var d in devices)
-            {
-                if (d.Kind == LiveKit.DeviceKind.VideoInput)
-                    CmbCamera.Items.Add(d.Label);
-                else if (d.Kind == LiveKit.DeviceKind.AudioInput)
-                    CmbMic.Items.Add(d.Label);
-            }
-        }
-        catch { /* SDK not yet initialised */ }
+        // Device enumeration via Livekit.Rtc.Dotnet is not yet supported;
+        // users select their device via the OS default or the Settings fields.
     }
 
     private static void SelectItem(System.Windows.Controls.ComboBox combo, string value)
