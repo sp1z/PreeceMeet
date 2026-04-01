@@ -4,134 +4,73 @@
         xmlns:controls="clr-namespace:PreeceMeet.Controls"
         Title="PreeceMeet"
         MinWidth="720" MinHeight="500"
-        Background="#0f0f1a"
-        Foreground="White"
+        FontFamily="Segoe UI"
+        TextOptions.TextFormattingMode="Display"
         Closing="Window_Closing">
-    <Window.Resources>
-        <Style x:Key="ToolbarButton" TargetType="Button">
-            <Setter Property="Background" Value="#2d2d44"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#3a3a5c"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#1e1e30"/>
-                                <Setter Property="Foreground" Value="#555"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="JoinButton" TargetType="Button" BasedOn="{StaticResource ToolbarButton}">
-            <Setter Property="Background" Value="#4f46e5"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4338ca"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="HangupButton" TargetType="Button" BasedOn="{StaticResource ToolbarButton}">
-            <Setter Property="Background" Value="#dc2626"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#b91c1c"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-    </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="52"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="60"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Top toolbar -->
-        <Border Grid.Row="0" Background="#12122a" Padding="12,0">
-            <DockPanel VerticalAlignment="Center">
-                <TextBlock Text="PreeceMeet" FontSize="16" FontWeight="Bold" Foreground="#7c6fe0"
-                           VerticalAlignment="Center" DockPanel.Dock="Left" Margin="0,0,16,0"/>
-
-                <Button x:Name="BtnSettings" Content="&#x2699;" Style="{StaticResource ToolbarButton}"
-                        ToolTip="Settings" DockPanel.Dock="Right" Margin="6,0,0,0" Click="BtnSettings_Click"/>
-
-                <Button x:Name="BtnDisconnect" Content="Disconnect" Style="{StaticResource ToolbarButton}"
-                        Background="#7f1d1d" ToolTip="Leave the current room" DockPanel.Dock="Right"
-                        Margin="6,0,0,0" Visibility="Collapsed" Click="BtnDisconnect_Click"/>
-
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBox x:Name="TxtRoomName" Width="260" Background="#1e1e30" Foreground="White"
-                             BorderBrush="#3a3a5c" BorderThickness="1" Padding="8,6" FontSize="13"
-                             CaretBrush="White" VerticalContentAlignment="Center" KeyDown="TxtRoomName_KeyDown">
-                        <TextBox.Style>
-                            <Style TargetType="TextBox">
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="TextBox">
-                                            <Border Background="{TemplateBinding Background}"
-                                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                                    CornerRadius="5">
-                                                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/>
-                                            </Border>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </TextBox.Style>
-                    </TextBox>
-                    <Button x:Name="BtnJoin" Content="Join" Style="{StaticResource JoinButton}"
-                            Margin="8,0,0,0" Click="BtnJoin_Click"/>
-                </StackPanel>
-            </DockPanel>
-        </Border>
+        <!-- Toolbar -->
+        <ToolBarTray Grid.Row="0" IsLocked="True">
+            <ToolBar>
+                <TextBlock Text="PreeceMeet" FontWeight="SemiBold" VerticalAlignment="Center"
+                           Margin="0,0,12,0"/>
+                <Separator/>
+                <TextBox x:Name="TxtRoomName" Width="240" VerticalContentAlignment="Center"
+                         ToolTip="Room name" KeyDown="TxtRoomName_KeyDown"/>
+                <Button x:Name="BtnJoin" Content="Join" Margin="4,0,0,0"
+                        ToolTip="Join the room" Click="BtnJoin_Click"/>
+                <Separator/>
+                <Button x:Name="BtnDisconnect" Content="Disconnect" Visibility="Collapsed"
+                        ToolTip="Leave the current room" Click="BtnDisconnect_Click"/>
+                <Button x:Name="BtnSettings" Content="Settings" Margin="4,0,0,0"
+                        ToolTip="Settings" Click="BtnSettings_Click"/>
+            </ToolBar>
+        </ToolBarTray>
 
         <!-- Video area -->
-        <Border Grid.Row="1" Background="#0f0f1a">
+        <Border Grid.Row="1" Background="Black">
             <Grid>
                 <StackPanel x:Name="PnlEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <TextBlock Text="No active call" FontSize="22" Foreground="#3a3a5c" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Enter a room name above and press Join." FontSize="14"
-                               Foreground="#2d2d44" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                    <TextBlock Text="No active call" FontSize="20" Foreground="#666"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Enter a room name above and press Join."
+                               FontSize="13" Foreground="#444"
+                               HorizontalAlignment="Center" Margin="0,8,0,0"/>
                 </StackPanel>
 
                 <controls:VideoGridControl x:Name="VideoGrid" Visibility="Collapsed"/>
 
-                <Border x:Name="PnlStatus" Background="#CC0f0f1a" Visibility="Collapsed">
+                <Border x:Name="PnlStatus" Background="#CC000000" Visibility="Collapsed">
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                         <TextBlock x:Name="TxtStatus" Text="Connecting..." FontSize="20"
-                                   Foreground="#7c6fe0" HorizontalAlignment="Center"/>
+                                   Foreground="White" HorizontalAlignment="Center"/>
                         <TextBlock x:Name="TxtStatusSub" Text="" FontSize="13"
-                                   Foreground="#666" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                   Foreground="#aaa" HorizontalAlignment="Center" Margin="0,6,0,0"/>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- Bottom control bar -->
-        <Border Grid.Row="2" Background="#12122a">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
-                        IsEnabled="{Binding ElementName=BtnDisconnect, Path=IsVisible}">
-                <Button x:Name="BtnToggleMic" Content="Mic: On" Style="{StaticResource ToolbarButton}"
-                        ToolTip="Toggle microphone" Margin="0,0,10,0" Click="BtnToggleMic_Click"/>
-                <Button x:Name="BtnToggleCam" Content="Camera: On" Style="{StaticResource ToolbarButton}"
-                        ToolTip="Toggle camera" Margin="0,0,10,0" Click="BtnToggleCam_Click"/>
-                <Button x:Name="BtnHangup" Content="Hang Up" Style="{StaticResource HangupButton}"
-                        ToolTip="Leave call" Click="BtnHangup_Click"/>
-            </StackPanel>
-        </Border>
+        <!-- Call controls -->
+        <StatusBar Grid.Row="2">
+            <StatusBarItem HorizontalAlignment="Center" HorizontalContentAlignment="Center">
+                <StackPanel Orientation="Horizontal"
+                            IsEnabled="{Binding ElementName=BtnDisconnect, Path=IsVisible}">
+                    <Button x:Name="BtnToggleMic" Content="Mic: On" Margin="0,0,8,0"
+                            ToolTip="Toggle microphone" Click="BtnToggleMic_Click"/>
+                    <Button x:Name="BtnToggleCam" Content="Camera: On" Margin="0,0,8,0"
+                            ToolTip="Toggle camera" Click="BtnToggleCam_Click"/>
+                    <Button x:Name="BtnHangup" Content="Hang Up" Foreground="White"
+                            Background="Firebrick" BorderBrush="DarkRed"
+                            ToolTip="Leave call" Click="BtnHangup_Click"/>
+                </StackPanel>
+            </StatusBarItem>
+        </StatusBar>
     </Grid>
 </Window>

@@ -96,9 +96,10 @@ public partial class App : Application
         var result = loginWindow.AuthResult;
         _session.Save(new SavedSession
         {
-            LiveKitUrl = result.LiveKitUrl,
-            Email      = _settings.Current.SavedEmail,
-            SavedAt    = DateTimeOffset.UtcNow,
+            LiveKitUrl   = result.LiveKitUrl,
+            LiveKitToken = result.LiveKitToken,
+            Email        = _settings.Current.SavedEmail,
+            SavedAt      = DateTimeOffset.UtcNow,
         });
 
         return true;

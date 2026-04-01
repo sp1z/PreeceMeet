@@ -130,7 +130,7 @@ public partial class MainWindow : Window
         try
         {
             var savedSession = _session.Load();
-            if (savedSession is null)
+            if (savedSession is null || string.IsNullOrEmpty(savedSession.LiveKitToken))
             {
                 MessageBox.Show("No active session. Please restart and log in again.",
                     "PreeceMeet", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -138,12 +138,8 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Get a room-scoped LiveKit token from the auth API.
-            ShowStatus("Authenticating...", "Obtaining room token...");
-            var tokenResp = await _auth.VerifyTotpAsync(string.Empty, string.Empty, roomName);
-
             ShowStatus("Connecting...", $"Room: {roomName}");
-            await _liveKit.ConnectAsync(tokenResp.LiveKitUrl, tokenResp.LiveKitToken);
+            await _liveKit.ConnectAsync(savedSession.LiveKitUrl, savedSession.LiveKitToken);
 
             VideoGrid.Initialize(_liveKit.RemoteParticipants, _liveKit.LocalParticipant, _liveKit);
             _settings.Current.LastRoomName = roomName;
