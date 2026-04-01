@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
@@ -30,16 +31,18 @@ public partial class TotpSetupWindow : Window
     {
         using var generator = new QRCodeGenerator();
         using var data      = generator.CreateQrCode(text, QRCodeGenerator.ECCLevel.M);
-        using var qr        = new BitmapByteQRCode(data);
+        using var qr        = new PngByteQRCode(data);
 
-        var pixels = qr.GetGraphic(10);         // 10 px per module
-        int modules = (int)Math.Sqrt(pixels.Length / 3);
-        int stride  = modules * 3;
+        var png = qr.GetGraphic(10);
 
-        return BitmapSource.Create(
-            modules, modules, 96, 96,
-            System.Windows.Media.PixelFormats.Rgb24,
-            null, pixels, stride);
+        using var ms = new MemoryStream(png);
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption  = BitmapCacheOption.OnLoad;
+        bitmap.StreamSource = ms;
+        bitmap.EndInit();
+        bitmap.Freeze();
+        return bitmap;
     }
 
     private async void BtnVerify_Click(object sender, RoutedEventArgs e)
