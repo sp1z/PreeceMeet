@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
-using LiveKit;
+using LiveKit.Rtc;
 
 namespace PreeceMeet.Controls;
 

@@ -2,15 +2,16 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using LiveKit;
+using LiveKit.Proto;
+using LiveKit.Rtc;
 
 namespace PreeceMeet.Controls;
 
 public partial class VideoTileControl : UserControl
 {
     private Participant? _participant;
-    private VideoTrack? _videoTrack;
     private WriteableBitmap? _bitmap;
+    private CancellationTokenSource? _videoStreamCts;
 
     public VideoTileControl()
     {
@@ -28,13 +29,12 @@ public partial class VideoTileControl : UserControl
 
         if (participant is RemoteParticipant remote)
         {
-            remote.TrackSubscribed += OnTrackSubscribed;
-            remote.TrackUnsubscribed += OnTrackUnsubscribed;
-            remote.TrackMuted += OnTrackMuted;
-            remote.TrackUnmuted += OnTrackUnmuted;
+            remote.TrackPublished   += OnTrackPublished;
+            remote.TrackUnpublished += OnTrackUnpublished;
 
+            // Attach any already-subscribed video tracks.
             foreach (var pub in remote.VideoTracks)
-                if (pub.Value.Track is VideoTrack vt)
+                if (pub.Value.Track is RemoteVideoTrack vt)
                     AttachVideo(vt);
 
             UpdateMuteIcon();
@@ -42,8 +42,8 @@ public partial class VideoTileControl : UserControl
         else if (participant is LocalParticipant local)
         {
             foreach (var pub in local.VideoTracks)
-                if (pub.Value.Track is VideoTrack vt)
-                    AttachVideo(vt);
+                if (pub.Value.Track is LocalVideoTrack vt)
+                    AttachLocalVideo(vt);
         }
     }
 
@@ -51,85 +51,81 @@ public partial class VideoTileControl : UserControl
     {
         if (_participant is RemoteParticipant remote)
         {
-            remote.TrackSubscribed -= OnTrackSubscribed;
-            remote.TrackUnsubscribed -= OnTrackUnsubscribed;
-            remote.TrackMuted -= OnTrackMuted;
-            remote.TrackUnmuted -= OnTrackUnmuted;
+            remote.TrackPublished   -= OnTrackPublished;
+            remote.TrackUnpublished -= OnTrackUnpublished;
         }
         DetachVideo();
         _participant = null;
     }
 
-    private void AttachVideo(VideoTrack track)
+    // ── Video attachment ──────────────────────────────────────────────────────
+
+    private void AttachVideo(RemoteVideoTrack track)
     {
         DetachVideo();
-        _videoTrack = track;
-        _videoTrack.FrameReceived += OnVideoFrame;
+        _videoStreamCts = new CancellationTokenSource();
+        _ = ConsumeVideoStreamAsync(VideoStream.FromTrack(track, format: null, capacity: 0), _videoStreamCts.Token);
         PART_AvatarOverlay.Visibility = Visibility.Collapsed;
-        PART_VideoImage.Visibility = Visibility.Visible;
+        PART_VideoImage.Visibility    = Visibility.Visible;
+    }
+
+    private void AttachLocalVideo(LocalVideoTrack track)
+    {
+        DetachVideo();
+        _videoStreamCts = new CancellationTokenSource();
+        _ = ConsumeVideoStreamAsync(VideoStream.FromTrack(track, format: null, capacity: 0), _videoStreamCts.Token);
+        PART_AvatarOverlay.Visibility = Visibility.Collapsed;
+        PART_VideoImage.Visibility    = Visibility.Visible;
     }
 
     private void DetachVideo()
     {
-        if (_videoTrack is not null)
-        {
-            _videoTrack.FrameReceived -= OnVideoFrame;
-            _videoTrack = null;
-        }
-        PART_VideoImage.Source = null;
-        _bitmap = null;
+        _videoStreamCts?.Cancel();
+        _videoStreamCts?.Dispose();
+        _videoStreamCts = null;
+        PART_VideoImage.Source        = null;
+        _bitmap                       = null;
         PART_AvatarOverlay.Visibility = Visibility.Visible;
-        PART_VideoImage.Visibility = Visibility.Collapsed;
+        PART_VideoImage.Visibility    = Visibility.Collapsed;
     }
 
-    private void OnVideoFrame(VideoFrame frame)
-        => Dispatcher.Invoke(() => RenderFrame(frame));
+    private async Task ConsumeVideoStreamAsync(VideoStream stream, CancellationToken ct)
+    {
+        try
+        {
+            await foreach (var frameEvent in stream.WithCancellation(ct))
+                Dispatcher.Invoke(() => RenderFrame(frameEvent.Frame));
+        }
+        catch (OperationCanceledException) { }
+    }
 
     private void RenderFrame(VideoFrame frame)
     {
-        int width  = frame.Width;
-        int height = frame.Height;
+        int width  = (int)frame.Width;
+        int height = (int)frame.Height;
 
         if (_bitmap is null || _bitmap.PixelWidth != width || _bitmap.PixelHeight != height)
         {
-            _bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgr32, null);
+            _bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
             PART_VideoImage.Source = _bitmap;
         }
 
-        _bitmap.Lock();
-        try
-        {
-            frame.CopyTo(_bitmap.BackBuffer, _bitmap.BackBufferStride, VideoFrameFormat.BGRA32);
-            _bitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
-        }
-        finally
-        {
-            _bitmap.Unlock();
-        }
+        var pixels = frame.DataBytes;
+        _bitmap.WritePixels(new Int32Rect(0, 0, width, height), pixels, width * 4, 0);
     }
 
-    private void OnTrackSubscribed(IRemoteTrack track, RemoteTrackPublication publication, RemoteParticipant _)
+    // ── Track event handlers ──────────────────────────────────────────────────
+
+    private void OnTrackPublished(object? sender, TrackPublishedEventArgs e)
     {
-        if (track is VideoTrack vt)
+        if (e.Publication.Track is RemoteVideoTrack vt)
             Dispatcher.Invoke(() => AttachVideo(vt));
     }
 
-    private void OnTrackUnsubscribed(IRemoteTrack track, RemoteTrackPublication publication, RemoteParticipant _)
+    private void OnTrackUnpublished(object? sender, TrackPublishedEventArgs e)
     {
-        if (track is VideoTrack)
+        if (e.Publication.Kind == TrackKind.Video)
             Dispatcher.Invoke(DetachVideo);
-    }
-
-    private void OnTrackMuted(TrackPublication publication, Participant _)
-    {
-        if (publication.Kind == TrackKind.Audio)
-            Dispatcher.Invoke(UpdateMuteIcon);
-    }
-
-    private void OnTrackUnmuted(TrackPublication publication, Participant _)
-    {
-        if (publication.Kind == TrackKind.Audio)
-            Dispatcher.Invoke(UpdateMuteIcon);
     }
 
     private void UpdateMuteIcon()

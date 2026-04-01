@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows;
-using LiveKit;
+using LiveKit.Proto;
+using LiveKit.Rtc;
 
 namespace PreeceMeet.Services;
 
@@ -39,14 +40,14 @@ public class LiveKitService : IDisposable
 
         _room = new Room();
 
-        _room.ParticipantConnected += OnParticipantConnected;
+        _room.ParticipantConnected    += OnParticipantConnected;
         _room.ParticipantDisconnected += OnParticipantDisconnected;
-        _room.Disconnected += OnRoomDisconnected;
+        _room.Disconnected            += OnRoomDisconnected;
 
         var roomOptions = new RoomOptions
         {
             AutoSubscribe = true,
-            Dynacast = true,
+            Dynacast      = true,
         };
 
         await _room.ConnectAsync(url, token, roomOptions);
@@ -81,13 +82,13 @@ public class LiveKitService : IDisposable
 
     // ── Room event handlers ───────────────────────────────────────────────────
 
-    private void OnParticipantConnected(RemoteParticipant participant)
+    private void OnParticipantConnected(object? sender, RemoteParticipant participant)
         => Dispatch(() => RemoteParticipants.Add(participant));
 
-    private void OnParticipantDisconnected(RemoteParticipant participant)
+    private void OnParticipantDisconnected(object? sender, RemoteParticipant participant)
         => Dispatch(() => RemoteParticipants.Remove(participant));
 
-    private void OnRoomDisconnected(DisconnectReason? reason)
+    private void OnRoomDisconnected(object? sender, DisconnectReason reason)
     {
         Dispatch(() =>
         {
@@ -102,9 +103,9 @@ public class LiveKitService : IDisposable
     private void CleanupRoom()
     {
         if (_room is null) return;
-        _room.ParticipantConnected -= OnParticipantConnected;
+        _room.ParticipantConnected    -= OnParticipantConnected;
         _room.ParticipantDisconnected -= OnParticipantDisconnected;
-        _room.Disconnected -= OnRoomDisconnected;
+        _room.Disconnected            -= OnRoomDisconnected;
         _room.Dispose();
         _room = null;
     }
