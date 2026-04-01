@@ -8,7 +8,7 @@ public class AppSettings
     public string LastRoomName { get; set; } = string.Empty;
 
     [JsonPropertyName("serverUrl")]
-    public string ServerUrl { get; set; } = "https://auth.russellpreece.com";
+    public string ServerUrl { get; set; } = "https://meet.russellpreece.com";
 
     [JsonPropertyName("savedEmail")]
     public string SavedEmail { get; set; } = string.Empty;
