@@ -113,11 +113,10 @@ public partial class VideoTileControl : UserControl
 
     private void RenderFrame(VideoFrame frame)
     {
-        if (_bitmap is null) return;
         int width  = (int)frame.Width;
         int height = (int)frame.Height;
 
-        if (_bitmap.PixelWidth != width || _bitmap.PixelHeight != height)
+        if (_bitmap is null || _bitmap.PixelWidth != width || _bitmap.PixelHeight != height)
         {
             _bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
             PART_VideoImage.Source = _bitmap;
