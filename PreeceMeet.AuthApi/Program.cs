@@ -148,6 +148,26 @@ app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpContext ctx, A
     return Results.Ok(new { email, otpUri });
 });
 
+// ── Admin: reset TOTP (generates new secret, forces re-enroll on next login) ──
+
+app.MapPost("/api/admin/users/{email}/reset-totp", async (string email, HttpContext ctx, AppDbContext db) =>
+{
+    if (!ctx.Request.Headers.TryGetValue("X-Admin-Key", out var key) || key != adminKey)
+        return Results.Unauthorized();
+
+    var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
+    if (user is null)
+        return Results.NotFound(new { error = "User not found." });
+
+    var secretBytes = new byte[20];
+    RandomNumberGenerator.Fill(secretBytes);
+    user.TotpSecret     = Base32Encoding.ToString(secretBytes);
+    user.TotpConfigured = false;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { message = "TOTP reset. User will re-enroll on next login." });
+});
+
 // ── Admin: delete user ────────────────────────────────────────────────────────
 
 app.MapDelete("/api/admin/users/{email}", async (string email, HttpContext ctx, AppDbContext db) =>
