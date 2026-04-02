@@ -50,13 +50,10 @@ jobs:
       - name: Install Velopack CLI
         run: dotnet tool install -g vpk
 
-      - name: Derive version from git tag
+      - name: Set version from run number
         id: version
         shell: bash
-        run: |
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-          VER=${TAG#v}
-          echo "version=$VER" >> "$GITHUB_OUTPUT"
+        run: echo "version=1.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Pack installer with Velopack
         run: >

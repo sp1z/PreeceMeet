@@ -57,14 +57,11 @@ jobs:
       - name: Install vpk CLI
         run: dotnet tool install -g vpk
 
-      # ── Derive version from git tag or use 1.0.0 ────────────────────────────
+      # ── Set version from run number (1.0.N ensures every build is newer) ──────
       - name: Set version
         id: version
         shell: bash
-        run: |
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-          VER=${TAG#v}
-          echo "version=$VER" >> "$GITHUB_OUTPUT"
+        run: echo "version=1.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       # ── Pack with Velopack ───────────────────────────────────────────────────
       - name: Pack installer
