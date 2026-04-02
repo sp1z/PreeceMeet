@@ -76,11 +76,11 @@ public class LiveKitService : IDisposable
         // Publish local tracks.
         if (_capture?.VideoTrack != null)
             await _room.LocalParticipant.PublishTrackAsync(_capture.VideoTrack,
-                new TrackPublishOptions { Source = TrackSource.SourceCamera, Simulcast = false });
+                new LiveKit.Rtc.TrackPublishOptions { Source = TrackSource.SourceCamera, Simulcast = false });
 
         if (_capture?.AudioTrack != null)
             await _room.LocalParticipant.PublishTrackAsync(_capture.AudioTrack,
-                new TrackPublishOptions { Source = TrackSource.SourceMicrophone });
+                new LiveKit.Rtc.TrackPublishOptions { Source = TrackSource.SourceMicrophone });
 
         // Populate participants that were already in the room.
         foreach (var (_, participant) in _room.RemoteParticipants)
