@@ -54,46 +54,60 @@ public class CaptureService : IAsyncDisposable
 
     // ── Camera ────────────────────────────────────────────────────────────────
 
+    // DirectShow COM objects require an STA thread — run camera init on a
+    // dedicated STA thread so it works even when called from async/MTA context.
     public Task StartCameraAsync(string? deviceId = null)
     {
-        try
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
         {
-            var devices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
-            if (devices.Count == 0) return Task.CompletedTask;
+            try
+            {
+                var devices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
+                if (devices.Count == 0)
+                {
+                    tcs.SetException(new InvalidOperationException("No video capture devices found."));
+                    return;
+                }
 
-            // Pick requested device or fall back to first
-            FilterInfo? info = null;
-            if (!string.IsNullOrWhiteSpace(deviceId))
-                foreach (FilterInfo d in devices)
-                    if (d.MonikerString == deviceId) { info = d; break; }
-            info ??= devices[0];
+                // Pick requested device or fall back to first
+                FilterInfo? info = null;
+                if (!string.IsNullOrWhiteSpace(deviceId))
+                    foreach (FilterInfo d in devices)
+                        if (d.MonikerString == deviceId) { info = d; break; }
+                info ??= devices[0];
 
-            _videoDevice = new VideoCaptureDevice(info.MonikerString);
+                _videoDevice = new VideoCaptureDevice(info.MonikerString);
 
-            // Prefer the resolution closest to 640×480
-            var cap = _videoDevice.VideoCapabilities
-                .OrderBy(c => Math.Abs(c.FrameSize.Width - 640) + Math.Abs(c.FrameSize.Height - 480))
-                .FirstOrDefault();
-            if (cap != null)
-                _videoDevice.VideoResolution = cap;
+                // Prefer the resolution closest to 640×480
+                var cap = _videoDevice.VideoCapabilities
+                    .OrderBy(c => Math.Abs(c.FrameSize.Width - 640) + Math.Abs(c.FrameSize.Height - 480))
+                    .FirstOrDefault();
+                if (cap != null)
+                    _videoDevice.VideoResolution = cap;
 
-            int w = cap?.FrameSize.Width  ?? 640;
-            int h = cap?.FrameSize.Height ?? 480;
+                int w = cap?.FrameSize.Width  ?? 640;
+                int h = cap?.FrameSize.Height ?? 480;
 
-            _videoSource = new VideoSource(w, h);
-            VideoTrack   = _videoSource.CreateTrack("camera");
+                _videoSource = new VideoSource(w, h);
+                VideoTrack   = _videoSource.CreateTrack("camera");
 
-            _videoDevice.NewFrame += OnNewFrame;
-            _videoDevice.Start();
-        }
-        catch
-        {
-            // Camera unavailable — continue without video
-            _videoDevice = null;
-            _videoSource = null;
-            VideoTrack   = null;
-        }
-        return Task.CompletedTask;
+                _videoDevice.NewFrame += OnNewFrame;
+                _videoDevice.Start();
+                tcs.SetResult(true);
+            }
+            catch (Exception ex)
+            {
+                _videoDevice = null;
+                _videoSource = null;
+                VideoTrack   = null;
+                tcs.SetException(ex);
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true;
+        thread.Start();
+        return tcs.Task;
     }
 
     private void OnNewFrame(object sender, NewFrameEventArgs e)
