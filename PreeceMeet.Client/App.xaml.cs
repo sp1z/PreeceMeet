@@ -25,6 +25,19 @@ public partial class App : Application
 
         base.OnStartup(e);
 
+        // Catch any unhandled exceptions from async void and background threads.
+        DispatcherUnhandledException += (_, ex) =>
+        {
+            MessageBox.Show($"Unexpected error: {ex.Exception.Message}\n\n{ex.Exception.StackTrace}",
+                "PreeceMeet Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            ex.Handled = true;
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
+        {
+            MessageBox.Show($"Fatal error: {ex.ExceptionObject}",
+                "PreeceMeet Fatal Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        };
+
         _settings.Load();
 
         // Register custom URL scheme (idempotent).

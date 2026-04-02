@@ -60,7 +60,7 @@ public partial class MainWindow : Window
         Width  = s.WindowWidth  > 0 ? s.WindowWidth  : 1200;
         Height = s.WindowHeight > 0 ? s.WindowHeight : 750;
 
-        if (!double.IsNaN(s.WindowLeft) && !double.IsNaN(s.WindowTop))
+        if (!double.IsNaN(s.WindowLeft) && !double.IsNaN(s.WindowTop) && IsOnScreen(s.WindowLeft, s.WindowTop))
         {
             Left = s.WindowLeft;
             Top  = s.WindowTop;
@@ -70,6 +70,15 @@ public partial class MainWindow : Window
         {
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
+    }
+
+    private static bool IsOnScreen(double left, double top)
+    {
+        var vLeft   = SystemParameters.VirtualScreenLeft;
+        var vTop    = SystemParameters.VirtualScreenTop;
+        var vRight  = vLeft + SystemParameters.VirtualScreenWidth;
+        var vBottom = vTop  + SystemParameters.VirtualScreenHeight;
+        return left >= vLeft && left < vRight && top >= vTop && top < vBottom;
     }
 
     private void SaveWindowBounds()
