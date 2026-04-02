@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using PreeceMeet.Models;
 using PreeceMeet.Services;
 
 namespace PreeceMeet.Views;

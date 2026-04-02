@@ -3,6 +3,7 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using LiveKit.Proto;
 using LiveKit.Rtc;
 using NAudio.Wave;
+using PreeceMeet.Models;
 using Windows.Devices.Enumeration;
 using Windows.Graphics.Imaging;
 using Windows.Media.Capture;
@@ -11,11 +12,6 @@ using Windows.Media.Devices;
 using Windows.Media.MediaProperties;
 
 namespace PreeceMeet.Services;
-
-public record DeviceInfo(string Id, string Name)
-{
-    public override string ToString() => Name;
-}
 
 /// <summary>
 /// Handles camera and microphone capture, producing LiveKit VideoSource/AudioSource
