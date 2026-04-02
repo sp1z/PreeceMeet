@@ -19,7 +19,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <!-- Only define ENABLE_CAPTURE for the real build, not the WPF wpftmp temp project -->
-    <DefineConstants Condition="!$(MSBuildProjectName.Contains('wpftmp'))">$(DefineConstants);ENABLE_CAPTURE</DefineConstants>
+    <DefineConstants Condition="$(MSBuildProjectName.Contains('wpftmp')) != 'true'">$(DefineConstants);ENABLE_CAPTURE</DefineConstants>
     <SelfContained>false</SelfContained>
     <Platforms>AnyCPU</Platforms>
   </PropertyGroup>
