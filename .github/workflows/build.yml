@@ -52,6 +52,9 @@ jobs:
           --output publish/
           -p:PublishSingleFile=false
           -p:PublishReadyToRun=true
+          -p:Version=1.0.${{ github.run_number }}
+          -p:AssemblyVersion=1.0.${{ github.run_number }}.0
+          -p:FileVersion=1.0.${{ github.run_number }}.0
 
       # ── Install Velopack CLI ────────────────────────────────────────────────
       - name: Install vpk CLI

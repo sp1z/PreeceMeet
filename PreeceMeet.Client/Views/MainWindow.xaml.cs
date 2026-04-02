@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -35,6 +36,8 @@ public partial class MainWindow : Window
         _urlScheme = urlScheme;
 
         InitializeComponent();
+        var ver = Assembly.GetExecutingAssembly().GetName().Version;
+        Title = ver is not null ? $"PreeceMeet v{ver.Major}.{ver.Minor}.{ver.Build}" : "PreeceMeet";
         RestoreWindowBounds();
 
         TxtRoomName.Text = _settings.Current.LastRoomName;

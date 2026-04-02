@@ -46,6 +46,9 @@ jobs:
           --output publish/
           -p:PublishSingleFile=false
           -p:PublishReadyToRun=true
+          -p:Version=1.0.${{ github.run_number }}
+          -p:AssemblyVersion=1.0.${{ github.run_number }}.0
+          -p:FileVersion=1.0.${{ github.run_number }}.0
 
       - name: Install Velopack CLI
         run: dotnet tool install -g vpk
