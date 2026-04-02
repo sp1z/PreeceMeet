@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using PreeceMeet.Services;
 
 namespace PreeceMeet.Views;
@@ -26,27 +27,36 @@ public partial class SettingsWindow : Window
         ChkRemember.IsChecked = s.RememberMe;
 
         PopulateDevices();
-        SelectItem(CmbCamera, s.SelectedCameraDevice);
-        SelectItem(CmbMic,    s.SelectedMicDevice);
     }
 
-    private void PopulateDevices()
+    private async void PopulateDevices()
     {
-        CmbCamera.IsEditable = true;
-        CmbMic.IsEditable    = true;
-        CmbCamera.Items.Add("Default");
-        CmbMic.Items.Add("Default");
+        // Audio devices (synchronous via NAudio)
+        CmbMic.Items.Add(new DeviceInfo("", "Default"));
+        foreach (var d in CaptureService.GetAudioDevices())
+            CmbMic.Items.Add(d);
 
-        // Device enumeration via Livekit.Rtc.Dotnet is not yet supported;
-        // users select their device via the OS default or the Settings fields.
+        // Video devices (async via WinRT)
+        CmbCamera.Items.Add(new DeviceInfo("", "Default"));
+        try
+        {
+            foreach (var d in await CaptureService.GetVideoDevicesAsync())
+                CmbCamera.Items.Add(d);
+        }
+        catch { /* no camera or permission denied */ }
+
+        SelectItem(CmbCamera, _settingsService.Current.SelectedCameraDevice);
+        SelectItem(CmbMic,    _settingsService.Current.SelectedMicDevice);
     }
 
-    private static void SelectItem(System.Windows.Controls.ComboBox combo, string value)
+    private static void SelectItem(ComboBox combo, string value)
     {
-        if (string.IsNullOrEmpty(value)) { combo.SelectedIndex = 0; return; }
         for (int i = 0; i < combo.Items.Count; i++)
-            if (combo.Items[i]?.ToString() == value) { combo.SelectedIndex = i; return; }
-        combo.Text = value;
+        {
+            var item = combo.Items[i] as DeviceInfo;
+            if (item?.Id == value) { combo.SelectedIndex = i; return; }
+        }
+        combo.SelectedIndex = 0; // fall back to Default
     }
 
     private void BtnSave_Click(object sender, RoutedEventArgs e)
@@ -55,8 +65,8 @@ public partial class SettingsWindow : Window
         s.ServerUrl            = TxtServerUrl.Text.Trim();
         s.LastRoomName         = TxtLastRoom.Text.Trim();
         s.RememberMe           = ChkRemember.IsChecked == true;
-        s.SelectedCameraDevice = CmbCamera.Text;
-        s.SelectedMicDevice    = CmbMic.Text;
+        s.SelectedCameraDevice = (CmbCamera.SelectedItem as DeviceInfo)?.Id ?? string.Empty;
+        s.SelectedMicDevice    = (CmbMic.SelectedItem    as DeviceInfo)?.Id ?? string.Empty;
         _settingsService.Save();
         DialogResult = true;
         Close();

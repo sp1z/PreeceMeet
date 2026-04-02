@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -32,6 +32,8 @@
     <PackageReference Include="Velopack" Version="0.0.1298" />
     <!-- QR code generation for TOTP setup -->
     <PackageReference Include="QRCoder" Version="1.6.0" />
+    <!-- Audio capture from microphone -->
+    <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 
   <ItemGroup>

@@ -148,7 +148,7 @@ public partial class MainWindow : Window
             }
 
             ShowStatus("Connecting...", $"Room: {roomName}");
-            await _liveKit.ConnectAsync(savedSession.LiveKitUrl, savedSession.LiveKitToken);
+            await _liveKit.ConnectAsync(savedSession.LiveKitUrl, savedSession.LiveKitToken, _settings.Current);
 
             VideoGrid.Initialize(_liveKit.RemoteParticipants, _liveKit.LocalParticipant, _liveKit);
             _settings.Current.LastRoomName = roomName;

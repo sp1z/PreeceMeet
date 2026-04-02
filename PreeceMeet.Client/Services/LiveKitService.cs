@@ -2,8 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using LiveKit.Proto;
 using LiveKit.Rtc;
-
-namespace PreeceMeet.Services;
+using PreeceMeet.Models;
 
 /// <summary>
 /// Thin wrapper around the LiveKit .NET Room. Exposes observable state
@@ -11,8 +10,9 @@ namespace PreeceMeet.Services;
 /// </summary>
 public class LiveKitService : IDisposable
 {
-    private Room? _room;
-    private bool  _disposed;
+    private Room?           _room;
+    private CaptureService? _capture;
+    private bool            _disposed;
 
     // ── Observable collections (always mutated on the UI thread) ──────────────
 
@@ -39,10 +39,19 @@ public class LiveKitService : IDisposable
 
     // ── Connect / Disconnect ──────────────────────────────────────────────────
 
-    public async Task ConnectAsync(string url, string token, CancellationToken ct = default)
+    public async Task ConnectAsync(string url, string token, AppSettings settings, CancellationToken ct = default)
     {
         if (_room is not null)
             await DisconnectAsync();
+
+        // Start capture devices before connecting.
+        _capture = new CaptureService();
+
+        try { await _capture.StartCameraAsync(settings.SelectedCameraDevice.NullIfEmpty()); }
+        catch (Exception ex) { Error?.Invoke($"Camera: {ex.Message}"); }
+
+        try { await _capture.StartMicAsync(settings.SelectedMicDevice.NullIfEmpty()); }
+        catch (Exception ex) { Error?.Invoke($"Microphone: {ex.Message}"); }
 
         _room = new Room();
 
@@ -60,6 +69,15 @@ public class LiveKitService : IDisposable
             Dynacast      = true,
         }, ct);
 
+        // Publish local tracks.
+        if (_capture.VideoTrack != null)
+            await _room.LocalParticipant.PublishTrackAsync(_capture.VideoTrack,
+                new TrackPublishOptions { Source = TrackSource.SourceCamera, Simulcast = false });
+
+        if (_capture.AudioTrack != null)
+            await _room.LocalParticipant.PublishTrackAsync(_capture.AudioTrack,
+                new TrackPublishOptions { Source = TrackSource.SourceMicrophone });
+
         // Populate participants that were already in the room.
         foreach (var (_, participant) in _room.RemoteParticipants)
             Dispatch(() => RemoteParticipants.Add(participant));
@@ -70,6 +88,11 @@ public class LiveKitService : IDisposable
         if (_room is null) return;
         try { await _room.DisconnectAsync(); } catch { /* ignore */ }
         CleanupRoom();
+        if (_capture != null)
+        {
+            await _capture.DisposeAsync();
+            _capture = null;
+        }
     }
 
     // ── Media controls ────────────────────────────────────────────────────────
@@ -81,12 +104,16 @@ public class LiveKitService : IDisposable
     public Task SetMicrophoneEnabledAsync(bool enabled)
     {
         MicEnabled = enabled;
+        if (enabled) _capture?.AudioTrack?.Unmute();
+        else         _capture?.AudioTrack?.Mute();
         return Task.CompletedTask;
     }
 
     public Task SetCameraEnabledAsync(bool enabled)
     {
         CameraEnabled = enabled;
+        if (enabled) _capture?.VideoTrack?.Unmute();
+        else         _capture?.VideoTrack?.Mute();
         return Task.CompletedTask;
     }
 
@@ -155,5 +182,14 @@ public class LiveKitService : IDisposable
         if (_disposed) return;
         _disposed = true;
         CleanupRoom();
+    }
+}
+
+namespace PreeceMeet.Services
+{
+    internal static class StringExtensions
+    {
+        public static string? NullIfEmpty(this string s) =>
+            string.IsNullOrWhiteSpace(s) ? null : s;
     }
 }
