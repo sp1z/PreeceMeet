@@ -10,9 +10,11 @@ using PreeceMeet.Models;
 /// </summary>
 public class LiveKitService : IDisposable
 {
-    private Room?           _room;
+    private Room? _room;
+    private bool  _disposed;
+#if WINDOWS10_0_17763_0_OR_GREATER
     private CaptureService? _capture;
-    private bool            _disposed;
+#endif
 
     // ── Observable collections (always mutated on the UI thread) ──────────────
 
@@ -44,6 +46,7 @@ public class LiveKitService : IDisposable
         if (_room is not null)
             await DisconnectAsync();
 
+#if WINDOWS10_0_17763_0_OR_GREATER
         // Start capture devices before connecting.
         _capture = new CaptureService();
 
@@ -55,6 +58,7 @@ public class LiveKitService : IDisposable
 
         try { await _capture.StartMicAsync(micId); }
         catch (Exception ex) { Error?.Invoke($"Microphone: {ex.Message}"); }
+#endif
 
         _room = new Room();
 
@@ -72,14 +76,16 @@ public class LiveKitService : IDisposable
             Dynacast      = true,
         }, ct);
 
+#if WINDOWS10_0_17763_0_OR_GREATER
         // Publish local tracks.
-        if (_capture.VideoTrack != null)
+        if (_capture?.VideoTrack != null)
             await _room.LocalParticipant.PublishTrackAsync(_capture.VideoTrack,
                 new TrackPublishOptions { Source = TrackSource.SourceCamera, Simulcast = false });
 
-        if (_capture.AudioTrack != null)
+        if (_capture?.AudioTrack != null)
             await _room.LocalParticipant.PublishTrackAsync(_capture.AudioTrack,
                 new TrackPublishOptions { Source = TrackSource.SourceMicrophone });
+#endif
 
         // Populate participants that were already in the room.
         foreach (var (_, participant) in _room.RemoteParticipants)
@@ -91,11 +97,13 @@ public class LiveKitService : IDisposable
         if (_room is null) return;
         try { await _room.DisconnectAsync(); } catch { /* ignore */ }
         CleanupRoom();
+#if WINDOWS10_0_17763_0_OR_GREATER
         if (_capture != null)
         {
             await _capture.DisposeAsync();
             _capture = null;
         }
+#endif
     }
 
     // ── Media controls ────────────────────────────────────────────────────────
@@ -107,16 +115,20 @@ public class LiveKitService : IDisposable
     public Task SetMicrophoneEnabledAsync(bool enabled)
     {
         MicEnabled = enabled;
+#if WINDOWS10_0_17763_0_OR_GREATER
         if (enabled) _capture?.AudioTrack?.Unmute();
         else         _capture?.AudioTrack?.Mute();
+#endif
         return Task.CompletedTask;
     }
 
     public Task SetCameraEnabledAsync(bool enabled)
     {
         CameraEnabled = enabled;
+#if WINDOWS10_0_17763_0_OR_GREATER
         if (enabled) _capture?.VideoTrack?.Unmute();
         else         _capture?.VideoTrack?.Mute();
+#endif
         return Task.CompletedTask;
     }
 

@@ -31,13 +31,15 @@ public partial class SettingsWindow : Window
 
     private async void PopulateDevices()
     {
+        CmbCamera.Items.Add("Default");
+        CmbMic.Items.Add("Default");
+
+#if WINDOWS10_0_17763_0_OR_GREATER
         // Audio devices (synchronous via NAudio)
-        CmbMic.Items.Add(new DeviceInfo("", "Default"));
         foreach (var d in CaptureService.GetAudioDevices())
             CmbMic.Items.Add(d);
 
         // Video devices (async via WinRT)
-        CmbCamera.Items.Add(new DeviceInfo("", "Default"));
         try
         {
             foreach (var d in await CaptureService.GetVideoDevicesAsync())
@@ -45,19 +47,25 @@ public partial class SettingsWindow : Window
         }
         catch { /* no camera or permission denied */ }
 
-        SelectItem(CmbCamera, _settingsService.Current.SelectedCameraDevice);
-        SelectItem(CmbMic,    _settingsService.Current.SelectedMicDevice);
+        SelectDeviceItem(CmbCamera, _settingsService.Current.SelectedCameraDevice);
+        SelectDeviceItem(CmbMic,    _settingsService.Current.SelectedMicDevice);
+#else
+        CmbCamera.SelectedIndex = 0;
+        CmbMic.SelectedIndex    = 0;
+#endif
     }
 
-    private static void SelectItem(ComboBox combo, string value)
+#if WINDOWS10_0_17763_0_OR_GREATER
+    private static void SelectDeviceItem(ComboBox combo, string value)
     {
         for (int i = 0; i < combo.Items.Count; i++)
         {
             var item = combo.Items[i] as DeviceInfo;
             if (item?.Id == value) { combo.SelectedIndex = i; return; }
         }
-        combo.SelectedIndex = 0; // fall back to Default
+        combo.SelectedIndex = 0;
     }
+#endif
 
     private void BtnSave_Click(object sender, RoutedEventArgs e)
     {
@@ -66,7 +74,7 @@ public partial class SettingsWindow : Window
         s.LastRoomName         = TxtLastRoom.Text.Trim();
         s.RememberMe           = ChkRemember.IsChecked == true;
         s.SelectedCameraDevice = (CmbCamera.SelectedItem as DeviceInfo)?.Id ?? string.Empty;
-        s.SelectedMicDevice    = (CmbMic.SelectedItem    as DeviceInfo)?.Id ?? string.Empty;
+        s.SelectedMicDevice    = (CmbMic.SelectedItem    as DeviceInfo)?.Id    ?? string.Empty;
         _settingsService.Save();
         DialogResult = true;
         Close();
