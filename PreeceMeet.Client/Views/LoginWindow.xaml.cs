@@ -58,19 +58,21 @@ public partial class LoginWindow : Window
             {
                 VerifyTotpResponse? result;
 
+                var displayName = _settingsService.Current.DisplayName;
+
                 if (loginResult.TotpSetup)
                 {
                     // First login — show QR setup window.
                     var setupWindow = new TotpSetupWindow(
                         _authService, loginResult.TempToken,
-                        loginResult.OtpUri, loginResult.TotpSecret) { Owner = this };
+                        loginResult.OtpUri, loginResult.TotpSecret, displayName) { Owner = this };
                     if (setupWindow.ShowDialog() != true || setupWindow.AuthResult is null) return;
                     result = setupWindow.AuthResult;
                 }
                 else
                 {
                     // Normal login — ask for code.
-                    var totpWindow = new TotpWindow(_authService, loginResult.TempToken) { Owner = this };
+                    var totpWindow = new TotpWindow(_authService, loginResult.TempToken, displayName) { Owner = this };
                     if (totpWindow.ShowDialog() != true || totpWindow.AuthResult is null) return;
                     result = totpWindow.AuthResult;
                 }

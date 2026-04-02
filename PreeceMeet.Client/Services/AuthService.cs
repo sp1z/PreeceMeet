@@ -24,12 +24,14 @@ public class AuthService
         return result ?? throw new InvalidOperationException("Empty response from login endpoint.");
     }
 
-    /// <summary>POST /api/auth/verify-totp?room={room}</summary>
-    public async Task<VerifyTotpResponse> VerifyTotpAsync(string tempToken, string code, string? room = null, CancellationToken ct = default)
+    /// <summary>POST /api/auth/verify-totp?room={room}&amp;name={name}</summary>
+    public async Task<VerifyTotpResponse> VerifyTotpAsync(string tempToken, string code, string? room = null, string? name = null, CancellationToken ct = default)
     {
         var url = "api/auth/verify-totp";
-        if (!string.IsNullOrWhiteSpace(room))
-            url += $"?room={Uri.EscapeDataString(room)}";
+        var qs  = new List<string>();
+        if (!string.IsNullOrWhiteSpace(room)) qs.Add($"room={Uri.EscapeDataString(room)}");
+        if (!string.IsNullOrWhiteSpace(name)) qs.Add($"name={Uri.EscapeDataString(name)}");
+        if (qs.Count > 0) url += "?" + string.Join("&", qs);
 
         var request = new VerifyTotpRequest { TempToken = tempToken, Code = code };
         var response = await _http.PostAsJsonAsync(url, request, ct);

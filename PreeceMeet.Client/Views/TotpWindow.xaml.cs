@@ -8,15 +8,17 @@ namespace PreeceMeet.Views;
 public partial class TotpWindow : Window
 {
     private readonly AuthService _authService;
-    private readonly string _tempToken;
+    private readonly string      _tempToken;
+    private readonly string?     _displayName;
     private bool _inFlight;
 
     public VerifyTotpResponse? AuthResult { get; private set; }
 
-    public TotpWindow(AuthService authService, string tempToken)
+    public TotpWindow(AuthService authService, string tempToken, string? displayName = null)
     {
         _authService = authService;
         _tempToken   = tempToken;
+        _displayName = displayName;
         InitializeComponent();
         TxtCode.Focus();
     }
@@ -53,7 +55,7 @@ public partial class TotpWindow : Window
 
         try
         {
-            AuthResult   = await _authService.VerifyTotpAsync(_tempToken, code);
+            AuthResult   = await _authService.VerifyTotpAsync(_tempToken, code, name: _displayName);
             DialogResult = true;
             Close();
         }

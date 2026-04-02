@@ -72,6 +72,7 @@ app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db, TempTok
 app.MapPost("/api/auth/verify-totp", async (
     VerifyTotpRequest req,
     string? room,
+    string? name,
     AppDbContext db,
     TempTokenStore tokens,
     LiveKitTokenService livekit) =>
@@ -106,7 +107,7 @@ app.MapPost("/api/auth/verify-totp", async (
         await db.SaveChangesAsync();
     }
 
-    var livekitToken = livekit.GenerateToken(email, room.NullIfEmpty() ?? livekitRoom);
+    var livekitToken = livekit.GenerateToken(email, room.NullIfEmpty() ?? livekitRoom, name.NullIfEmpty());
     return Results.Ok(new { livekitToken, livekitUrl });
 });
 

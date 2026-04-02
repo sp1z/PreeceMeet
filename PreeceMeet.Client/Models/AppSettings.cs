@@ -13,6 +13,9 @@ public class AppSettings
     [JsonPropertyName("savedEmail")]
     public string SavedEmail { get; set; } = string.Empty;
 
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
     [JsonPropertyName("rememberMe")]
     public bool RememberMe { get; set; } = false;
 
@@ -33,4 +36,12 @@ public class AppSettings
 
     [JsonPropertyName("selectedMicDevice")]
     public string SelectedMicDevice { get; set; } = string.Empty;
+
+    /// <summary>Participant identity → preferred grid position. Persisted per user.</summary>
+    [JsonPropertyName("participantOrder")]
+    public Dictionary<string, int> ParticipantOrder { get; set; } = new();
+
+    /// <summary>"Grid" (default) or "Strip" (single horizontal row for gaming overlay).</summary>
+    [JsonPropertyName("layoutMode")]
+    public string LayoutMode { get; set; } = "Grid";
 }

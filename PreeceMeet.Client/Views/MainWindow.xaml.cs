@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using PreeceMeet.Services;
 
 namespace PreeceMeet.Views;
@@ -107,6 +108,26 @@ public partial class MainWindow : Window
     private async void BtnDisconnect_Click(object sender, RoutedEventArgs e)
         => await DisconnectAsync();
 
+    private void BtnLayoutToggle_Click(object sender, RoutedEventArgs e)
+    {
+        bool nowStrip = _settings.Current.LayoutMode != "Strip";
+        _settings.Current.LayoutMode = nowStrip ? "Strip" : "Grid";
+        _settings.Save();
+        VideoGrid.SetStripMode(nowStrip);
+        BtnLayoutToggle.ToolTip = nowStrip ? "Switch to grid layout" : "Switch to strip layout";
+        // In strip mode make the window compact; restore on grid mode.
+        if (nowStrip)
+        {
+            Height    = 200;
+            MinHeight = 80;
+        }
+        else
+        {
+            MinHeight = 0;
+            if (Height < 400) Height = 600;
+        }
+    }
+
     private void BtnSettings_Click(object sender, RoutedEventArgs e)
     {
         var win = new SettingsWindow(_settings, _session) { Owner = this };
@@ -114,18 +135,23 @@ public partial class MainWindow : Window
             SignOutRequested?.Invoke();
     }
 
+    private static readonly SolidColorBrush _mutedBrush   = new(Color.FromRgb(0xE5, 0x39, 0x35));
+    private static readonly SolidColorBrush _defaultBrush = new(Color.FromRgb(0x3a, 0x3a, 0x5c));
+
     private async void BtnToggleMic_Click(object sender, RoutedEventArgs e)
     {
         _micMuted = !_micMuted;
         await _liveKit.SetMicrophoneEnabledAsync(!_micMuted);
-        BtnToggleMic.Content = _micMuted ? "Mic: Off" : "Mic: On";
+        BtnToggleMic.Background = _micMuted ? _mutedBrush : _defaultBrush;
+        BtnToggleMic.ToolTip    = _micMuted ? "Unmute microphone" : "Mute microphone";
     }
 
     private async void BtnToggleCam_Click(object sender, RoutedEventArgs e)
     {
         _camStopped = !_camStopped;
         await _liveKit.SetCameraEnabledAsync(!_camStopped);
-        BtnToggleCam.Content = _camStopped ? "Camera: Off" : "Camera: On";
+        BtnToggleCam.Background = _camStopped ? _mutedBrush : _defaultBrush;
+        BtnToggleCam.ToolTip    = _camStopped ? "Start camera" : "Stop camera";
     }
 
     private async void BtnHangup_Click(object sender, RoutedEventArgs e)
@@ -155,7 +181,8 @@ public partial class MainWindow : Window
             ShowStatus("Connecting...", $"Room: {roomName}");
             await _liveKit.ConnectAsync(savedSession.LiveKitUrl, savedSession.LiveKitToken, _settings.Current);
 
-            VideoGrid.Initialize(_liveKit.RemoteParticipants, _liveKit.LocalParticipant, _liveKit);
+            VideoGrid.Initialize(_liveKit.RemoteParticipants, _liveKit.LocalParticipant, _liveKit, _settings);
+            VideoGrid.SetStripMode(_settings.Current.LayoutMode == "Strip");
             _settings.Current.LastRoomName = roomName;
             _settings.Save();
 

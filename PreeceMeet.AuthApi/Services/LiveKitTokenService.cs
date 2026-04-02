@@ -21,7 +21,7 @@ public class LiveKitTokenService
     /// If roomName is null or empty the grant covers any room.
     /// Token is valid for 6 hours.
     /// </summary>
-    public string GenerateToken(string identity, string? roomName = null)
+    public string GenerateToken(string identity, string? roomName = null, string? name = null)
     {
         var grant = new VideoGrants
         {
@@ -37,6 +37,9 @@ public class LiveKitTokenService
             .WithIdentity(identity)
             .WithTtl(TimeSpan.FromHours(6))
             .WithGrants(grant);
+
+        if (!string.IsNullOrWhiteSpace(name))
+            token = token.WithName(name);
 
         return token.ToJwt();
     }

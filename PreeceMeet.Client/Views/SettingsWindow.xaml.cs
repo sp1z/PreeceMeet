@@ -23,6 +23,7 @@ public partial class SettingsWindow : Window
     private void PopulateFields()
     {
         var s = _settingsService.Current;
+        TxtDisplayName.Text   = s.DisplayName;
         TxtServerUrl.Text     = s.ServerUrl;
         TxtLastRoom.Text      = s.LastRoomName;
         ChkRemember.IsChecked = s.RememberMe;
@@ -64,6 +65,7 @@ public partial class SettingsWindow : Window
     private void BtnSave_Click(object sender, RoutedEventArgs e)
     {
         var s = _settingsService.Current;
+        s.DisplayName          = TxtDisplayName.Text.Trim();
         s.ServerUrl            = TxtServerUrl.Text.Trim();
         s.LastRoomName         = TxtLastRoom.Text.Trim();
         s.RememberMe           = ChkRemember.IsChecked == true;

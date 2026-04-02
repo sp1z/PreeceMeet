@@ -12,14 +12,16 @@ public partial class TotpSetupWindow : Window
 {
     private readonly AuthService _authService;
     private readonly string      _tempToken;
+    private readonly string?     _displayName;
     private bool _inFlight;
 
     public VerifyTotpResponse? AuthResult { get; private set; }
 
-    public TotpSetupWindow(AuthService authService, string tempToken, string otpUri, string secret)
+    public TotpSetupWindow(AuthService authService, string tempToken, string otpUri, string secret, string? displayName = null)
     {
         _authService = authService;
         _tempToken   = tempToken;
+        _displayName = displayName;
 
         InitializeComponent();
 
@@ -77,7 +79,7 @@ public partial class TotpSetupWindow : Window
 
         try
         {
-            AuthResult   = await _authService.VerifyTotpAsync(_tempToken, code);
+            AuthResult   = await _authService.VerifyTotpAsync(_tempToken, code, name: _displayName);
             DialogResult = true;
             Close();
         }

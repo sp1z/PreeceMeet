@@ -33,10 +33,11 @@ public class LiveKitService : IDisposable
     public event Action? Disconnected;
 
     // Forwarded room-level track events so UI controls can react.
-    public event EventHandler<TrackSubscribedEventArgs>?  TrackSubscribed;
-    public event EventHandler<TrackSubscribedEventArgs>?  TrackUnsubscribed;
-    public event EventHandler<TrackMutedEventArgs>?       TrackMuted;
-    public event EventHandler<TrackMutedEventArgs>?       TrackUnmuted;
+    public event EventHandler<TrackSubscribedEventArgs>?        TrackSubscribed;
+    public event EventHandler<TrackSubscribedEventArgs>?        TrackUnsubscribed;
+    public event EventHandler<TrackMutedEventArgs>?             TrackMuted;
+    public event EventHandler<TrackMutedEventArgs>?             TrackUnmuted;
+    public event EventHandler<ActiveSpeakersChangedEventArgs>?  ActiveSpeakersChanged;
 
     // ── Connect / Disconnect ──────────────────────────────────────────────────
 
@@ -66,11 +67,19 @@ public class LiveKitService : IDisposable
         _room.TrackUnsubscribed       += OnTrackUnsubscribed;
         _room.TrackMuted              += OnTrackMuted;
         _room.TrackUnmuted            += OnTrackUnmuted;
+        _room.ActiveSpeakersChanged   += OnActiveSpeakersChanged;
 
+        // E2EE — shared key so even the LiveKit server cannot decrypt media.
+        var e2eeKey = System.Text.Encoding.UTF8.GetBytes("PreeceMeet-E2EE-2025-SharedKey-v1");
         await _room.ConnectAsync(url, token, new LiveKit.Rtc.RoomOptions
         {
             AutoSubscribe = true,
             Dynacast      = true,
+            E2EE = new LiveKit.Rtc.E2EEOptions
+            {
+                KeyProviderOptions = new LiveKit.Rtc.KeyProviderOptions { SharedKey = e2eeKey },
+                EncryptionType     = LiveKit.Proto.EncryptionType.Gcm,
+            },
         }, ct);
 
         // Publish local tracks.
@@ -153,6 +162,9 @@ public class LiveKitService : IDisposable
     private void OnTrackUnmuted(object? sender, TrackMutedEventArgs e)
         => Dispatch(() => TrackUnmuted?.Invoke(sender, e));
 
+    private void OnActiveSpeakersChanged(object? sender, ActiveSpeakersChangedEventArgs e)
+        => Dispatch(() => ActiveSpeakersChanged?.Invoke(sender, e));
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void CleanupRoom()
@@ -165,6 +177,7 @@ public class LiveKitService : IDisposable
         _room.TrackUnsubscribed       -= OnTrackUnsubscribed;
         _room.TrackMuted              -= OnTrackMuted;
         _room.TrackUnmuted            -= OnTrackUnmuted;
+        _room.ActiveSpeakersChanged   -= OnActiveSpeakersChanged;
         _room.Dispose();
         _room = null;
     }

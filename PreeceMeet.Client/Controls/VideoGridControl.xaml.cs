@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
+using LiveKit.Proto;
 using LiveKit.Rtc;
 using PreeceMeet.Services;
 
@@ -12,35 +13,43 @@ namespace PreeceMeet.Controls;
 /// </summary>
 public partial class VideoGridControl : UserControl
 {
-    private readonly List<VideoTileControl>            _tiles = new();
-    private ObservableCollection<RemoteParticipant>?   _remoteParticipants;
-    private LocalParticipant?                          _localParticipant;
-    private LiveKitService?                            _service;
+    private readonly List<VideoTileControl>          _tiles = new();
+    private ObservableCollection<RemoteParticipant>? _remoteParticipants;
+    private LocalParticipant?                        _localParticipant;
+    private LiveKitService?                          _service;
+    private SettingsService?                         _settingsService;
+    private bool                                     _stripMode;
 
-    public VideoGridControl()
+    public VideoGridControl() => InitializeComponent();
+
+    public void SetStripMode(bool strip)
     {
-        InitializeComponent();
+        _stripMode = strip;
+        UpdateColumns();
     }
 
     public void Initialize(
         ObservableCollection<RemoteParticipant> remoteParticipants,
         LocalParticipant? localParticipant,
-        LiveKitService service)
+        LiveKitService service,
+        SettingsService settingsService)
     {
         Clear();
 
         _service            = service;
+        _settingsService    = settingsService;
         _remoteParticipants = remoteParticipants;
         _localParticipant   = localParticipant;
 
         _remoteParticipants.CollectionChanged += OnRemoteParticipantsChanged;
 
-        // Forward room-level track events to the appropriate tiles.
-        _service.TrackSubscribed   += OnTrackSubscribed;
-        _service.TrackUnsubscribed += OnTrackUnsubscribed;
-        _service.TrackMuted        += OnTrackMuteChanged;
-        _service.TrackUnmuted      += OnTrackMuteChanged;
+        _service.TrackSubscribed       += OnTrackSubscribed;
+        _service.TrackUnsubscribed     += OnTrackUnsubscribed;
+        _service.TrackMuted            += OnTrackMuteChanged;
+        _service.TrackUnmuted          += OnTrackMuteChanged;
+        _service.ActiveSpeakersChanged += OnActiveSpeakersChanged;
 
+        _stripMode = settingsService.Current.LayoutMode == "Strip";
         RebuildGrid();
     }
 
@@ -51,20 +60,27 @@ public partial class VideoGridControl : UserControl
 
         if (_service is not null)
         {
-            _service.TrackSubscribed   -= OnTrackSubscribed;
-            _service.TrackUnsubscribed -= OnTrackUnsubscribed;
-            _service.TrackMuted        -= OnTrackMuteChanged;
-            _service.TrackUnmuted      -= OnTrackMuteChanged;
+            _service.TrackSubscribed       -= OnTrackSubscribed;
+            _service.TrackUnsubscribed     -= OnTrackUnsubscribed;
+            _service.TrackMuted            -= OnTrackMuteChanged;
+            _service.TrackUnmuted          -= OnTrackMuteChanged;
+            _service.ActiveSpeakersChanged -= OnActiveSpeakersChanged;
         }
 
         foreach (var tile in _tiles)
+        {
+            tile.SwapRequested        -= OnSwapRequested;
+            tile.MuteLocallyRequested -= OnMuteLocallyRequested;
+            tile.PinToTopRequested    -= OnPinToTopRequested;
             tile.Unbind();
+        }
 
         _tiles.Clear();
         PART_Grid.Children.Clear();
         _remoteParticipants = null;
         _service            = null;
         _localParticipant   = null;
+        _settingsService    = null;
     }
 
     // ── Track events forwarded from LiveKitService ────────────────────────────
@@ -72,45 +88,103 @@ public partial class VideoGridControl : UserControl
     private void OnTrackSubscribed(object? sender, TrackSubscribedEventArgs e)
     {
         if (e.Track is not RemoteVideoTrack vt) return;
-        var tile = FindTile(e.Participant.Sid);
-        tile?.AttachVideo(vt);
+        FindTile(e.Participant.Sid)?.AttachVideo(vt);
     }
 
     private void OnTrackUnsubscribed(object? sender, TrackSubscribedEventArgs e)
     {
         if (e.Track is not RemoteVideoTrack) return;
-        var tile = FindTile(e.Participant.Sid);
-        tile?.DetachVideo();
+        FindTile(e.Participant.Sid)?.DetachVideo();
     }
 
     private void OnTrackMuteChanged(object? sender, TrackMutedEventArgs e)
+        => FindTile(e.Participant.Sid)?.UpdateMuteIcon();
+
+    private void OnActiveSpeakersChanged(object? sender, ActiveSpeakersChangedEventArgs e)
     {
-        var tile = FindTile(e.Participant.Sid);
-        tile?.UpdateMuteIcon();
+        var speakerSids = new HashSet<string>(e.Speakers.Select(p => p.Sid));
+        foreach (var tile in _tiles)
+            tile.SetSpeaking(tile.BoundParticipant is not null
+                          && speakerSids.Contains(tile.BoundParticipant.Sid));
+    }
+
+    // ── Tile events ───────────────────────────────────────────────────────────
+
+    private void OnSwapRequested(VideoTileControl source, VideoTileControl target)
+    {
+        int si = _tiles.IndexOf(source);
+        int ti = _tiles.IndexOf(target);
+        if (si < 0 || ti < 0) return;
+        (_tiles[si], _tiles[ti]) = (_tiles[ti], _tiles[si]);
+        RebuildGridChildren();
+        SaveOrder();
+    }
+
+    private void OnMuteLocallyRequested(VideoTileControl tile)
+    {
+        if (tile.BoundParticipant is not RemoteParticipant remote) return;
+        bool nowMuted = tile.IsLocallyMuted;
+        foreach (var pub in remote.TrackPublications.Values)
+        {
+            if (pub is RemoteTrackPublication rtp && rtp.Kind == TrackKind.KindAudio)
+                rtp.SetSubscribed(!nowMuted);
+        }
+    }
+
+    private void OnPinToTopRequested(VideoTileControl tile)
+    {
+        int idx = _tiles.IndexOf(tile);
+        if (idx <= 0) return;
+        _tiles.RemoveAt(idx);
+        _tiles.Insert(0, tile);
+        RebuildGridChildren();
+        SaveOrder();
     }
 
     // ── Grid management ───────────────────────────────────────────────────────
 
     private void RebuildGrid()
     {
-        foreach (var tile in _tiles) tile.Unbind();
+        foreach (var tile in _tiles)
+        {
+            tile.SwapRequested        -= OnSwapRequested;
+            tile.MuteLocallyRequested -= OnMuteLocallyRequested;
+            tile.PinToTopRequested    -= OnPinToTopRequested;
+            tile.Unbind();
+        }
         _tiles.Clear();
         PART_Grid.Children.Clear();
 
-        if (_localParticipant is not null)
-            AddTile(_localParticipant);
+        var order = _settingsService?.Current.ParticipantOrder ?? new();
 
+        var participants = new List<(Participant p, bool isLocal)>();
+        if (_localParticipant is not null)
+            participants.Add((_localParticipant, true));
         if (_remoteParticipants is not null)
             foreach (var p in _remoteParticipants)
-                AddTile(p);
+                participants.Add((p, false));
+
+        // Sort by persisted order; local first when no order saved.
+        participants.Sort((a, b) =>
+        {
+            int oa = order.TryGetValue(a.p.Sid, out var ia) ? ia : (a.isLocal ? -1 : int.MaxValue);
+            int ob = order.TryGetValue(b.p.Sid, out var ib) ? ib : (b.isLocal ? -1 : int.MaxValue);
+            return oa.CompareTo(ob);
+        });
+
+        foreach (var (p, isLocal) in participants)
+            AddTile(p, isLocal);
 
         UpdateColumns();
     }
 
-    private void AddTile(Participant participant)
+    private void AddTile(Participant participant, bool isLocal = false)
     {
         var tile = new VideoTileControl();
-        tile.Bind(participant);
+        tile.SwapRequested        += OnSwapRequested;
+        tile.MuteLocallyRequested += OnMuteLocallyRequested;
+        tile.PinToTopRequested    += OnPinToTopRequested;
+        tile.Bind(participant, isLocal);
         _tiles.Add(tile);
         PART_Grid.Children.Add(tile);
     }
@@ -119,10 +193,20 @@ public partial class VideoGridControl : UserControl
     {
         var tile = FindTile(participant.Sid);
         if (tile is null) return;
+        tile.SwapRequested        -= OnSwapRequested;
+        tile.MuteLocallyRequested -= OnMuteLocallyRequested;
+        tile.PinToTopRequested    -= OnPinToTopRequested;
         tile.Unbind();
         _tiles.Remove(tile);
         PART_Grid.Children.Remove(tile);
         UpdateColumns();
+    }
+
+    private void RebuildGridChildren()
+    {
+        PART_Grid.Children.Clear();
+        foreach (var tile in _tiles)
+            PART_Grid.Children.Add(tile);
     }
 
     private VideoTileControl? FindTile(string sid)
@@ -130,14 +214,36 @@ public partial class VideoGridControl : UserControl
 
     private void UpdateColumns()
     {
-        int count = _tiles.Count;
-        PART_Grid.Columns = count switch
+        if (_stripMode)
         {
-            <= 1 => 1,
-            <= 4 => 2,
-            <= 9 => 3,
-            _    => 4,
-        };
+            PART_Grid.Rows    = 1;
+            PART_Grid.Columns = 0; // UniformGrid auto-fills when Columns=0
+        }
+        else
+        {
+            PART_Grid.Rows = 0;
+            int count = _tiles.Count;
+            PART_Grid.Columns = count switch
+            {
+                <= 1 => 1,
+                <= 4 => 2,
+                <= 9 => 3,
+                _    => 4,
+            };
+        }
+    }
+
+    private void SaveOrder()
+    {
+        if (_settingsService is null) return;
+        var order = _settingsService.Current.ParticipantOrder;
+        order.Clear();
+        for (int i = 0; i < _tiles.Count; i++)
+        {
+            var sid = _tiles[i].BoundParticipant?.Sid;
+            if (sid is not null) order[sid] = i;
+        }
+        _settingsService.Save();
     }
 
     private void OnRemoteParticipantsChanged(object? sender, NotifyCollectionChangedEventArgs e)
