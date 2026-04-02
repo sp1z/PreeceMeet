@@ -3,6 +3,7 @@ using System.Windows;
 using LiveKit.Proto;
 using LiveKit.Rtc;
 using PreeceMeet.Models;
+using PreeceMeet.Services;
 
 /// <summary>
 /// Thin wrapper around the LiveKit .NET Room. Exposes observable state
@@ -10,11 +11,9 @@ using PreeceMeet.Models;
 /// </summary>
 public class LiveKitService : IDisposable
 {
-    private Room? _room;
-    private bool  _disposed;
-#if ENABLE_CAPTURE
+    private Room?           _room;
+    private bool            _disposed;
     private CaptureService? _capture;
-#endif
 
     // ── Observable collections (always mutated on the UI thread) ──────────────
 
@@ -46,7 +45,6 @@ public class LiveKitService : IDisposable
         if (_room is not null)
             await DisconnectAsync();
 
-#if ENABLE_CAPTURE
         // Start capture devices before connecting.
         _capture = new CaptureService();
 
@@ -58,7 +56,6 @@ public class LiveKitService : IDisposable
 
         try { await _capture.StartMicAsync(micId); }
         catch (Exception ex) { Error?.Invoke($"Microphone: {ex.Message}"); }
-#endif
 
         _room = new Room();
 
@@ -76,7 +73,6 @@ public class LiveKitService : IDisposable
             Dynacast      = true,
         }, ct);
 
-#if ENABLE_CAPTURE
         // Publish local tracks.
         if (_capture?.VideoTrack != null)
             await _room.LocalParticipant.PublishTrackAsync(_capture.VideoTrack,
@@ -85,7 +81,6 @@ public class LiveKitService : IDisposable
         if (_capture?.AudioTrack != null)
             await _room.LocalParticipant.PublishTrackAsync(_capture.AudioTrack,
                 new TrackPublishOptions { Source = TrackSource.SourceMicrophone });
-#endif
 
         // Populate participants that were already in the room.
         foreach (var (_, participant) in _room.RemoteParticipants)
@@ -97,38 +92,28 @@ public class LiveKitService : IDisposable
         if (_room is null) return;
         try { await _room.DisconnectAsync(); } catch { /* ignore */ }
         CleanupRoom();
-#if ENABLE_CAPTURE
         if (_capture != null)
         {
             await _capture.DisposeAsync();
             _capture = null;
         }
-#endif
     }
 
     // ── Media controls ────────────────────────────────────────────────────────
-    // Note: Livekit.Rtc.Dotnet does not have SetMicrophoneEnabledAsync /
-    // SetCameraEnabledAsync on LocalParticipant. Tracks are muted via
-    // LocalTrack.Mute() / Unmute(). Full device publish/mute is TODO once
-    // local capture is wired up.
 
     public Task SetMicrophoneEnabledAsync(bool enabled)
     {
         MicEnabled = enabled;
-#if ENABLE_CAPTURE
         if (enabled) _capture?.AudioTrack?.Unmute();
         else         _capture?.AudioTrack?.Mute();
-#endif
         return Task.CompletedTask;
     }
 
     public Task SetCameraEnabledAsync(bool enabled)
     {
         CameraEnabled = enabled;
-#if ENABLE_CAPTURE
         if (enabled) _capture?.VideoTrack?.Unmute();
         else         _capture?.VideoTrack?.Mute();
-#endif
         return Task.CompletedTask;
     }
 
@@ -199,4 +184,3 @@ public class LiveKitService : IDisposable
         CleanupRoom();
     }
 }
-

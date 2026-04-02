@@ -1,42 +1,23 @@
-#if ENABLE_CAPTURE
-using System.Runtime.InteropServices.WindowsRuntime;
 using LiveKit.Proto;
 using LiveKit.Rtc;
 using NAudio.Wave;
 using PreeceMeet.Models;
-using Windows.Devices.Enumeration;
-using Windows.Graphics.Imaging;
-using Windows.Media.Capture;
-using Windows.Media.Capture.Frames;
-using Windows.Media.Devices;
-using Windows.Media.MediaProperties;
 
 namespace PreeceMeet.Services;
 
 /// <summary>
-/// Handles camera and microphone capture, producing LiveKit VideoSource/AudioSource
-/// instances that can be used to publish local tracks.
+/// Handles microphone capture and produces a LiveKit AudioSource/AudioTrack.
+/// Camera capture is not yet implemented for the Windows desktop client.
 /// </summary>
 public class CaptureService : IAsyncDisposable
 {
-    private MediaCapture?      _mediaCapture;
-    private MediaFrameReader?  _frameReader;
-    private WaveInEvent?       _waveIn;
-    private volatile bool      _disposed;
+    private WaveInEvent? _waveIn;
+    private volatile bool _disposed;
 
-    public VideoSource?    VideoSource { get; private set; }
     public AudioSource?    AudioSource { get; private set; }
-    public LocalVideoTrack? VideoTrack { get; private set; }
     public LocalAudioTrack? AudioTrack { get; private set; }
 
     // ── Device enumeration ────────────────────────────────────────────────────
-
-    public static async Task<IReadOnlyList<DeviceInfo>> GetVideoDevicesAsync()
-    {
-        var selector = MediaDevice.GetVideoCaptureSelector();
-        var devices  = await DeviceInformation.FindAllAsync(selector);
-        return devices.Select(d => new DeviceInfo(d.Id, d.Name)).ToList();
-    }
 
     public static IReadOnlyList<DeviceInfo> GetAudioDevices()
     {
@@ -50,79 +31,18 @@ public class CaptureService : IAsyncDisposable
         return list;
     }
 
-    // ── Camera ────────────────────────────────────────────────────────────────
+    public static Task<IReadOnlyList<DeviceInfo>> GetVideoDevicesAsync()
+        => Task.FromResult<IReadOnlyList<DeviceInfo>>(Array.Empty<DeviceInfo>());
 
-    public async Task StartCameraAsync(string? deviceId = null)
+    // ── Camera (not yet implemented) ──────────────────────────────────────────
+
+    public Task StartCameraAsync(string? deviceId = null)
     {
-        var initSettings = new MediaCaptureInitializationSettings
-        {
-            StreamingCaptureMode = StreamingCaptureMode.Video,
-            MemoryPreference     = MediaCaptureMemoryPreference.Cpu,
-        };
-        if (!string.IsNullOrWhiteSpace(deviceId))
-            initSettings.VideoDeviceId = deviceId;
-
-        _mediaCapture = new MediaCapture();
-        await _mediaCapture.InitializeAsync(initSettings);
-
-        var frameSource = _mediaCapture.FrameSources.Values.FirstOrDefault(s =>
-            s.Info.MediaStreamType == MediaStreamType.VideoPreview ||
-            s.Info.MediaStreamType == MediaStreamType.VideoRecord);
-
-        if (frameSource == null)
-            throw new InvalidOperationException("No usable video frame source on this device.");
-
-        // Pick a format close to 640×480.
-        var preferred = frameSource.SupportedFormats
-            .Where(f => f.VideoFormat.Width >= 320 && f.VideoFormat.Width <= 1920)
-            .OrderBy(f => Math.Abs((int)f.VideoFormat.Width - 640))
-            .FirstOrDefault();
-        if (preferred != null)
-            await frameSource.SetFormatAsync(preferred);
-
-        int width  = (int)frameSource.CurrentFormat.VideoFormat.Width;
-        int height = (int)frameSource.CurrentFormat.VideoFormat.Height;
-
-        VideoSource = new VideoSource(width, height);
-        VideoTrack  = VideoSource.CreateTrack("camera");
-
-        _frameReader = await _mediaCapture.CreateFrameReaderAsync(
-            frameSource, MediaEncodingSubtypes.Bgra8);
-        _frameReader.FrameArrived += OnFrameArrived;
-        await _frameReader.StartAsync();
+        // Camera capture requires WinRT (Windows.Media.Capture) — not yet wired up.
+        return Task.CompletedTask;
     }
 
-    private void OnFrameArrived(MediaFrameReader reader, MediaFrameArrivedEventArgs _)
-    {
-        if (_disposed || VideoSource == null) return;
-
-        using var reference = reader.TryAcquireLatestFrame();
-        var softwareBitmap  = reference?.VideoMediaFrame?.SoftwareBitmap;
-        if (softwareBitmap == null) return;
-
-        SoftwareBitmap? converted = null;
-        try
-        {
-            if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8 ||
-                softwareBitmap.BitmapAlphaMode   != BitmapAlphaMode.Premultiplied)
-            {
-                converted      = SoftwareBitmap.Convert(softwareBitmap,
-                    BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
-                softwareBitmap = converted;
-            }
-
-            int w    = softwareBitmap.PixelWidth;
-            int h    = softwareBitmap.PixelHeight;
-            var data = new byte[w * h * 4];
-            softwareBitmap.CopyToBuffer(data.AsBuffer());
-
-            VideoSource.CaptureFrame(new VideoFrame(w, h, VideoBufferType.Bgra, data));
-        }
-        finally
-        {
-            converted?.Dispose();
-        }
-    }
+    public LocalVideoTrack? VideoTrack => null;
 
     // ── Microphone ────────────────────────────────────────────────────────────
 
@@ -157,7 +77,7 @@ public class CaptureService : IAsyncDisposable
     {
         if (_disposed || AudioSource == null || e.BytesRecorded == 0) return;
 
-        int samplesPerChannel = e.BytesRecorded / 2; // 16-bit = 2 bytes
+        int samplesPerChannel = e.BytesRecorded / 2;
         var shorts = new short[samplesPerChannel];
         Buffer.BlockCopy(e.Buffer, 0, shorts, 0, e.BytesRecorded);
         _ = AudioSource.CaptureFrameAsync(new AudioFrame(shorts, 48000, 1, samplesPerChannel));
@@ -165,18 +85,10 @@ public class CaptureService : IAsyncDisposable
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        if (_disposed) return;
+        if (_disposed) return ValueTask.CompletedTask;
         _disposed = true;
-
-        if (_frameReader != null)
-        {
-            _frameReader.FrameArrived -= OnFrameArrived;
-            await _frameReader.StopAsync();
-            _frameReader.Dispose();
-        }
-        _mediaCapture?.Dispose();
 
         if (_waveIn != null)
         {
@@ -185,10 +97,8 @@ public class CaptureService : IAsyncDisposable
             _waveIn.Dispose();
         }
 
-        VideoTrack?.Dispose();
         AudioTrack?.Dispose();
-        VideoSource?.Dispose();
         AudioSource?.Dispose();
+        return ValueTask.CompletedTask;
     }
 }
-#endif
