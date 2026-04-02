@@ -35,6 +35,10 @@
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <!-- Audio capture from microphone -->
     <PackageReference Include="NAudio" Version="2.2.1" />
+    <!-- Camera capture via DirectShow (no WinRT required) -->
+    <PackageReference Include="AForge.Video.DirectShow" Version="2.2.5" />
+    <!-- GDI+ bitmap handling for camera frames -->
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>

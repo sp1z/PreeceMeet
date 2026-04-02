@@ -1,3 +1,8 @@
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
+using AForge.Video;
+using AForge.Video.DirectShow;
 using LiveKit.Proto;
 using LiveKit.Rtc;
 using NAudio.Wave;
@@ -6,16 +11,19 @@ using PreeceMeet.Models;
 namespace PreeceMeet.Services;
 
 /// <summary>
-/// Handles microphone capture and produces a LiveKit AudioSource/AudioTrack.
-/// Camera capture is not yet implemented for the Windows desktop client.
+/// Handles camera and microphone capture and produces LiveKit tracks.
+/// Camera uses DirectShow via AForge (no WinRT); mic uses NAudio.
 /// </summary>
 public class CaptureService : IAsyncDisposable
 {
-    private WaveInEvent? _waveIn;
-    private volatile bool _disposed;
+    private WaveInEvent?        _waveIn;
+    private VideoCaptureDevice? _videoDevice;
+    private VideoSource?        _videoSource;
+    private volatile bool       _disposed;
 
-    public AudioSource?    AudioSource { get; private set; }
-    public LocalAudioTrack? AudioTrack { get; private set; }
+    public AudioSource?     AudioSource { get; private set; }
+    public LocalAudioTrack? AudioTrack  { get; private set; }
+    public LocalVideoTrack? VideoTrack  { get; private set; }
 
     // ── Device enumeration ────────────────────────────────────────────────────
 
@@ -32,17 +40,86 @@ public class CaptureService : IAsyncDisposable
     }
 
     public static Task<IReadOnlyList<DeviceInfo>> GetVideoDevicesAsync()
-        => Task.FromResult<IReadOnlyList<DeviceInfo>>(Array.Empty<DeviceInfo>());
+    {
+        var list = new List<DeviceInfo>();
+        try
+        {
+            var devices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
+            foreach (FilterInfo device in devices)
+                list.Add(new DeviceInfo(device.MonikerString, device.Name));
+        }
+        catch { /* no cameras or DirectShow unavailable */ }
+        return Task.FromResult<IReadOnlyList<DeviceInfo>>(list);
+    }
 
-    // ── Camera (not yet implemented) ──────────────────────────────────────────
+    // ── Camera ────────────────────────────────────────────────────────────────
 
     public Task StartCameraAsync(string? deviceId = null)
     {
-        // Camera capture requires WinRT (Windows.Media.Capture) — not yet wired up.
+        try
+        {
+            var devices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
+            if (devices.Count == 0) return Task.CompletedTask;
+
+            // Pick requested device or fall back to first
+            FilterInfo? info = null;
+            if (!string.IsNullOrWhiteSpace(deviceId))
+                foreach (FilterInfo d in devices)
+                    if (d.MonikerString == deviceId) { info = d; break; }
+            info ??= devices[0];
+
+            _videoDevice = new VideoCaptureDevice(info.MonikerString);
+
+            // Prefer the resolution closest to 640×480
+            var cap = _videoDevice.VideoCapabilities
+                .OrderBy(c => Math.Abs(c.FrameSize.Width - 640) + Math.Abs(c.FrameSize.Height - 480))
+                .FirstOrDefault();
+            if (cap != null)
+                _videoDevice.VideoResolution = cap;
+
+            int w = cap?.FrameSize.Width  ?? 640;
+            int h = cap?.FrameSize.Height ?? 480;
+
+            _videoSource = new VideoSource(w, h);
+            VideoTrack   = _videoSource.CreateTrack("camera");
+
+            _videoDevice.NewFrame += OnNewFrame;
+            _videoDevice.Start();
+        }
+        catch
+        {
+            // Camera unavailable — continue without video
+            _videoDevice = null;
+            _videoSource = null;
+            VideoTrack   = null;
+        }
         return Task.CompletedTask;
     }
 
-    public LocalVideoTrack? VideoTrack => null;
+    private void OnNewFrame(object sender, NewFrameEventArgs e)
+    {
+        if (_disposed || _videoSource == null) return;
+
+        Bitmap bmp = e.Frame;
+        int w = bmp.Width, h = bmp.Height;
+
+        // Lock as 32bppArgb — GDI+ stores this as BGRA bytes in memory
+        BitmapData bd = bmp.LockBits(
+            new Rectangle(0, 0, w, h),
+            ImageLockMode.ReadOnly,
+            PixelFormat.Format32bppArgb);
+        try
+        {
+            int size = Math.Abs(bd.Stride) * h;
+            byte[] data = new byte[size];
+            Marshal.Copy(bd.Scan0, data, 0, size);
+            _videoSource.CaptureFrame(new VideoFrame(w, h, VideoBufferType.Bgra, data));
+        }
+        finally
+        {
+            bmp.UnlockBits(bd);
+        }
+    }
 
     // ── Microphone ────────────────────────────────────────────────────────────
 
@@ -90,15 +167,24 @@ public class CaptureService : IAsyncDisposable
         if (_disposed) return ValueTask.CompletedTask;
         _disposed = true;
 
+        if (_videoDevice != null)
+        {
+            _videoDevice.NewFrame -= OnNewFrame;
+            _videoDevice.SignalToStop();
+            _videoDevice.WaitForStop();
+        }
+        VideoTrack?.Dispose();
+        _videoSource?.Dispose();
+
         if (_waveIn != null)
         {
             _waveIn.DataAvailable -= OnAudioData;
             _waveIn.StopRecording();
             _waveIn.Dispose();
         }
-
         AudioTrack?.Dispose();
         AudioSource?.Dispose();
+
         return ValueTask.CompletedTask;
     }
 }
