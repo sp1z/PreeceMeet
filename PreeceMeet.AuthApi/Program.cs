@@ -16,8 +16,9 @@ string Cfg(string key) =>
 var adminKey      = Cfg("ADMIN_KEY");
 var livekitApiKey = Cfg("LIVEKIT_API_KEY");
 var livekitSecret = Cfg("LIVEKIT_SECRET");
-var livekitUrl    = Cfg("LIVEKIT_URL").NullIfEmpty() ?? "wss://meet.russellpreece.com";
-var dbPath        = Cfg("DB_PATH").NullIfEmpty()     ?? "/data/preecemeet.db";
+var livekitUrl    = Cfg("LIVEKIT_URL").NullIfEmpty()  ?? "wss://meet.russellpreece.com";
+var livekitRoom   = Cfg("LIVEKIT_ROOM").NullIfEmpty() ?? "preecemeet";
+var dbPath        = Cfg("DB_PATH").NullIfEmpty()      ?? "/data/preecemeet.db";
 
 // ── Services ──────────────────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@ app.MapPost("/api/auth/verify-totp", async (
         await db.SaveChangesAsync();
     }
 
-    var livekitToken = livekit.GenerateToken(email, room);
+    var livekitToken = livekit.GenerateToken(email, room.NullIfEmpty() ?? livekitRoom);
     return Results.Ok(new { livekitToken, livekitUrl });
 });
 
