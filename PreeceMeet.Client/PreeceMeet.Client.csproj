@@ -17,6 +17,7 @@
     <Description>Native LiveKit video conferencing client for meet.russellpreece.com</Description>
     <Copyright>Copyright © 2025 sp1z</Copyright>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <SelfContained>false</SelfContained>
     <Platforms>AnyCPU</Platforms>
   </PropertyGroup>
