@@ -184,7 +184,9 @@ public partial class VideoGridControl : UserControl
         tile.SwapRequested        += OnSwapRequested;
         tile.MuteLocallyRequested += OnMuteLocallyRequested;
         tile.PinToTopRequested    += OnPinToTopRequested;
-        tile.Bind(participant, isLocal);
+        // For the local tile, use the configured display name if the JWT has no name yet.
+        var nameOverride = isLocal ? _settingsService?.Current.DisplayName : null;
+        tile.Bind(participant, isLocal, nameOverride);
         _tiles.Add(tile);
         PART_Grid.Children.Add(tile);
     }

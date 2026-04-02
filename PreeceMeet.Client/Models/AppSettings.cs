@@ -44,4 +44,7 @@ public class AppSettings
     /// <summary>"Grid" (default) or "Strip" (single horizontal row for gaming overlay).</summary>
     [JsonPropertyName("layoutMode")]
     public string LayoutMode { get; set; } = "Grid";
+
+    [JsonPropertyName("adminKey")]
+    public string AdminKey { get; set; } = string.Empty;
 }

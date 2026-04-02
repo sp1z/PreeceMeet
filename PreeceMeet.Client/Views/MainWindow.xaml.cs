@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     private readonly SessionService   _session;
     private readonly AuthService      _auth;
     private readonly UrlSchemeService _urlScheme;
+    private readonly AdminService     _adminService;
 
     private bool _micMuted   = false;
     private bool _camStopped = false;
@@ -29,11 +30,12 @@ public partial class MainWindow : Window
         AuthService auth,
         UrlSchemeService urlScheme)
     {
-        _liveKit   = liveKit;
-        _settings  = settings;
-        _session   = session;
-        _auth      = auth;
-        _urlScheme = urlScheme;
+        _liveKit      = liveKit;
+        _settings     = settings;
+        _session      = session;
+        _auth         = auth;
+        _urlScheme    = urlScheme;
+        _adminService = new AdminService(settings.Current.ServerUrl);
 
         InitializeComponent();
         var ver = Assembly.GetExecutingAssembly().GetName().Version;
@@ -41,6 +43,11 @@ public partial class MainWindow : Window
         RestoreWindowBounds();
 
         TxtRoomName.Text = _settings.Current.LastRoomName;
+
+        // Show admin button for @russellpreece.com accounts.
+        var email = _session.Load()?.Email ?? string.Empty;
+        if (email.EndsWith("@russellpreece.com", StringComparison.OrdinalIgnoreCase))
+            BtnAdmin.Visibility = Visibility.Visible;
 
         _liveKit.Disconnected        += OnLiveKitDisconnected;
         _urlScheme.RoomJoinRequested += OnRoomJoinRequested;
@@ -110,6 +117,12 @@ public partial class MainWindow : Window
 
     private async void BtnDisconnect_Click(object sender, RoutedEventArgs e)
         => await DisconnectAsync();
+
+    private void BtnAdmin_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new AdminWindow(_adminService, _settings) { Owner = this };
+        win.ShowDialog();
+    }
 
     private void BtnLayoutToggle_Click(object sender, RoutedEventArgs e)
     {

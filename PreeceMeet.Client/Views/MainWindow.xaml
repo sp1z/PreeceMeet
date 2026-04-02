@@ -32,6 +32,10 @@
                 <Button x:Name="BtnLayoutToggle" Content="≡" FontSize="16"
                         Background="Transparent" Foreground="#DDD"
                         ToolTip="Switch to strip layout" Click="BtnLayoutToggle_Click"/>
+                <Button x:Name="BtnAdmin" Content="Admin" FontSize="12"
+                        Background="Transparent" Foreground="#DDD"
+                        Visibility="Collapsed"
+                        ToolTip="User management" Click="BtnAdmin_Click"/>
                 <Button x:Name="BtnSettings" Content="⚙" FontSize="16"
                         Background="Transparent" Foreground="#DDD"
                         ToolTip="Settings" Click="BtnSettings_Click"/>

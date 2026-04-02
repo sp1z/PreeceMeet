@@ -52,6 +52,23 @@ public class VerifyTotpResponse
     public string LiveKitUrl { get; set; } = string.Empty;
 }
 
+// ── Admin ─────────────────────────────────────────────────────────────────────
+
+public class UserInfo
+{
+    [JsonPropertyName("email")]
+    public string Email { get; set; } = string.Empty;
+
+    [JsonPropertyName("totpConfigured")]
+    public bool TotpConfigured { get; set; }
+
+    [JsonPropertyName("createdAt")]
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public string TotpStatus     => TotpConfigured ? "✓ Set up" : "— Pending";
+    public string CreatedDisplay => CreatedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm");
+}
+
 // ── Session (persisted after successful auth) ─────────────────────────────────
 
 public class SavedSession

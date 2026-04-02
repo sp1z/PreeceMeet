@@ -111,6 +111,40 @@ app.MapPost("/api/auth/verify-totp", async (
     return Results.Ok(new { livekitToken, livekitUrl });
 });
 
+// ── Admin: list users ─────────────────────────────────────────────────────────
+
+app.MapGet("/api/admin/users", async (HttpContext ctx, AppDbContext db) =>
+{
+    if (!ctx.Request.Headers.TryGetValue("X-Admin-Key", out var key) || key != adminKey)
+        return Results.Unauthorized();
+
+    var users = await db.Users
+        .OrderBy(u => u.Email)
+        .Select(u => new { u.Email, u.TotpConfigured, u.CreatedAt })
+        .ToListAsync();
+
+    return Results.Ok(users);
+});
+
+// ── Admin: change password ────────────────────────────────────────────────────
+
+app.MapPatch("/api/admin/users/{email}/password", async (string email, ChangePasswordRequest req, HttpContext ctx, AppDbContext db) =>
+{
+    if (!ctx.Request.Headers.TryGetValue("X-Admin-Key", out var key) || key != adminKey)
+        return Results.Unauthorized();
+
+    if (string.IsNullOrWhiteSpace(req.Password))
+        return Results.BadRequest(new { error = "Password is required." });
+
+    var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
+    if (user is null)
+        return Results.NotFound(new { error = "User not found." });
+
+    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.Password);
+    await db.SaveChangesAsync();
+    return Results.Ok(new { message = "Password updated." });
+});
+
 // ── Admin: create user ────────────────────────────────────────────────────────
 
 app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpContext ctx, AppDbContext db) =>
@@ -193,6 +227,7 @@ app.Run();
 record LoginRequest(string Email, string Password);
 record VerifyTotpRequest(string TempToken, string Code);
 record CreateUserRequest(string Email, string Password);
+record ChangePasswordRequest(string Password);
 
 // ── String helper ─────────────────────────────────────────────────────────────
 

@@ -31,13 +31,14 @@ public partial class VideoTileControl : UserControl
         InitializeComponent();
     }
 
-    public void Bind(Participant participant, bool isLocal = false)
+    public void Bind(Participant participant, bool isLocal = false, string? displayNameOverride = null)
     {
         Unbind();
         _participant = participant;
         _isLocal     = isLocal;
 
-        PART_NameLabel.Text = DisplayName(participant);
+        PART_NameLabel.Text = !string.IsNullOrWhiteSpace(displayNameOverride)
+            ? displayNameOverride : DisplayName(participant);
         var initial = PART_NameLabel.Text.Length > 0
             ? PART_NameLabel.Text[0].ToString().ToUpperInvariant() : "?";
         PART_AvatarInitial.Text = initial;

@@ -1,0 +1,69 @@
+<Window x:Class="PreeceMeet.Views.AdminWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="User Management"
+        Width="640" Height="480"
+        MinWidth="480" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Segoe UI"
+        TextOptions.TextFormattingMode="Display">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Admin key row -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,12">
+            <Label Content="Admin Key:" VerticalAlignment="Center" Padding="0,0,8,0" DockPanel.Dock="Left"/>
+            <Button Content="Reload" Width="72" DockPanel.Dock="Right" Margin="8,0,0,0"
+                    Click="BtnReload_Click"/>
+            <PasswordBox x:Name="TxtAdminKey" VerticalContentAlignment="Center"/>
+        </DockPanel>
+
+        <!-- Error bar -->
+        <TextBlock Grid.Row="1" x:Name="TxtError"
+                   Foreground="#FF5252" TextWrapping="Wrap"
+                   Margin="0,0,0,8" Visibility="Collapsed"/>
+
+        <!-- User list -->
+        <DataGrid Grid.Row="2"
+                  x:Name="UsersGrid"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  SelectionMode="Single"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column"
+                  SelectionChanged="UsersGrid_SelectionChanged">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Email"   Binding="{Binding Email}"          Width="*"/>
+                <DataGridTextColumn Header="TOTP"    Binding="{Binding TotpStatus}"     Width="90"/>
+                <DataGridTextColumn Header="Created" Binding="{Binding CreatedDisplay}" Width="140"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Status -->
+        <TextBlock Grid.Row="3" x:Name="TxtStatus"
+                   Foreground="#888" FontSize="11"
+                   Margin="0,6,0,0" Visibility="Collapsed"/>
+
+        <!-- Action buttons -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,12,0,0">
+            <Button x:Name="BtnAdd"            Content="Add User"        Padding="12,5" Margin="0,0,8,0"
+                    Click="BtnAdd_Click"/>
+            <Button x:Name="BtnChangePassword" Content="Change Password" Padding="12,5" Margin="0,0,8,0"
+                    IsEnabled="False" Click="BtnChangePassword_Click"/>
+            <Button x:Name="BtnResetTotp"      Content="Reset TOTP"      Padding="12,5" Margin="0,0,8,0"
+                    IsEnabled="False" Click="BtnResetTotp_Click"/>
+            <Button x:Name="BtnDelete"         Content="Delete"          Padding="12,5"
+                    IsEnabled="False" Background="{StaticResource DangerRed}"
+                    Click="BtnDelete_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
