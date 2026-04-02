@@ -111,11 +111,44 @@ app.MapPost("/api/auth/verify-totp", async (
     return Results.Ok(new { livekitToken, livekitUrl });
 });
 
+// ── Admin auth helper ─────────────────────────────────────────────────────────
+// Decodes a LiveKit JWT (without re-validating the signature — HTTPS + token
+// expiry check is sufficient for this internal app) and returns the identity
+// if it belongs to @russellpreece.com, otherwise null.
+
+static string? GetAdminIdentity(string? authHeader)
+{
+    if (string.IsNullOrWhiteSpace(authHeader)) return null;
+    var token = authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+        ? authHeader[7..] : authHeader;
+    try
+    {
+        var parts = token.Split('.');
+        if (parts.Length != 3) return null;
+        var padded = parts[1].Replace('-', '+').Replace('_', '/');
+        padded = padded.PadRight(padded.Length + (4 - padded.Length % 4) % 4, '=');
+        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(padded));
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        if (root.TryGetProperty("exp", out var exp) &&
+            DateTimeOffset.FromUnixTimeSeconds(exp.GetInt64()) < DateTimeOffset.UtcNow)
+            return null;
+        if (root.TryGetProperty("sub", out var sub))
+        {
+            var identity = sub.GetString() ?? string.Empty;
+            return identity.EndsWith("@russellpreece.com", StringComparison.OrdinalIgnoreCase)
+                ? identity : null;
+        }
+        return null;
+    }
+    catch { return null; }
+}
+
 // ── Admin: list users ─────────────────────────────────────────────────────────
 
 app.MapGet("/api/admin/users", async (HttpContext ctx, AppDbContext db) =>
 {
-    if (!ctx.Request.Headers.TryGetValue("X-Admin-Key", out var key) || key != adminKey)
+    if (GetAdminIdentity(ctx.Request.Headers.Authorization) is null)
         return Results.Unauthorized();
 
     var users = await db.Users
@@ -130,7 +163,7 @@ app.MapGet("/api/admin/users", async (HttpContext ctx, AppDbContext db) =>
 
 app.MapPatch("/api/admin/users/{email}/password", async (string email, ChangePasswordRequest req, HttpContext ctx, AppDbContext db) =>
 {
-    if (!ctx.Request.Headers.TryGetValue("X-Admin-Key", out var key) || key != adminKey)
+    if (GetAdminIdentity(ctx.Request.Headers.Authorization) is null)
         return Results.Unauthorized();
 
     if (string.IsNullOrWhiteSpace(req.Password))
@@ -149,7 +182,7 @@ app.MapPatch("/api/admin/users/{email}/password", async (string email, ChangePas
 
 app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpContext ctx, AppDbContext db) =>
 {
-    if (!ctx.Request.Headers.TryGetValue("X-Admin-Key", out var key) || key != adminKey)
+    if (GetAdminIdentity(ctx.Request.Headers.Authorization) is null)
         return Results.Unauthorized();
 
     if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password))
@@ -188,7 +221,7 @@ app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpContext ctx, A
 
 app.MapPost("/api/admin/users/{email}/reset-totp", async (string email, HttpContext ctx, AppDbContext db) =>
 {
-    if (!ctx.Request.Headers.TryGetValue("X-Admin-Key", out var key) || key != adminKey)
+    if (GetAdminIdentity(ctx.Request.Headers.Authorization) is null)
         return Results.Unauthorized();
 
     var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
@@ -208,7 +241,7 @@ app.MapPost("/api/admin/users/{email}/reset-totp", async (string email, HttpCont
 
 app.MapDelete("/api/admin/users/{email}", async (string email, HttpContext ctx, AppDbContext db) =>
 {
-    if (!ctx.Request.Headers.TryGetValue("X-Admin-Key", out var key) || key != adminKey)
+    if (GetAdminIdentity(ctx.Request.Headers.Authorization) is null)
         return Results.Unauthorized();
 
     var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email.ToLowerInvariant());

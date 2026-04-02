@@ -38,7 +38,8 @@ public partial class MainWindow : Window
         _session      = session;
         _auth         = auth;
         _urlScheme    = urlScheme;
-        _adminService = new AdminService(settings.Current.ServerUrl);
+        var livekitToken = session.Load()?.LiveKitToken ?? string.Empty;
+        _adminService = new AdminService(settings.Current.ServerUrl, livekitToken);
 
         InitializeComponent();
         var ver = Assembly.GetExecutingAssembly().GetName().Version;
@@ -167,7 +168,7 @@ public partial class MainWindow : Window
 
     private void BtnAdmin_Click(object sender, RoutedEventArgs e)
     {
-        var win = new AdminWindow(_adminService, _settings) { Owner = this };
+        var win = new AdminWindow(_adminService) { Owner = this };
         win.ShowDialog();
     }
 

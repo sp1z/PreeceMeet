@@ -195,5 +195,10 @@ public class LiveKitService : IDisposable
         if (_disposed) return;
         _disposed = true;
         CleanupRoom();
+        if (_capture != null)
+        {
+            _capture.DisposeAsync().GetAwaiter().GetResult();
+            _capture = null;
+        }
     }
 }
