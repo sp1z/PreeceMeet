@@ -3,6 +3,7 @@ using PreeceMeet.Models;
 using PreeceMeet.Services;
 using PreeceMeet.Views;
 using Velopack;
+using Velopack.Sources;
 
 namespace PreeceMeet;
 
@@ -84,6 +85,9 @@ public partial class App : Application
         _mainWindow.SignOutRequested += OnSignOutRequested;
         _mainWindow.Show();
 
+        // Check for updates silently in the background.
+        _ = CheckAndApplyUpdatesAsync();
+
         // If launched from a URL scheme, join the specified room immediately.
         if (urlRoomName is not null)
             _mainWindow.JoinRoom(urlRoomName);
@@ -117,6 +121,29 @@ public partial class App : Application
         });
 
         return true;
+    }
+
+    // ── Auto-update ───────────────────────────────────────────────────────────
+
+    private async Task CheckAndApplyUpdatesAsync()
+    {
+        try
+        {
+            var mgr = new UpdateManager(new GithubSource("https://github.com/sp1z/PreeceMeet", null, false));
+            if (!mgr.IsInstalled) return; // skip in dev/portable mode
+
+            var updateInfo = await mgr.CheckForUpdatesAsync();
+            if (updateInfo == null) return;
+
+            _mainWindow?.ShowUpdateStatus("Update available, downloading...");
+            await mgr.DownloadUpdatesAsync(updateInfo,
+                p => _mainWindow?.ShowUpdateStatus($"Downloading update... {p}%"));
+
+            _mainWindow?.ShowUpdateStatus("Restarting to apply update...");
+            await Task.Delay(1500);
+            mgr.ApplyUpdatesAndRestart(updateInfo.TargetFullRelease);
+        }
+        catch { /* update failures are non-critical */ }
     }
 
     // ── Sign-out ──────────────────────────────────────────────────────────────

@@ -17,6 +17,9 @@ public partial class MainWindow : Window
 
     public event Action? SignOutRequested;
 
+    public void ShowUpdateStatus(string msg)
+        => Dispatcher.Invoke(() => TxtUpdateStatus.Text = msg);
+
     public MainWindow(
         LiveKitService liveKit,
         SettingsService settings,

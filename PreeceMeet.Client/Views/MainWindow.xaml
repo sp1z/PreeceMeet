@@ -59,7 +59,17 @@
 
         <!-- Call controls -->
         <StatusBar Grid.Row="2">
-            <StatusBarItem HorizontalAlignment="Center" HorizontalContentAlignment="Center">
+            <StatusBar.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                    </Grid>
+                </ItemsPanelTemplate>
+            </StatusBar.ItemsPanel>
+            <StatusBarItem Grid.Column="0" HorizontalAlignment="Center" HorizontalContentAlignment="Center">
                 <StackPanel Orientation="Horizontal"
                             IsEnabled="{Binding ElementName=BtnDisconnect, Path=IsVisible}">
                     <Button x:Name="BtnToggleMic" Content="Mic: On" Margin="0,0,8,0"
@@ -70,6 +80,10 @@
                             Background="Firebrick" BorderBrush="DarkRed"
                             ToolTip="Leave call" Click="BtnHangup_Click"/>
                 </StackPanel>
+            </StatusBarItem>
+            <StatusBarItem Grid.Column="1">
+                <TextBlock x:Name="TxtUpdateStatus" Text="" Foreground="#888"
+                           FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center"/>
             </StatusBarItem>
         </StatusBar>
     </Grid>
