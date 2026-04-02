@@ -6,43 +6,70 @@
         MinWidth="200"
         FontFamily="Segoe UI"
         TextOptions.TextFormattingMode="Display"
-        Closing="Window_Closing">
+        Closing="Window_Closing"
+        KeyDown="Window_KeyDown">
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition x:Name="RowTop"      Height="Auto"/>
+            <RowDefinition                       Height="*"/>
+            <RowDefinition x:Name="RowControls" Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Toolbar -->
-        <ToolBarTray Grid.Row="0" IsLocked="True">
-            <ToolBar>
-                <TextBlock Text="PreeceMeet" FontWeight="SemiBold" VerticalAlignment="Center"
-                           Margin="0,0,12,0"/>
-                <Separator/>
-                <TextBox x:Name="TxtRoomName" Width="240" VerticalContentAlignment="Center"
-                         ToolTip="Room name" KeyDown="TxtRoomName_KeyDown"/>
-                <Button x:Name="BtnJoin" Content="Join" Margin="4,0,0,0"
-                        Background="{StaticResource AccentBlue}"
-                        ToolTip="Join the room" Click="BtnJoin_Click"/>
-                <!-- BtnDisconnect kept for IsVisible binding on call controls panel -->
-                <Button x:Name="BtnDisconnect" Visibility="Collapsed"/>
-                <Separator/>
-                <Button x:Name="BtnLayoutToggle" Content="≡" FontSize="16"
-                        Background="Transparent" Foreground="#DDD"
-                        ToolTip="Switch to strip layout" Click="BtnLayoutToggle_Click"/>
-                <Button x:Name="BtnAdmin" Content="Admin" FontSize="12"
-                        Background="Transparent" Foreground="#DDD"
-                        Visibility="Collapsed"
-                        ToolTip="User management" Click="BtnAdmin_Click"/>
-                <Button x:Name="BtnSettings" Content="⚙" FontSize="16"
-                        Background="Transparent" Foreground="#DDD"
-                        ToolTip="Settings" Click="BtnSettings_Click"/>
-            </ToolBar>
-        </ToolBarTray>
+        <!-- ── Top bar ──────────────────────────────────────────────────────── -->
+        <Border x:Name="PnlTopBar" Grid.Row="0" Background="#12121e" Padding="8,5">
+            <DockPanel>
+                <!-- App name -->
+                <TextBlock Text="PreeceMeet" FontWeight="SemiBold" Foreground="#ccc"
+                           FontSize="13" VerticalAlignment="Center"
+                           Margin="0,0,12,0" DockPanel.Dock="Left"/>
 
-        <!-- Video area -->
+                <!-- Right-side utility buttons -->
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
+                    <Button x:Name="BtnHideUI"
+                            Content="&#xE70D;"
+                            FontFamily="Segoe MDL2 Assets" FontSize="14"
+                            Background="Transparent" Foreground="#888"
+                            ToolTip="Hide toolbars (click top edge to restore)"
+                            Margin="0,0,4,0" Click="BtnHideUI_Click"/>
+                    <Button x:Name="BtnFullscreen"
+                            Content="&#xE740;"
+                            FontFamily="Segoe MDL2 Assets" FontSize="14"
+                            Background="Transparent" Foreground="#888"
+                            ToolTip="Full screen (F11)"
+                            Margin="0,0,4,0" Click="BtnFullscreen_Click"/>
+                    <Button x:Name="BtnLayoutToggle"
+                            Content="&#xE8A9;"
+                            FontFamily="Segoe MDL2 Assets" FontSize="14"
+                            Background="Transparent" Foreground="#888"
+                            ToolTip="Switch to strip layout"
+                            Margin="0,0,4,0" Click="BtnLayoutToggle_Click"/>
+                    <Button x:Name="BtnAdmin" Content="Admin" FontSize="11"
+                            Background="Transparent" Foreground="#888"
+                            Visibility="Collapsed"
+                            ToolTip="User management"
+                            Margin="0,0,4,0" Click="BtnAdmin_Click"/>
+                    <Button x:Name="BtnSettings"
+                            Content="&#xE713;"
+                            FontFamily="Segoe MDL2 Assets" FontSize="14"
+                            Background="Transparent" Foreground="#888"
+                            ToolTip="Settings" Click="BtnSettings_Click"/>
+                </StackPanel>
+
+                <!-- Room name + join (centre fills remaining space) -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox x:Name="TxtRoomName" Width="200" VerticalContentAlignment="Center"
+                             ToolTip="Room name" KeyDown="TxtRoomName_KeyDown"/>
+                    <Button x:Name="BtnJoin" Content="Join" Margin="6,0,0,0"
+                            Background="{StaticResource AccentBlue}"
+                            ToolTip="Join the room" Click="BtnJoin_Click"/>
+                    <!-- Hidden flag for call-controls enabled binding -->
+                    <Button x:Name="BtnDisconnect" Visibility="Collapsed"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Video area ────────────────────────────────────────────────────── -->
         <Border Grid.Row="1" Background="Black">
             <Grid>
                 <StackPanel x:Name="PnlEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center">
@@ -66,15 +93,14 @@
             </Grid>
         </Border>
 
-        <!-- Call controls -->
-        <Border Grid.Row="2" Background="#12121e" Padding="0,8">
+        <!-- ── Call controls ─────────────────────────────────────────────────── -->
+        <Border x:Name="PnlCallControls" Grid.Row="2" Background="#12121e" Padding="0,8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Circle call buttons — centred -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
                             IsEnabled="{Binding ElementName=BtnDisconnect, Path=IsVisible}">
@@ -98,12 +124,22 @@
                             Click="BtnHangup_Click"/>
                 </StackPanel>
 
-                <!-- Update status — right-aligned -->
                 <TextBlock Grid.Column="1"
                            x:Name="TxtUpdateStatus" Text=""
                            Foreground="#666" FontSize="11"
                            Margin="0,0,12,0" VerticalAlignment="Center"/>
             </Grid>
         </Border>
+
+        <!-- ── Reveal strip (shown when toolbars hidden, click to restore) ───── -->
+        <Border x:Name="PnlRevealBar"
+                Grid.Row="0" Grid.RowSpan="3"
+                VerticalAlignment="Top" Height="6"
+                Background="#40FFFFFF"
+                Cursor="Hand"
+                Visibility="Collapsed"
+                IsHitTestVisible="True"
+                MouseLeftButtonDown="PnlRevealBar_Click"
+                ToolTip="Click to restore toolbars"/>
     </Grid>
 </Window>

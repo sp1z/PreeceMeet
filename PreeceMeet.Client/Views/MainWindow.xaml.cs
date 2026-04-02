@@ -15,8 +15,11 @@ public partial class MainWindow : Window
     private readonly UrlSchemeService _urlScheme;
     private readonly AdminService     _adminService;
 
-    private bool _micMuted   = false;
-    private bool _camStopped = false;
+    private bool         _micMuted      = false;
+    private bool         _camStopped    = false;
+    private bool         _uiHidden      = false;
+    private WindowState  _preFullscreen = WindowState.Normal;
+    private WindowStyle  _preFullscreenStyle = WindowStyle.SingleBorderWindow;
 
     public event Action? SignOutRequested;
 
@@ -117,6 +120,50 @@ public partial class MainWindow : Window
 
     private async void BtnDisconnect_Click(object sender, RoutedEventArgs e)
         => await DisconnectAsync();
+
+    // ── Full screen ───────────────────────────────────────────────────────────
+
+    private void BtnFullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
+
+    private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.F11) ToggleFullscreen();
+    }
+
+    private void ToggleFullscreen()
+    {
+        if (WindowStyle == WindowStyle.None && WindowState == WindowState.Maximized)
+        {
+            WindowStyle = _preFullscreenStyle;
+            WindowState = _preFullscreen;
+            BtnFullscreen.Content = "\uE740";
+            BtnFullscreen.ToolTip = "Full screen (F11)";
+        }
+        else
+        {
+            _preFullscreen      = WindowState;
+            _preFullscreenStyle = WindowStyle;
+            WindowStyle = WindowStyle.None;
+            WindowState = WindowState.Maximized;
+            BtnFullscreen.Content = "\uE923";
+            BtnFullscreen.ToolTip = "Exit full screen (F11)";
+        }
+    }
+
+    // ── Hide / show UI ────────────────────────────────────────────────────────
+
+    private void BtnHideUI_Click(object sender, RoutedEventArgs e) => SetUIHidden(true);
+
+    private void PnlRevealBar_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) => SetUIHidden(false);
+
+    private void SetUIHidden(bool hide)
+    {
+        _uiHidden = hide;
+        var vis = hide ? Visibility.Collapsed : Visibility.Visible;
+        PnlTopBar.Visibility      = vis;
+        PnlCallControls.Visibility = vis;
+        PnlRevealBar.Visibility   = hide ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private void BtnAdmin_Click(object sender, RoutedEventArgs e)
     {
