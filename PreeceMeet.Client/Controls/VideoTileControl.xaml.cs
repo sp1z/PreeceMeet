@@ -59,7 +59,7 @@ public partial class VideoTileControl : UserControl
     {
         DetachVideo();
         _videoStreamCts = new CancellationTokenSource();
-        _ = ConsumeVideoStreamAsync(VideoStream.FromTrack(track, format: null, capacity: 0), _videoStreamCts.Token);
+        _ = ConsumeVideoStreamAsync(VideoStream.FromTrack(track, format: VideoBufferType.Bgra, capacity: 0), _videoStreamCts.Token);
         PART_AvatarOverlay.Visibility = Visibility.Collapsed;
         PART_VideoImage.Visibility    = Visibility.Visible;
     }
@@ -96,7 +96,7 @@ public partial class VideoTileControl : UserControl
     {
         DetachVideo();
         _videoStreamCts = new CancellationTokenSource();
-        _ = ConsumeVideoStreamAsync(VideoStream.FromTrack(track, format: null, capacity: 0), _videoStreamCts.Token);
+        _ = ConsumeVideoStreamAsync(VideoStream.FromTrack(track, format: VideoBufferType.Bgra, capacity: 0), _videoStreamCts.Token);
         PART_AvatarOverlay.Visibility = Visibility.Collapsed;
         PART_VideoImage.Visibility    = Visibility.Visible;
     }

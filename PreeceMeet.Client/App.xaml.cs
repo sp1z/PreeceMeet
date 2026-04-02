@@ -81,6 +81,7 @@ public partial class App : Application
         // Show main window.
         _mainWindow = new MainWindow(_liveKit, _settings, _session, _auth, _urlScheme);
         MainWindow  = _mainWindow;
+        _mainWindow.SignOutRequested += OnSignOutRequested;
         _mainWindow.Show();
 
         // If launched from a URL scheme, join the specified room immediately.
@@ -116,6 +117,26 @@ public partial class App : Application
         });
 
         return true;
+    }
+
+    // ── Sign-out ──────────────────────────────────────────────────────────────
+
+    private async void OnSignOutRequested()
+    {
+        // Disconnect from any active call first.
+        if (_liveKit is not null)
+            await _liveKit.DisconnectAsync();
+
+        _mainWindow?.Hide();
+
+        if (await RunLoginFlowAsync())
+        {
+            _mainWindow?.Show();
+        }
+        else
+        {
+            Current.Shutdown();
+        }
     }
 
     // ── IPC / URL scheme ──────────────────────────────────────────────────────

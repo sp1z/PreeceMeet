@@ -15,6 +15,8 @@ public partial class MainWindow : Window
     private bool _micMuted   = false;
     private bool _camStopped = false;
 
+    public event Action? SignOutRequested;
+
     public MainWindow(
         LiveKitService liveKit,
         SettingsService settings,
@@ -106,7 +108,7 @@ public partial class MainWindow : Window
     {
         var win = new SettingsWindow(_settings, _session) { Owner = this };
         if (win.ShowDialog() == true && win.SessionCleared)
-            Application.Current.Shutdown();
+            SignOutRequested?.Invoke();
     }
 
     private async void BtnToggleMic_Click(object sender, RoutedEventArgs e)
