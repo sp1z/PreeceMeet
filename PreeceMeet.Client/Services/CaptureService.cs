@@ -1,4 +1,4 @@
-#if WINDOWS10_0_17763_0_OR_GREATER
+#if ENABLE_CAPTURE
 using System.Runtime.InteropServices.WindowsRuntime;
 using LiveKit.Proto;
 using LiveKit.Rtc;

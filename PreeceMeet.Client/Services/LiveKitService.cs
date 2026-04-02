@@ -12,7 +12,7 @@ public class LiveKitService : IDisposable
 {
     private Room? _room;
     private bool  _disposed;
-#if WINDOWS10_0_17763_0_OR_GREATER
+#if ENABLE_CAPTURE
     private CaptureService? _capture;
 #endif
 
@@ -46,7 +46,7 @@ public class LiveKitService : IDisposable
         if (_room is not null)
             await DisconnectAsync();
 
-#if WINDOWS10_0_17763_0_OR_GREATER
+#if ENABLE_CAPTURE
         // Start capture devices before connecting.
         _capture = new CaptureService();
 
@@ -76,7 +76,7 @@ public class LiveKitService : IDisposable
             Dynacast      = true,
         }, ct);
 
-#if WINDOWS10_0_17763_0_OR_GREATER
+#if ENABLE_CAPTURE
         // Publish local tracks.
         if (_capture?.VideoTrack != null)
             await _room.LocalParticipant.PublishTrackAsync(_capture.VideoTrack,
@@ -97,7 +97,7 @@ public class LiveKitService : IDisposable
         if (_room is null) return;
         try { await _room.DisconnectAsync(); } catch { /* ignore */ }
         CleanupRoom();
-#if WINDOWS10_0_17763_0_OR_GREATER
+#if ENABLE_CAPTURE
         if (_capture != null)
         {
             await _capture.DisposeAsync();
@@ -115,7 +115,7 @@ public class LiveKitService : IDisposable
     public Task SetMicrophoneEnabledAsync(bool enabled)
     {
         MicEnabled = enabled;
-#if WINDOWS10_0_17763_0_OR_GREATER
+#if ENABLE_CAPTURE
         if (enabled) _capture?.AudioTrack?.Unmute();
         else         _capture?.AudioTrack?.Mute();
 #endif
@@ -125,7 +125,7 @@ public class LiveKitService : IDisposable
     public Task SetCameraEnabledAsync(bool enabled)
     {
         CameraEnabled = enabled;
-#if WINDOWS10_0_17763_0_OR_GREATER
+#if ENABLE_CAPTURE
         if (enabled) _capture?.VideoTrack?.Unmute();
         else         _capture?.VideoTrack?.Mute();
 #endif

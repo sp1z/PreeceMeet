@@ -34,7 +34,7 @@ public partial class SettingsWindow : Window
         CmbCamera.Items.Add("Default");
         CmbMic.Items.Add("Default");
 
-#if WINDOWS10_0_17763_0_OR_GREATER
+#if ENABLE_CAPTURE
         // Audio devices (synchronous via NAudio)
         foreach (var d in CaptureService.GetAudioDevices())
             CmbMic.Items.Add(d);
@@ -55,7 +55,7 @@ public partial class SettingsWindow : Window
 #endif
     }
 
-#if WINDOWS10_0_17763_0_OR_GREATER
+#if ENABLE_CAPTURE
     private static void SelectDeviceItem(ComboBox combo, string value)
     {
         for (int i = 0; i < combo.Items.Count; i++)
