@@ -47,10 +47,13 @@ public class LiveKitService : IDisposable
         // Start capture devices before connecting.
         _capture = new CaptureService();
 
-        try { await _capture.StartCameraAsync(settings.SelectedCameraDevice.NullIfEmpty()); }
+        var camId = string.IsNullOrWhiteSpace(settings.SelectedCameraDevice) ? null : settings.SelectedCameraDevice;
+        var micId = string.IsNullOrWhiteSpace(settings.SelectedMicDevice)    ? null : settings.SelectedMicDevice;
+
+        try { await _capture.StartCameraAsync(camId); }
         catch (Exception ex) { Error?.Invoke($"Camera: {ex.Message}"); }
 
-        try { await _capture.StartMicAsync(settings.SelectedMicDevice.NullIfEmpty()); }
+        try { await _capture.StartMicAsync(micId); }
         catch (Exception ex) { Error?.Invoke($"Microphone: {ex.Message}"); }
 
         _room = new Room();
@@ -185,11 +188,3 @@ public class LiveKitService : IDisposable
     }
 }
 
-namespace PreeceMeet.Services
-{
-    internal static class StringExtensions
-    {
-        public static string? NullIfEmpty(this string s) =>
-            string.IsNullOrWhiteSpace(s) ? null : s;
-    }
-}
