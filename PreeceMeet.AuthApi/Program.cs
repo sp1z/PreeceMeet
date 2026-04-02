@@ -28,6 +28,9 @@ builder.Services.AddDbContext<AppDbContext>(opts =>
 builder.Services.AddSingleton<TempTokenStore>();
 builder.Services.AddSingleton(new LiveKitTokenService(livekitApiKey, livekitSecret));
 
+var livekitHttpUrl = livekitUrl.Replace("wss://", "https://").Replace("ws://", "http://");
+var roomService    = new RoomServiceClient(livekitHttpUrl, livekitApiKey, livekitSecret);
+
 var app = builder.Build();
 
 // ── Ensure DB exists ──────────────────────────────────────────────────────────
@@ -111,6 +114,33 @@ app.MapPost("/api/auth/verify-totp", async (
     return Results.Ok(new { livekitToken, livekitUrl });
 });
 
+// ── Auth helpers ──────────────────────────────────────────────────────────────
+// Decode a LiveKit JWT without re-verifying the signature — HTTPS + expiry check
+// is sufficient for this private internal app.
+
+/// Any valid non-expired JWT sub (used for room endpoints).
+static string? GetIdentity(string? authHeader)
+{
+    if (string.IsNullOrWhiteSpace(authHeader)) return null;
+    var token = authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+        ? authHeader[7..] : authHeader;
+    try
+    {
+        var parts = token.Split('.');
+        if (parts.Length != 3) return null;
+        var padded = parts[1].Replace('-', '+').Replace('_', '/');
+        padded = padded.PadRight(padded.Length + (4 - padded.Length % 4) % 4, '=');
+        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(padded));
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        if (root.TryGetProperty("exp", out var exp) &&
+            DateTimeOffset.FromUnixTimeSeconds(exp.GetInt64()) < DateTimeOffset.UtcNow)
+            return null;
+        return root.TryGetProperty("sub", out var sub) ? sub.GetString() : null;
+    }
+    catch { return null; }
+}
+
 // ── Admin auth helper ─────────────────────────────────────────────────────────
 // Decodes a LiveKit JWT (without re-validating the signature — HTTPS + token
 // expiry check is sufficient for this internal app) and returns the identity
@@ -143,6 +173,50 @@ static string? GetAdminIdentity(string? authHeader)
     }
     catch { return null; }
 }
+
+// ── Rooms: list ───────────────────────────────────────────────────────────────
+
+app.MapGet("/api/rooms", async (HttpContext ctx) =>
+{
+    if (GetIdentity(ctx.Request.Headers.Authorization) is null)
+        return Results.Unauthorized();
+
+    try
+    {
+        var listResp = await roomService.ListRooms(new Livekit.ListRoomsRequest());
+        var result   = new List<object>();
+
+        foreach (var room in listResp.Rooms)
+        {
+            var partResp = await roomService.ListParticipants(
+                new Livekit.ListParticipantsRequest { Room = room.Name });
+            var names = partResp.Participants.Select(p =>
+                string.IsNullOrWhiteSpace(p.Name) ? p.Identity : p.Name).ToList();
+            result.Add(new { name = room.Name, numParticipants = room.NumParticipants, participantNames = names });
+        }
+
+        return Results.Ok(result);
+    }
+    catch
+    {
+        return Results.Ok(Array.Empty<object>());
+    }
+});
+
+// ── Rooms: get token for a specific room ──────────────────────────────────────
+
+app.MapGet("/api/rooms/token", (HttpContext ctx, string? room, string? name, LiveKitTokenService livekit) =>
+{
+    var identity = GetIdentity(ctx.Request.Headers.Authorization);
+    if (identity is null)
+        return Results.Unauthorized();
+
+    if (string.IsNullOrWhiteSpace(room))
+        return Results.BadRequest(new { error = "room is required." });
+
+    var token = livekit.GenerateToken(identity, room, name.NullIfEmpty());
+    return Results.Ok(new { livekitToken = token, livekitUrl });
+});
 
 // ── Admin: list users ─────────────────────────────────────────────────────────
 

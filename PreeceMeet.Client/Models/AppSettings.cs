@@ -44,4 +44,23 @@ public class AppSettings
     /// <summary>"Grid" (default) or "Strip" (single horizontal row for gaming overlay).</summary>
     [JsonPropertyName("layoutMode")]
     public string LayoutMode { get; set; } = "Grid";
+
+    [JsonPropertyName("sidebarVisible")]
+    public bool SidebarVisible { get; set; } = true;
+
+    /// <summary>Configured channels shown in the sidebar.</summary>
+    [JsonPropertyName("channels")]
+    public List<ChannelConfig> Channels { get; set; } = new()
+    {
+        new ChannelConfig { Name = "preecemeet", DisplayName = "General" },
+    };
+}
+
+public class ChannelConfig
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
 }

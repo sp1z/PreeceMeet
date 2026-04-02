@@ -9,6 +9,17 @@
         <SolidColorBrush x:Key="MutedGray"     Color="#3a3a5c"/>
         <SolidColorBrush x:Key="SpeakingGreen" Color="#00C853"/>
 
+        <!-- ── Sidebar colours ─────────────────────────────────────────────── -->
+        <SolidColorBrush x:Key="SidebarBg"     Color="#1e1f2e"/>
+        <SolidColorBrush x:Key="SidebarHover"  Color="#2a2b3d"/>
+        <SolidColorBrush x:Key="SidebarActive" Color="#2f3050"/>
+        <SolidColorBrush x:Key="TextMuted"     Color="#72748c"/>
+        <SolidColorBrush x:Key="TextPrimary"   Color="#e3e5e8"/>
+        <SolidColorBrush x:Key="OnlineDot"     Color="#23d18b"/>
+
+        <!-- ── Converters ──────────────────────────────────────────────────── -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
         <!-- ── Default rounded Button ──────────────────────────────────────── -->
         <Style TargetType="Button">
             <Setter Property="Padding"          Value="12,5"/>

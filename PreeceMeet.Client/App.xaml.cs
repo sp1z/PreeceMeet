@@ -15,6 +15,7 @@ public partial class App : Application
     private readonly UrlSchemeService _urlScheme  = new();
     private LiveKitService?           _liveKit;
     private AuthService?              _auth;
+    private RoomService?              _roomService;
     private MainWindow?               _mainWindow;
 
     // ── Entry point ───────────────────────────────────────────────────────────
@@ -65,8 +66,9 @@ public partial class App : Application
         _urlScheme.RoomJoinRequested += OnRoomJoinRequested;
 
         // Initialise services.
-        _auth    = new AuthService(_settings.Current.ServerUrl);
-        _liveKit = new LiveKitService();
+        _auth        = new AuthService(_settings.Current.ServerUrl);
+        _liveKit     = new LiveKitService();
+        _roomService = new RoomService(_settings, _session);
 
         // Try to reuse saved session; fall back to login UI.
         var session = _session.Load();
@@ -79,8 +81,12 @@ public partial class App : Application
             }
         }
 
+        // Seed sidebar channels from settings, then start background polling.
+        _roomService.RebuildFromSettings();
+        _roomService.Start();
+
         // Show main window.
-        _mainWindow = new MainWindow(_liveKit, _settings, _session, _auth, _urlScheme);
+        _mainWindow = new MainWindow(_liveKit, _settings, _session, _auth, _urlScheme, _roomService);
         MainWindow  = _mainWindow;
         _mainWindow.SignOutRequested += OnSignOutRequested;
         _mainWindow.Show();
@@ -96,6 +102,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _urlScheme.Dispose();
+        _roomService?.Dispose();
         _liveKit?.Dispose();
         base.OnExit(e);
     }

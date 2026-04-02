@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using PreeceMeet.Models;
 using PreeceMeet.Services;
 
 namespace PreeceMeet.Views;
@@ -14,12 +15,15 @@ public partial class MainWindow : Window
     private readonly AuthService      _auth;
     private readonly UrlSchemeService _urlScheme;
     private readonly AdminService     _adminService;
+    private readonly RoomService      _roomService;
 
-    private bool         _micMuted      = false;
-    private bool         _camStopped    = false;
-    private bool         _uiHidden      = false;
-    private WindowState  _preFullscreen = WindowState.Normal;
-    private WindowStyle  _preFullscreenStyle = WindowStyle.SingleBorderWindow;
+    private bool        _micMuted      = false;
+    private bool        _camStopped    = false;
+    private bool        _uiHidden      = false;
+    private WindowState _preFullscreen = WindowState.Normal;
+    private WindowStyle _preFullscreenStyle = WindowStyle.SingleBorderWindow;
+
+    private ChannelInfo? _activeChannel;
 
     public event Action? SignOutRequested;
 
@@ -31,25 +35,37 @@ public partial class MainWindow : Window
         SettingsService settings,
         SessionService session,
         AuthService auth,
-        UrlSchemeService urlScheme)
+        UrlSchemeService urlScheme,
+        RoomService roomService)
     {
         _liveKit      = liveKit;
         _settings     = settings;
         _session      = session;
         _auth         = auth;
         _urlScheme    = urlScheme;
+        _roomService  = roomService;
+
         var livekitToken = session.Load()?.LiveKitToken ?? string.Empty;
         _adminService = new AdminService(settings.Current.ServerUrl, livekitToken);
 
         InitializeComponent();
+
         var ver = Assembly.GetExecutingAssembly().GetName().Version;
         Title = ver is not null ? $"PreeceMeet v{ver.Major}.{ver.Minor}.{ver.Build}" : "PreeceMeet";
+
         RestoreWindowBounds();
 
-        TxtRoomName.Text = _settings.Current.LastRoomName;
+        // Sidebar
+        Sidebar.BindChannels(_roomService.Channels);
+        var email = session.Load()?.Email ?? string.Empty;
+        Sidebar.SetUser(email);
+        Sidebar.ChannelJoinRequested  += OnChannelJoinRequested;
+        Sidebar.AddChannelRequested   += OnAddChannelRequested;
+
+        // Apply saved sidebar visibility.
+        SetSidebarVisible(_settings.Current.SidebarVisible);
 
         // Show admin button for @russellpreece.com accounts.
-        var email = _session.Load()?.Email ?? string.Empty;
         if (email.EndsWith("@russellpreece.com", StringComparison.OrdinalIgnoreCase))
             BtnAdmin.Visibility = Visibility.Visible;
 
@@ -57,19 +73,18 @@ public partial class MainWindow : Window
         _urlScheme.RoomJoinRequested += OnRoomJoinRequested;
     }
 
+    // ── Join from URL scheme ──────────────────────────────────────────────────
+
     public void JoinRoom(string roomName)
     {
-        Dispatcher.Invoke(() =>
-        {
-            TxtRoomName.Text = roomName;
-            _ = ConnectAsync(roomName);
-        });
+        Dispatcher.Invoke(() => _ = ConnectToChannelAsync(roomName));
     }
+
+    // ── Window lifecycle ──────────────────────────────────────────────────────
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
         SaveWindowBounds();
-        _settings.Current.LastRoomName = TxtRoomName.Text.Trim();
         _settings.Save();
         _ = _liveKit.DisconnectAsync();
     }
@@ -110,26 +125,46 @@ public partial class MainWindow : Window
         s.WindowTop    = Top;
     }
 
-    private async void BtnJoin_Click(object sender, RoutedEventArgs e)
-        => await ConnectAsync(TxtRoomName.Text.Trim());
+    // ── Keyboard shortcuts ────────────────────────────────────────────────────
 
-    private void TxtRoomName_KeyDown(object sender, KeyEventArgs e)
+    private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == Key.Return)
-            _ = ConnectAsync(TxtRoomName.Text.Trim());
+        if (e.Key == Key.F11)
+        {
+            ToggleFullscreen();
+            return;
+        }
+
+        if (e.KeyboardDevice.Modifiers == ModifierKeys.Control)
+        {
+            switch (e.Key)
+            {
+                case Key.M: _ = ToggleMicAsync();  e.Handled = true; break;
+                case Key.E: _ = ToggleCamAsync();  e.Handled = true; break;
+                case Key.D: _ = DisconnectAsync(); e.Handled = true; break;
+            }
+        }
     }
 
-    private async void BtnDisconnect_Click(object sender, RoutedEventArgs e)
-        => await DisconnectAsync();
+    // ── Top-bar buttons ───────────────────────────────────────────────────────
+
+    private void BtnToggleSidebar_Click(object sender, RoutedEventArgs e)
+    {
+        var visible = ColSidebar.Width.Value == 0;
+        SetSidebarVisible(visible);
+        _settings.Current.SidebarVisible = visible;
+        _settings.Save();
+    }
+
+    private void SetSidebarVisible(bool visible)
+    {
+        ColSidebar.Width   = visible ? new GridLength(200) : new GridLength(0);
+        Sidebar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     // ── Full screen ───────────────────────────────────────────────────────────
 
     private void BtnFullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
-
-    private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
-    {
-        if (e.Key == System.Windows.Input.Key.F11) ToggleFullscreen();
-    }
 
     private void ToggleFullscreen()
     {
@@ -161,16 +196,20 @@ public partial class MainWindow : Window
     {
         _uiHidden = hide;
         var vis = hide ? Visibility.Collapsed : Visibility.Visible;
-        PnlTopBar.Visibility      = vis;
+        PnlTopBar.Visibility       = vis;
         PnlCallControls.Visibility = vis;
-        PnlRevealBar.Visibility   = hide ? Visibility.Visible : Visibility.Collapsed;
+        PnlRevealBar.Visibility    = hide ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    // ── Admin ─────────────────────────────────────────────────────────────────
 
     private void BtnAdmin_Click(object sender, RoutedEventArgs e)
     {
         var win = new AdminWindow(_adminService) { Owner = this };
         win.ShowDialog();
     }
+
+    // ── Layout toggle ─────────────────────────────────────────────────────────
 
     private void BtnLayoutToggle_Click(object sender, RoutedEventArgs e)
     {
@@ -179,7 +218,6 @@ public partial class MainWindow : Window
         _settings.Save();
         VideoGrid.SetStripMode(nowStrip);
         BtnLayoutToggle.ToolTip = nowStrip ? "Switch to grid layout" : "Switch to strip layout";
-        // In strip mode make the window compact; restore on grid mode.
         if (nowStrip)
         {
             Height    = 200;
@@ -192,63 +230,117 @@ public partial class MainWindow : Window
         }
     }
 
+    // ── Settings ──────────────────────────────────────────────────────────────
+
     private void BtnSettings_Click(object sender, RoutedEventArgs e)
     {
         var win = new SettingsWindow(_settings, _session) { Owner = this };
-        if (win.ShowDialog() == true && win.SessionCleared)
-            SignOutRequested?.Invoke();
+        if (win.ShowDialog() == true)
+        {
+            if (win.SessionCleared)
+            {
+                SignOutRequested?.Invoke();
+            }
+            else
+            {
+                // Channels may have changed — rebuild sidebar list.
+                _roomService.RebuildFromSettings();
+            }
+        }
     }
+
+    // ── Mic / cam ─────────────────────────────────────────────────────────────
 
     private static readonly SolidColorBrush _mutedBrush   = new(Color.FromRgb(0xE5, 0x39, 0x35));
     private static readonly SolidColorBrush _defaultBrush = new(Color.FromRgb(0x3a, 0x3a, 0x5c));
 
-    private async void BtnToggleMic_Click(object sender, RoutedEventArgs e)
+    private async void BtnToggleMic_Click(object sender, RoutedEventArgs e) => await ToggleMicAsync();
+    private async void BtnToggleCam_Click(object sender, RoutedEventArgs e) => await ToggleCamAsync();
+
+    private async Task ToggleMicAsync()
     {
         _micMuted = !_micMuted;
         await _liveKit.SetMicrophoneEnabledAsync(!_micMuted);
         BtnToggleMic.Background = _micMuted ? _mutedBrush : _defaultBrush;
-        BtnToggleMic.ToolTip    = _micMuted ? "Unmute microphone" : "Mute microphone";
+        BtnToggleMic.ToolTip    = _micMuted ? "Unmute microphone (Ctrl+M)" : "Mute microphone (Ctrl+M)";
     }
 
-    private async void BtnToggleCam_Click(object sender, RoutedEventArgs e)
+    private async Task ToggleCamAsync()
     {
         _camStopped = !_camStopped;
         await _liveKit.SetCameraEnabledAsync(!_camStopped);
         BtnToggleCam.Background = _camStopped ? _mutedBrush : _defaultBrush;
-        BtnToggleCam.ToolTip    = _camStopped ? "Start camera" : "Stop camera";
+        BtnToggleCam.ToolTip    = _camStopped ? "Start camera (Ctrl+E)" : "Stop camera (Ctrl+E)";
     }
 
-    private async void BtnHangup_Click(object sender, RoutedEventArgs e)
-        => await DisconnectAsync();
+    // ── Hang up ───────────────────────────────────────────────────────────────
 
-    private async Task ConnectAsync(string roomName)
+    private async void BtnHangup_Click(object sender, RoutedEventArgs e) => await DisconnectAsync();
+
+    // ── Channel sidebar events ────────────────────────────────────────────────
+
+    private void OnChannelJoinRequested(ChannelInfo ch)
     {
-        if (string.IsNullOrEmpty(roomName))
+        if (_activeChannel?.Name == ch.Name) return; // already there
+        _ = ConnectToChannelAsync(ch.Name);
+    }
+
+    private void OnAddChannelRequested()
+    {
+        var dlg = new AddChannelDialog { Owner = this };
+        if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.ChannelName)) return;
+
+        var name = dlg.ChannelName.Trim().ToLowerInvariant();
+        var display = string.IsNullOrWhiteSpace(dlg.DisplayName) ? name : dlg.DisplayName.Trim();
+
+        if (_settings.Current.Channels.Any(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
         {
-            MessageBox.Show("Please enter a room name.", "PreeceMeet", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("That channel already exists.", "PreeceMeet", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        ShowStatus("Connecting...", $"Room: {roomName}");
+        _settings.Current.Channels.Add(new ChannelConfig { Name = name, DisplayName = display });
+        _settings.Save();
+        _roomService.RebuildFromSettings();
+    }
+
+    // ── Connect / disconnect ──────────────────────────────────────────────────
+
+    private async Task ConnectToChannelAsync(string channelName)
+    {
+        ShowStatus("Connecting...", $"#{channelName}");
 
         try
         {
-            var savedSession = _session.Load();
-            if (savedSession is null || string.IsNullOrEmpty(savedSession.LiveKitToken))
+            var displayName = _settings.Current.DisplayName.NullIfEmpty();
+            var tokenResp   = await _roomService.GetRoomTokenAsync(channelName, displayName);
+
+            if (tokenResp is null || string.IsNullOrEmpty(tokenResp.LiveKitToken))
             {
-                MessageBox.Show("No active session. Please restart and log in again.",
-                    "PreeceMeet", MessageBoxButton.OK, MessageBoxImage.Warning);
                 HideStatus();
+                MessageBox.Show("Could not obtain a room token. Please check your connection.",
+                    "PreeceMeet", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            ShowStatus("Connecting...", $"Room: {roomName}");
-            await _liveKit.ConnectAsync(savedSession.LiveKitUrl, savedSession.LiveKitToken, _settings.Current);
+            if (_activeChannel is not null)
+            {
+                await _liveKit.DisconnectAsync();
+                VideoGrid.Clear();
+            }
+
+            await _liveKit.ConnectAsync(tokenResp.LiveKitUrl, tokenResp.LiveKitToken, _settings.Current);
+
+            // Update sidebar active state.
+            var ch = _roomService.Channels.FirstOrDefault(c =>
+                c.Name.Equals(channelName, StringComparison.OrdinalIgnoreCase));
+            _activeChannel = ch;
+            Sidebar.SetActiveChannel(ch);
+
+            TxtCurrentRoom.Text = $"#{channelName}";
 
             VideoGrid.Initialize(_liveKit.RemoteParticipants, _liveKit.LocalParticipant, _liveKit, _settings);
             VideoGrid.SetStripMode(_settings.Current.LayoutMode == "Strip");
-            _settings.Current.LastRoomName = roomName;
-            _settings.Save();
 
             SetConnectedState(true);
             HideStatus();
@@ -266,21 +358,31 @@ public partial class MainWindow : Window
     {
         await _liveKit.DisconnectAsync();
         VideoGrid.Clear();
+        Sidebar.SetActiveChannel(null);
+        _activeChannel = null;
+        TxtCurrentRoom.Text = "No active call";
         SetConnectedState(false);
     }
 
     private void OnLiveKitDisconnected()
-        => Dispatcher.Invoke(() => { VideoGrid.Clear(); SetConnectedState(false); });
+        => Dispatcher.Invoke(() =>
+        {
+            VideoGrid.Clear();
+            Sidebar.SetActiveChannel(null);
+            _activeChannel = null;
+            TxtCurrentRoom.Text = "No active call";
+            SetConnectedState(false);
+        });
 
     private void OnRoomJoinRequested(string roomName)
-        => Dispatcher.Invoke(() => { Activate(); TxtRoomName.Text = roomName; _ = ConnectAsync(roomName); });
+        => Dispatcher.Invoke(() => { Activate(); _ = ConnectToChannelAsync(roomName); });
 
     private void SetConnectedState(bool connected)
     {
-        BtnDisconnect.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
-        PnlEmptyState.Visibility = connected ? Visibility.Collapsed : Visibility.Visible;
-        VideoGrid.Visibility     = connected ? Visibility.Visible : Visibility.Collapsed;
-        BtnJoin.IsEnabled        = !connected;
+        BtnHangup.IsEnabled          = connected;
+        PnlEmptyState.Visibility     = connected ? Visibility.Collapsed : Visibility.Visible;
+        VideoGrid.Visibility         = connected ? Visibility.Visible   : Visibility.Collapsed;
+        BtnDisconnect.Visibility     = connected ? Visibility.Visible   : Visibility.Collapsed;
     }
 
     private void ShowStatus(string title, string subtitle = "")
@@ -293,4 +395,12 @@ public partial class MainWindow : Window
 
     private void HideStatus()
         => PnlStatus.Visibility = Visibility.Collapsed;
+}
+
+// ── String helper ─────────────────────────────────────────────────────────────
+
+static class StringExtensions2
+{
+    public static string? NullIfEmpty(this string? s) =>
+        string.IsNullOrWhiteSpace(s) ? null : s;
 }

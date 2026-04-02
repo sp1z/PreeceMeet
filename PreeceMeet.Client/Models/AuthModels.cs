@@ -52,6 +52,29 @@ public class VerifyTotpResponse
     public string LiveKitUrl { get; set; } = string.Empty;
 }
 
+// ── Rooms ─────────────────────────────────────────────────────────────────────
+
+public class RoomInfo
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("numParticipants")]
+    public int NumParticipants { get; set; }
+
+    [JsonPropertyName("participantNames")]
+    public List<string> ParticipantNames { get; set; } = new();
+}
+
+public class RoomTokenResponse
+{
+    [JsonPropertyName("livekitToken")]
+    public string LiveKitToken { get; set; } = string.Empty;
+
+    [JsonPropertyName("livekitUrl")]
+    public string LiveKitUrl { get; set; } = string.Empty;
+}
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 
 public class UserInfo

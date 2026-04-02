@@ -3,26 +3,36 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:PreeceMeet.Controls"
         Title="PreeceMeet v?"
-        MinWidth="200"
+        MinWidth="300"
         FontFamily="Segoe UI"
         TextOptions.TextFormattingMode="Display"
+        Background="#1a1b2e"
         Closing="Window_Closing"
         KeyDown="Window_KeyDown">
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition x:Name="RowTop"      Height="Auto"/>
-            <RowDefinition                       Height="*"/>
-            <RowDefinition x:Name="RowControls" Height="Auto"/>
+            <RowDefinition Height="Auto"/>  <!-- top bar -->
+            <RowDefinition Height="*"/>     <!-- content -->
+            <RowDefinition Height="Auto"/>  <!-- call controls -->
         </Grid.RowDefinitions>
 
         <!-- ── Top bar ──────────────────────────────────────────────────────── -->
         <Border x:Name="PnlTopBar" Grid.Row="0" Background="#12121e" Padding="8,5">
             <DockPanel>
-                <!-- App name -->
-                <TextBlock Text="PreeceMeet" FontWeight="SemiBold" Foreground="#ccc"
-                           FontSize="13" VerticalAlignment="Center"
-                           Margin="0,0,12,0" DockPanel.Dock="Left"/>
+                <!-- Hamburger to toggle sidebar -->
+                <Button x:Name="BtnToggleSidebar"
+                        Content="&#xE700;"
+                        FontFamily="Segoe MDL2 Assets" FontSize="14"
+                        Background="Transparent" Foreground="#888"
+                        DockPanel.Dock="Left"
+                        ToolTip="Toggle sidebar"
+                        Margin="0,0,8,0" Click="BtnToggleSidebar_Click"/>
+
+                <!-- Current room name -->
+                <TextBlock x:Name="TxtCurrentRoom" Text="No active call"
+                           FontSize="13" FontWeight="SemiBold" Foreground="#ccc"
+                           VerticalAlignment="Center" DockPanel.Dock="Left"/>
 
                 <!-- Right-side utility buttons -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
@@ -55,43 +65,43 @@
                             Background="Transparent" Foreground="#888"
                             ToolTip="Settings" Click="BtnSettings_Click"/>
                 </StackPanel>
-
-                <!-- Room name + join (centre fills remaining space) -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBox x:Name="TxtRoomName" Width="200" VerticalContentAlignment="Center"
-                             ToolTip="Room name" KeyDown="TxtRoomName_KeyDown"/>
-                    <Button x:Name="BtnJoin" Content="Join" Margin="6,0,0,0"
-                            Background="{StaticResource AccentBlue}"
-                            ToolTip="Join the room" Click="BtnJoin_Click"/>
-                    <!-- Hidden flag for call-controls enabled binding -->
-                    <Button x:Name="BtnDisconnect" Visibility="Collapsed"/>
-                </StackPanel>
             </DockPanel>
         </Border>
 
-        <!-- ── Video area ────────────────────────────────────────────────────── -->
-        <Border Grid.Row="1" Background="Black">
-            <Grid>
-                <StackPanel x:Name="PnlEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <TextBlock Text="No active call" FontSize="20" Foreground="#666"
-                               HorizontalAlignment="Center"/>
-                    <TextBlock Text="Enter a room name above and press Join."
-                               FontSize="13" Foreground="#444"
-                               HorizontalAlignment="Center" Margin="0,8,0,0"/>
-                </StackPanel>
+        <!-- ── Content: sidebar + video ─────────────────────────────────────── -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="ColSidebar" Width="200"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-                <controls:VideoGridControl x:Name="VideoGrid" Visibility="Collapsed"/>
+            <!-- ── Sidebar ────────────────────────────────────────────────── -->
+            <controls:ChannelSidebarControl x:Name="Sidebar" Grid.Column="0"/>
 
-                <Border x:Name="PnlStatus" Background="#CC000000" Visibility="Collapsed">
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                        <TextBlock x:Name="TxtStatus" Text="Connecting..." FontSize="20"
-                                   Foreground="White" HorizontalAlignment="Center"/>
-                        <TextBlock x:Name="TxtStatusSub" Text="" FontSize="13"
-                                   Foreground="#aaa" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+            <!-- ── Video area ─────────────────────────────────────────────── -->
+            <Border Grid.Column="1" Background="#0d0d1a">
+                <Grid>
+                    <StackPanel x:Name="PnlEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <TextBlock Text="Select a channel to join" FontSize="20" Foreground="#555"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="Or click a channel in the sidebar to start a call."
+                                   FontSize="13" Foreground="#3a3a3a"
+                                   HorizontalAlignment="Center" Margin="0,8,0,0"/>
                     </StackPanel>
-                </Border>
-            </Grid>
-        </Border>
+
+                    <controls:VideoGridControl x:Name="VideoGrid" Visibility="Collapsed"/>
+
+                    <Border x:Name="PnlStatus" Background="#CC000000" Visibility="Collapsed">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock x:Name="TxtStatus" Text="Connecting..." FontSize="20"
+                                       Foreground="White" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="TxtStatusSub" Text="" FontSize="13"
+                                       Foreground="#aaa" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
 
         <!-- ── Call controls ─────────────────────────────────────────────────── -->
         <Border x:Name="PnlCallControls" Grid.Row="2" Background="#12121e" Padding="0,8">
@@ -102,26 +112,26 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal"
-                            HorizontalAlignment="Center" VerticalAlignment="Center"
-                            IsEnabled="{Binding ElementName=BtnDisconnect, Path=IsVisible}">
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Button x:Name="BtnToggleMic"
                             Style="{StaticResource CircleButton}"
                             Content="&#xE720;"
-                            ToolTip="Mute microphone"
+                            ToolTip="Mute microphone (Ctrl+M)"
                             Click="BtnToggleMic_Click"
                             Margin="0,0,16,0"/>
                     <Button x:Name="BtnToggleCam"
                             Style="{StaticResource CircleButton}"
                             Content="&#xE722;"
-                            ToolTip="Stop camera"
+                            ToolTip="Stop camera (Ctrl+E)"
                             Click="BtnToggleCam_Click"
                             Margin="0,0,16,0"/>
                     <Button x:Name="BtnHangup"
                             Style="{StaticResource CircleButton}"
                             Background="{StaticResource DangerRed}"
                             Content="&#xE778;"
-                            ToolTip="Leave call"
-                            Click="BtnHangup_Click"/>
+                            ToolTip="Leave call (Ctrl+D)"
+                            Click="BtnHangup_Click"
+                            IsEnabled="False"/>
                 </StackPanel>
 
                 <TextBlock Grid.Column="1"
@@ -131,7 +141,7 @@
             </Grid>
         </Border>
 
-        <!-- ── Reveal strip (shown when toolbars hidden, click to restore) ───── -->
+        <!-- ── Reveal strip (shown when toolbars hidden) ────────────────────── -->
         <Border x:Name="PnlRevealBar"
                 Grid.Row="0" Grid.RowSpan="3"
                 VerticalAlignment="Top" Height="6"
@@ -141,5 +151,8 @@
                 IsHitTestVisible="True"
                 MouseLeftButtonDown="PnlRevealBar_Click"
                 ToolTip="Click to restore toolbars"/>
+
+        <!-- Hidden sentinel used by call-controls IsEnabled binding -->
+        <Button x:Name="BtnDisconnect" Visibility="Collapsed" Grid.Row="0"/>
     </Grid>
 </Window>
