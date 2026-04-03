@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'PreeceMeet.Tauri/**'
+      - '.github/workflows/build-tauri.yml'
   workflow_dispatch:
 
 permissions:
