@@ -140,10 +140,10 @@ public sealed class AudioPlaybackService : IDisposable
                 {
                     if (_disposed || _buffer is null) break;
                     var frame = frameEvent.Frame;
-                    // AudioFrame.Data contains Int16 samples; convert to bytes.
-                    var samples = frame.Data;
-                    var bytes = new byte[samples.Length * 2];
-                    Buffer.BlockCopy(samples, 0, bytes, 0, bytes.Length);
+                    // AudioFrame.Data is ReadOnlySpan<short> — copy to array before use in async context.
+                    var samplesArray = frame.Data.ToArray();
+                    var bytes = new byte[samplesArray.Length * 2];
+                    Buffer.BlockCopy(samplesArray, 0, bytes, 0, bytes.Length);
                     _buffer.AddSamples(bytes, 0, bytes.Length);
                 }
             }
