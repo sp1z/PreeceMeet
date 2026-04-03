@@ -26,7 +26,6 @@ public partial class SettingsWindow : Window
         TxtDisplayName.Text   = s.DisplayName;
         TxtServerUrl.Text     = s.ServerUrl;
         TxtLastRoom.Text      = s.LastRoomName;
-        ChkRemember.IsChecked = s.RememberMe;
 
         PopulateDevices();
     }
@@ -119,8 +118,6 @@ public partial class SettingsWindow : Window
         s.DisplayName           = TxtDisplayName.Text.Trim();
         s.ServerUrl             = TxtServerUrl.Text.Trim();
         s.LastRoomName          = TxtLastRoom.Text.Trim();
-        s.RememberMe            = ChkRemember.IsChecked == true;
-
         var cam     = CmbCamera.SelectedItem  as DeviceInfo;
         var mic     = CmbMic.SelectedItem      as DeviceInfo;
         var speaker = CmbSpeaker.SelectedItem as DeviceInfo;
@@ -143,18 +140,4 @@ public partial class SettingsWindow : Window
         Close();
     }
 
-    private void BtnSignOut_Click(object sender, RoutedEventArgs e)
-    {
-        var result = MessageBox.Show(
-            "This will clear your saved session and require you to log in again. Continue?",
-            "Sign Out", MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-        if (result == MessageBoxResult.Yes)
-        {
-            _sessionService.Clear();
-            SessionCleared = true;
-            DialogResult   = true;
-            Close();
-        }
-    }
 }

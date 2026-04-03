@@ -92,12 +92,19 @@
 
         <!-- ── Rounded TextBox ─────────────────────────────────────────────── -->
         <Style TargetType="TextBox">
-            <Setter Property="Padding"  Value="6,4"/>
+            <Setter Property="Padding"         Value="6,4"/>
+            <Setter Property="Background"      Value="White"/>
+            <Setter Property="Foreground"      Value="#111111"/>
+            <Setter Property="BorderBrush"     Value="#AAAAAA"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CaretBrush"      Value="#111111"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
-                        <Border CornerRadius="3" Background="White"
-                                BorderBrush="#AAAAAA" BorderThickness="1"
+                        <Border CornerRadius="3"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
                                 Padding="{TemplateBinding Padding}">
                             <ScrollViewer x:Name="PART_ContentHost"/>
                         </Border>

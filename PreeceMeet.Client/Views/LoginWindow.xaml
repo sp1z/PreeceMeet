@@ -66,7 +66,6 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
@@ -81,14 +80,11 @@
                              Padding="6,5" FontSize="13" Margin="0,0,0,8"
                              KeyDown="Input_KeyDown"/>
 
-                <CheckBox Grid.Row="4" x:Name="ChkRemember" Content="Remember my email"
-                          FontSize="12" Margin="0,0,0,6"/>
-
-                <TextBlock Grid.Row="5" x:Name="TxtError" Foreground="#C42B1C" FontSize="12"
+                <TextBlock Grid.Row="4" x:Name="TxtError" Foreground="#C42B1C" FontSize="12"
                            Visibility="Collapsed" TextWrapping="Wrap" Margin="0,0,0,4"
                            VerticalAlignment="Bottom"/>
 
-                <Button Grid.Row="6" x:Name="BtnLogin" Content="Sign In" IsDefault="True"
+                <Button Grid.Row="5" x:Name="BtnLogin" Content="Sign In" IsDefault="True"
                         HorizontalAlignment="Stretch"
                         Style="{StaticResource AccentButton}"
                         Click="BtnLogin_Click"/>

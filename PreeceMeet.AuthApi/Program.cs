@@ -111,7 +111,10 @@ app.MapPost("/api/auth/verify-totp", async (
         await db.SaveChangesAsync();
     }
 
-    var livekitToken = livekit.GenerateToken(email, room.NullIfEmpty() ?? livekitRoom, name.NullIfEmpty());
+    // Session token: long-lived (30 days) — used as API bearer in the client.
+    // Room join tokens are issued fresh per-room via /api/rooms/token (6h TTL).
+    var livekitToken = livekit.GenerateToken(email, room.NullIfEmpty() ?? livekitRoom,
+        name.NullIfEmpty(), ttl: TimeSpan.FromDays(30));
     return Results.Ok(new { livekitToken, livekitUrl });
 });
 

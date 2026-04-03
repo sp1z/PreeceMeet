@@ -10,6 +10,8 @@ public partial class ChannelSidebarControl : UserControl
 {
     public event Action<ChannelInfo>? ChannelJoinRequested;
     public event Action?              AddChannelRequested;
+    public event Action?              SettingsRequested;
+    public event Action?              SignOutRequested;
 
     private ChannelInfo? _activeChannel;
 
@@ -51,4 +53,19 @@ public partial class ChannelSidebarControl : UserControl
 
     private void BtnAddChannel_Click(object sender, RoutedEventArgs e)
         => AddChannelRequested?.Invoke();
+
+    private void Footer_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is Border b)
+        {
+            b.ContextMenu.IsOpen = true;
+            e.Handled = true;
+        }
+    }
+
+    private void MenuSettings_Click(object sender, RoutedEventArgs e)
+        => SettingsRequested?.Invoke();
+
+    private void MenuSignOut_Click(object sender, RoutedEventArgs e)
+        => SignOutRequested?.Invoke();
 }

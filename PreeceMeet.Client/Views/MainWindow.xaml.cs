@@ -64,6 +64,8 @@ public partial class MainWindow : Window
         Sidebar.SetUser(email);
         Sidebar.ChannelJoinRequested  += OnChannelJoinRequested;
         Sidebar.AddChannelRequested   += OnAddChannelRequested;
+        Sidebar.SettingsRequested     += () => OpenSettings();
+        Sidebar.SignOutRequested      += OnSignOutFromSidebar;
 
         // Apply saved sidebar visibility.
         SetSidebarVisible(_settings.Current.SidebarVisible);
@@ -235,20 +237,24 @@ public partial class MainWindow : Window
 
     // ── Settings ──────────────────────────────────────────────────────────────
 
-    private void BtnSettings_Click(object sender, RoutedEventArgs e)
+    private void BtnSettings_Click(object sender, RoutedEventArgs e) => OpenSettings();
+
+    private void OpenSettings()
     {
         var win = new SettingsWindow(_settings, _session) { Owner = this };
         if (win.ShowDialog() == true)
+            _roomService.RebuildFromSettings();
+    }
+
+    private void OnSignOutFromSidebar()
+    {
+        var result = MessageBox.Show(
+            "This will clear your saved session and require you to log in again. Continue?",
+            "Sign Out", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (result == MessageBoxResult.Yes)
         {
-            if (win.SessionCleared)
-            {
-                SignOutRequested?.Invoke();
-            }
-            else
-            {
-                // Channels may have changed — rebuild sidebar list.
-                _roomService.RebuildFromSettings();
-            }
+            _session.Clear();
+            SignOutRequested?.Invoke();
         }
     }
 

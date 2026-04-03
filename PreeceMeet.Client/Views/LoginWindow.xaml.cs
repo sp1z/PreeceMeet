@@ -20,11 +20,8 @@ public partial class LoginWindow : Window
         InitializeComponent();
 
         var settings = _settingsService.Current;
-        if (settings.RememberMe && !string.IsNullOrEmpty(settings.SavedEmail))
-        {
-            TxtEmail.Text         = settings.SavedEmail;
-            ChkRemember.IsChecked = true;
-        }
+        if (!string.IsNullOrEmpty(settings.SavedEmail))
+            TxtEmail.Text = settings.SavedEmail;
     }
 
     private async void BtnLogin_Click(object sender, RoutedEventArgs e)
@@ -99,8 +96,7 @@ public partial class LoginWindow : Window
 
     private void PersistRememberMe(string email)
     {
-        _settingsService.Current.RememberMe = ChkRemember.IsChecked == true;
-        _settingsService.Current.SavedEmail = ChkRemember.IsChecked == true ? email : string.Empty;
+        _settingsService.Current.SavedEmail = email;
         _settingsService.Save();
     }
 
