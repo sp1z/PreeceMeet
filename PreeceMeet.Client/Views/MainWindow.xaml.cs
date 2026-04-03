@@ -360,6 +360,18 @@ public partial class MainWindow : Window
 
         try
         {
+            // Detect old sessions that pre-date the session token (require re-login once).
+            if (string.IsNullOrEmpty(_session.Load()?.SessionToken))
+            {
+                HideStatus();
+                var r = MessageBox.Show(
+                    "Your session needs to be refreshed. Please sign out and sign back in.",
+                    "PreeceMeet — Session Refresh Required",
+                    MessageBoxButton.OKCancel, MessageBoxImage.Information);
+                if (r == MessageBoxResult.OK) OnSignOutFromSidebar();
+                return;
+            }
+
             var displayName = _settings.Current.DisplayName.NullIfEmpty();
             var tokenResp   = await _roomService.GetRoomTokenAsync(channelName, displayName);
 
