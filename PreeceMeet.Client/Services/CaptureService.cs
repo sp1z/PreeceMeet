@@ -20,6 +20,7 @@ public class CaptureService : IAsyncDisposable
     private VideoCaptureDevice? _videoDevice;
     private VideoSource?        _videoSource;
     private volatile bool       _disposed;
+    private readonly object     _frameLock = new();
 
     public AudioSource?     AudioSource { get; private set; }
     public LocalAudioTrack? AudioTrack  { get; private set; }
@@ -112,32 +113,31 @@ public class CaptureService : IAsyncDisposable
 
     private void OnNewFrame(object sender, NewFrameEventArgs e)
     {
-        if (_disposed) return;
-        var vs = _videoSource;
-        if (vs == null) return;
-
-        Bitmap bmp = e.Frame;
-        int w = bmp.Width, h = bmp.Height;
-
-        // Lock as 32bppArgb — GDI+ stores this as BGRA bytes in memory
-        BitmapData bd = bmp.LockBits(
-            new Rectangle(0, 0, w, h),
-            ImageLockMode.ReadOnly,
-            PixelFormat.Format32bppArgb);
-        try
+        // Hold the frame lock for the entire frame delivery.  DisposeAsync waits
+        // for this lock after WaitForStop(), guaranteeing that vs.CaptureFrame()
+        // can never be called on an already-disposed VideoSource.
+        lock (_frameLock)
         {
-            int size = Math.Abs(bd.Stride) * h;
-            byte[] data = new byte[size];
-            Marshal.Copy(bd.Scan0, data, 0, size);
+            if (_disposed || _videoSource == null) return;
+
+            Bitmap bmp = e.Frame;
+            int w = bmp.Width, h = bmp.Height;
+
+            BitmapData bd = bmp.LockBits(
+                new Rectangle(0, 0, w, h),
+                ImageLockMode.ReadOnly,
+                PixelFormat.Format32bppArgb);
             try
             {
-                vs.CaptureFrame(new VideoFrame(w, h, VideoBufferType.Bgra, data));
+                int size = Math.Abs(bd.Stride) * h;
+                byte[] data = new byte[size];
+                Marshal.Copy(bd.Scan0, data, 0, size);
+                _videoSource.CaptureFrame(new VideoFrame(w, h, VideoBufferType.Bgra, data));
             }
-            catch { /* LiveKit FFI may be disposed between null-check and call */ }
-        }
-        finally
-        {
-            bmp.UnlockBits(bd);
+            finally
+            {
+                bmp.UnlockBits(bd);
+            }
         }
     }
 
@@ -191,9 +191,13 @@ public class CaptureService : IAsyncDisposable
         {
             _videoDevice.NewFrame -= OnNewFrame;
             var vs = _videoSource;
-            _videoSource = null;          // null before stopping so in-flight frames are dropped
+            _videoSource = null;
             _videoDevice.SignalToStop();
             _videoDevice.WaitForStop();
+            // Wait for any in-flight OnNewFrame (on the DirectShow COM thread) to finish
+            // before disposing the VideoSource.  WaitForStop() only joins the AForge
+            // capture thread; the COM callback thread may still be inside the lock.
+            lock (_frameLock) { }
             vs?.Dispose();
         }
         else

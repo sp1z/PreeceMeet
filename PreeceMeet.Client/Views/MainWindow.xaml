@@ -55,8 +55,8 @@
                             ToolTip="Game Mode"
                             Margin="0,0,4,0" Click="BtnLayoutToggle_Click"/>
                     <Button x:Name="BtnStats"
-                            Content="📊"
-                            FontSize="13"
+                            Content="&#xE9F9;"
+                            FontFamily="Segoe MDL2 Assets" FontSize="14"
                             Background="Transparent" Foreground="#888"
                             ToolTip="Show debug stats panel"
                             Margin="0,0,4,0" Click="BtnStats_Click"/>
@@ -233,13 +233,17 @@
         <!-- ── Reveal strip (shown when toolbars hidden) ────────────────────── -->
         <Border x:Name="PnlRevealBar"
                 Grid.Row="0" Grid.RowSpan="3"
-                VerticalAlignment="Top" Height="6"
-                Background="#40FFFFFF"
+                VerticalAlignment="Top" Height="28"
+                Background="#CC12121e"
                 Cursor="Hand"
                 Visibility="Collapsed"
                 IsHitTestVisible="True"
-                MouseLeftButtonDown="PnlRevealBar_Click"
-                ToolTip="Click to restore toolbars"/>
+                MouseLeftButtonDown="PnlRevealBar_Click">
+            <TextBlock Text="&#xE70E;  Click to restore toolbar"
+                       FontFamily="Segoe MDL2 Assets, Segoe UI" FontSize="11"
+                       Foreground="#aaa"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
 
         <!-- Hidden sentinel used by call-controls IsEnabled binding -->
         <Button x:Name="BtnDisconnect" Visibility="Collapsed" Grid.Row="0"/>

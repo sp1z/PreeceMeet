@@ -257,12 +257,10 @@ public partial class MainWindow : Window
 
         VideoGrid.SetStripMode(true);
         SetSidebarVisible(false);
-        SetUIHidden(true);
 
+        BtnLayoutToggle.Foreground = new SolidColorBrush(Color.FromRgb(0x5b, 0x9b, 0xd5));
         BtnLayoutToggle.ToolTip = "Exit Game Mode";
 
-        // Size window to current tile count (SetStripMode triggers TileCountChanged too, but do
-        // an immediate resize here so the window snaps before the dispatcher round-trip).
         ResizeForGameMode(Math.Max(1, VideoGrid.TileCount));
     }
 
@@ -273,8 +271,8 @@ public partial class MainWindow : Window
 
         VideoGrid.SetStripMode(false);
         SetSidebarVisible(_settings.Current.SidebarVisible);
-        SetUIHidden(false);
 
+        BtnLayoutToggle.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
         BtnLayoutToggle.ToolTip = "Game Mode";
         if (Height < 400) Height = 600;
     }
