@@ -26,6 +26,9 @@ public partial class MainWindow : Window
     private bool        _statsVisible      = false;
     private WindowState _preFullscreen = WindowState.Normal;
     private WindowStyle _preFullscreenStyle = WindowStyle.SingleBorderWindow;
+    private double      _preGameModeWidth  = 0;
+    private double      _preGameModeHeight = 0;
+    private WindowState _preGameModeState  = WindowState.Normal;
     private Storyboard? _spinnerStoryboard;
 
     private ChannelInfo? _activeChannel;
@@ -122,6 +125,10 @@ public partial class MainWindow : Window
         {
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
+
+        // Restore saved sidebar width.
+        if (s.SidebarWidth > 0)
+            ColSidebar.Width = new GridLength(s.SidebarWidth);
     }
 
     private static bool IsOnScreen(double left, double top)
@@ -175,8 +182,15 @@ public partial class MainWindow : Window
 
     private void SetSidebarVisible(bool visible)
     {
-        ColSidebar.Width   = visible ? new GridLength(200) : new GridLength(0);
+        double w = _settings.Current.SidebarWidth > 0 ? _settings.Current.SidebarWidth : 220;
+        ColSidebar.Width   = visible ? new GridLength(w) : new GridLength(0);
         Sidebar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void SidebarSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        _settings.Current.SidebarWidth = ColSidebar.Width.Value;
+        _settings.Save();
     }
 
     // ── Full screen ───────────────────────────────────────────────────────────
@@ -205,9 +219,19 @@ public partial class MainWindow : Window
 
     // ── Hide / show UI ────────────────────────────────────────────────────────
 
-    private void BtnHideUI_Click(object sender, RoutedEventArgs e) => SetUIHidden(true);
+    private void BtnHideUI_Click(object sender, RoutedEventArgs e)
+    {
+        TxtRevealBar.Text = "\uE70E  Click to restore toolbar";
+        SetUIHidden(true);
+    }
 
-    private void PnlRevealBar_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) => SetUIHidden(false);
+    private void PnlRevealBar_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (_settings.Current.LayoutMode == "GameMode")
+            ExitGameMode();
+        else
+            SetUIHidden(false);
+    }
 
     private void SetUIHidden(bool hide)
     {
@@ -252,11 +276,18 @@ public partial class MainWindow : Window
 
     private void EnterGameMode()
     {
+        // Save current window size so we can restore it on exit.
+        _preGameModeWidth  = ActualWidth;
+        _preGameModeHeight = ActualHeight;
+        _preGameModeState  = WindowState;
+
         _settings.Current.LayoutMode = "GameMode";
         _settings.Save();
 
         VideoGrid.SetStripMode(true);
         SetSidebarVisible(false);
+        TxtRevealBar.Text = "\uE70E  Click to exit Game Mode";
+        SetUIHidden(true);
 
         BtnLayoutToggle.Foreground = new SolidColorBrush(Color.FromRgb(0x5b, 0x9b, 0xd5));
         BtnLayoutToggle.ToolTip = "Exit Game Mode";
@@ -270,11 +301,28 @@ public partial class MainWindow : Window
         _settings.Save();
 
         VideoGrid.SetStripMode(false);
+        SetUIHidden(false);
         SetSidebarVisible(_settings.Current.SidebarVisible);
+
+        TxtRevealBar.Text = "\uE70E  Click to restore";
 
         BtnLayoutToggle.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
         BtnLayoutToggle.ToolTip = "Game Mode";
-        if (Height < 400) Height = 600;
+
+        // Restore window to the size it was before entering game mode.
+        if (_preGameModeWidth > 0 && _preGameModeHeight > 0)
+        {
+            WindowState = _preGameModeState;
+            if (_preGameModeState == WindowState.Normal)
+            {
+                Width  = _preGameModeWidth;
+                Height = _preGameModeHeight;
+            }
+        }
+        else if (Height < 400)
+        {
+            Height = 600;
+        }
     }
 
     private void ResizeForGameMode(int tileCount)

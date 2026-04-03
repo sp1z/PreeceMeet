@@ -6,20 +6,16 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <!-- Header -->
             <RowDefinition Height="48"/>
-            <!-- Section label -->
             <RowDefinition Height="Auto"/>
-            <!-- Channel list -->
             <RowDefinition Height="*"/>
-            <!-- User footer -->
             <RowDefinition Height="52"/>
         </Grid.RowDefinitions>
 
         <!-- ── Header ──────────────────────────────────────────────────────── -->
         <Border Grid.Row="0" BorderBrush="#2a2b3d" BorderThickness="0,0,0,1" Padding="12,0">
             <DockPanel VerticalAlignment="Center">
-                <TextBlock Text="PreeceMeet" FontWeight="Bold" FontSize="14"
+                <TextBlock Text="PreeceMeet" FontWeight="Bold" FontSize="15"
                            Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center"/>
                 <Button x:Name="BtnAddChannel" DockPanel.Dock="Right"
                         Content="&#xE710;"
@@ -31,21 +27,23 @@
         </Border>
 
         <!-- ── Section label ───────────────────────────────────────────────── -->
-        <TextBlock Grid.Row="1" Text="CHANNELS" FontSize="10" FontWeight="SemiBold"
-                   Foreground="{StaticResource TextMuted}" Margin="12,12,12,4"/>
+        <TextBlock Grid.Row="1" Text="CHANNELS" FontSize="11" FontWeight="SemiBold"
+                   Foreground="{StaticResource TextMuted}" Margin="14,12,12,4"
+                   LetterSpacing="1"/>
 
         <!-- ── Channel list ────────────────────────────────────────────────── -->
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl x:Name="ChannelList" Margin="0,2,0,2">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl x:Name="ChannelList" Margin="6,2,6,2">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <!-- Each channel row -->
                         <Border x:Name="RowBorder"
-                                CornerRadius="4" Margin="6,1" Padding="8,6"
+                                CornerRadius="6" Margin="0,1" Padding="10,8"
                                 Cursor="Hand"
                                 MouseLeftButtonDown="Channel_Click"
                                 MouseRightButtonDown="Channel_RightClick"
-                                Background="Transparent">
+                                Background="Transparent"
+                                MinHeight="44">
                             <Border.ContextMenu>
                                 <ContextMenu Tag="{Binding}">
                                     <MenuItem Header="Edit channel" Tag="{Binding}"
@@ -62,46 +60,56 @@
                                     </MenuItem>
                                 </ContextMenu>
                             </Border.ContextMenu>
+
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>   <!-- emoji -->
+                                    <ColumnDefinition Width="*"/>      <!-- name + participants -->
+                                    <ColumnDefinition Width="Auto"/>   <!-- badge -->
                                 </Grid.ColumnDefinitions>
 
-                                <StackPanel Grid.Column="0">
-                                    <!-- Channel name row with activity dot -->
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <!-- Emoji or # icon -->
-                                        <TextBlock Text="{Binding ChannelIcon}" FontSize="13"
-                                                   Foreground="{StaticResource TextMuted}"
-                                                   Margin="0,0,4,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding DisplayName}" FontSize="13"
+                                <!-- Colour emoji / icon -->
+                                <Border Grid.Column="0" Width="34" Height="34"
+                                        CornerRadius="8" Background="#2a2b3d"
+                                        Margin="0,0,10,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding ChannelIcon}"
+                                               FontFamily="Segoe UI Emoji, Segoe UI"
+                                               FontSize="17"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+
+                                <!-- Name + participant summary -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <DockPanel>
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   FontSize="14" FontWeight="SemiBold"
                                                    Foreground="{StaticResource TextPrimary}"
-                                                   VerticalAlignment="Center"/>
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"/>
                                         <!-- Activity dot -->
-                                        <Ellipse Width="7" Height="7" Fill="{StaticResource OnlineDot}"
+                                        <Ellipse Width="7" Height="7"
+                                                 Fill="{StaticResource OnlineDot}"
                                                  Margin="6,0,0,0" VerticalAlignment="Center"
                                                  Visibility="{Binding HasActivity, Converter={StaticResource BoolToVis}}"/>
-                                    </StackPanel>
-
-                                    <!-- Participant names (shown when count > 0) -->
-                                    <TextBlock Text="{Binding ParticipantSummary}" FontSize="11"
-                                               Foreground="#9a9bc0"
-                                               Margin="17,2,0,0" TextTrimming="CharacterEllipsis"
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding ParticipantSummary}"
+                                               FontSize="12" Foreground="{StaticResource TextMuted}"
+                                               Margin="0,2,0,0" TextTrimming="CharacterEllipsis"
                                                Visibility="{Binding ShowParticipants, Converter={StaticResource BoolToVis}}"/>
                                 </StackPanel>
 
                                 <!-- Participant count badge -->
-                                <Border Grid.Column="1" CornerRadius="8"
-                                        Background="#2a2b3d" Padding="5,1"
-                                        VerticalAlignment="Center"
+                                <Border Grid.Column="2" CornerRadius="10"
+                                        Background="#3a3a5c" Padding="7,2"
+                                        VerticalAlignment="Center" Margin="6,0,0,0"
                                         Visibility="{Binding ShowCount, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="{Binding ParticipantCount}" FontSize="11"
-                                               Foreground="#9a9bc0"/>
+                                    <TextBlock Text="{Binding ParticipantCount}"
+                                               FontSize="12" FontWeight="SemiBold"
+                                               Foreground="#c0c0e0"/>
                                 </Border>
                             </Grid>
 
-                            <!-- Hover/active triggers -->
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Style.Triggers>
@@ -141,23 +149,19 @@
             </Border.ContextMenu>
 
             <DockPanel VerticalAlignment="Center">
-                <!-- Avatar circle -->
-                <Border Width="32" Height="32" CornerRadius="16" Background="{StaticResource AccentBlue}"
-                        DockPanel.Dock="Left" Margin="0,0,8,0">
-                    <TextBlock x:Name="TxtAvatarInitial" Text="?" FontSize="14" FontWeight="Bold"
+                <Border Width="34" Height="34" CornerRadius="17"
+                        Background="{StaticResource AccentBlue}"
+                        DockPanel.Dock="Left" Margin="0,0,10,0">
+                    <TextBlock x:Name="TxtAvatarInitial" Text="?" FontSize="15" FontWeight="Bold"
                                Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
-
-                <!-- Email truncated -->
-                <TextBlock x:Name="TxtUserEmail" Text="" FontSize="11"
+                <TextBlock x:Name="TxtUserEmail" Text="" FontSize="12"
                            Foreground="{StaticResource TextPrimary}"
                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-
-                <!-- Chevron hint -->
                 <TextBlock Text="&#xE70D;" FontFamily="Segoe MDL2 Assets" FontSize="10"
                            Foreground="{StaticResource TextMuted}"
                            DockPanel.Dock="Right" VerticalAlignment="Center"
-                           RenderTransformOrigin="0.5,0.5" HorizontalAlignment="Right">
+                           HorizontalAlignment="Right">
                     <TextBlock.RenderTransform>
                         <RotateTransform Angle="-90"/>
                     </TextBlock.RenderTransform>

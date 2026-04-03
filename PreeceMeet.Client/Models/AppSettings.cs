@@ -67,6 +67,9 @@ public class AppSettings
     [JsonPropertyName("sidebarVisible")]
     public bool SidebarVisible { get; set; } = true;
 
+    [JsonPropertyName("sidebarWidth")]
+    public double SidebarWidth { get; set; } = 220;
+
     /// <summary>Configured channels shown in the sidebar.</summary>
     [JsonPropertyName("channels")]
     public List<ChannelConfig> Channels { get; set; } = new()

@@ -23,6 +23,12 @@ public class CaptureService : IAsyncDisposable
     private volatile bool       _suspended;   // separate flag so Suspend doesn't block Dispose
     private readonly object     _frameLock = new();
 
+    // All calls to the LiveKit FFI (CaptureFrame / CaptureFrameAsync) must be
+    // serialised — the native FfiClient.SendRequest is not thread-safe for
+    // concurrent callers.  Using a static lock covers every CaptureService
+    // instance (video thread + audio thread).
+    private static readonly object _ffiLock = new();
+
     public AudioSource?     AudioSource { get; private set; }
     public LocalAudioTrack? AudioTrack  { get; private set; }
     public LocalVideoTrack? VideoTrack  { get; private set; }
@@ -143,7 +149,8 @@ public class CaptureService : IAsyncDisposable
                 int size = Math.Abs(bd.Stride) * h;
                 byte[] data = new byte[size];
                 Marshal.Copy(bd.Scan0, data, 0, size);
-                vs.CaptureFrame(new VideoFrame(w, h, VideoBufferType.Bgra, data));
+                lock (_ffiLock)
+                    vs.CaptureFrame(new VideoFrame(w, h, VideoBufferType.Bgra, data));
             }
             finally
             {
@@ -188,7 +195,8 @@ public class CaptureService : IAsyncDisposable
         int samplesPerChannel = e.BytesRecorded / 2;
         var shorts = new short[samplesPerChannel];
         Buffer.BlockCopy(e.Buffer, 0, shorts, 0, e.BytesRecorded);
-        _ = AudioSource.CaptureFrameAsync(new AudioFrame(shorts, 48000, 1, samplesPerChannel));
+        lock (_ffiLock)
+            _ = AudioSource.CaptureFrameAsync(new AudioFrame(shorts, 48000, 1, samplesPerChannel));
     }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
