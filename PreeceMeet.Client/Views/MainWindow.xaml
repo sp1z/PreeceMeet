@@ -191,12 +191,8 @@
         <!-- ── Call controls ─────────────────────────────────────────────────── -->
         <Border x:Name="PnlCallControls" Grid.Row="2" Background="#12121e" Padding="0,8">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0" Orientation="Horizontal"
+                <!-- Buttons always centred, update text floats over the right edge -->
+                <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Button x:Name="BtnToggleMic"
                             Style="{StaticResource CircleButton}"
@@ -219,10 +215,12 @@
                             IsEnabled="False"/>
                 </StackPanel>
 
-                <TextBlock Grid.Column="1"
-                           x:Name="TxtUpdateStatus" Text=""
+                <!-- Update status floats right — no effect on button layout -->
+                <TextBlock x:Name="TxtUpdateStatus" Text=""
                            Foreground="#666" FontSize="11"
-                           Margin="0,0,12,0" VerticalAlignment="Center"/>
+                           HorizontalAlignment="Right" VerticalAlignment="Center"
+                           Margin="0,0,12,0"
+                           IsHitTestVisible="False"/>
             </Grid>
         </Border>
 
