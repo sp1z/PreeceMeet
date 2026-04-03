@@ -10,7 +10,8 @@ public partial class SettingsWindow : Window
     private readonly SettingsService _settingsService;
     private readonly SessionService  _sessionService;
 
-    public bool SessionCleared { get; private set; }
+    // Working copy of channels — edited in-place, committed on Save.
+    private List<ChannelConfig> _channels = new();
 
     public SettingsWindow(SettingsService settingsService, SessionService sessionService)
     {
@@ -23,11 +24,38 @@ public partial class SettingsWindow : Window
     private void PopulateFields()
     {
         var s = _settingsService.Current;
-        TxtDisplayName.Text   = s.DisplayName;
-        TxtServerUrl.Text     = s.ServerUrl;
-        TxtLastRoom.Text      = s.LastRoomName;
+        TxtDisplayName.Text = s.DisplayName;
+        TxtServerUrl.Text   = s.ServerUrl;
 
+        // Deep-copy channels so edits don't affect live sidebar until saved.
+        _channels = s.Channels.Select(c => new ChannelConfig
+            { Name = c.Name, DisplayName = c.DisplayName, Emoji = c.Emoji }).ToList();
+
+        RefreshChannelList();
+        PopulateAutoJoin(s.AutoJoinChannel);
         PopulateDevices();
+    }
+
+    private void RefreshChannelList()
+    {
+        ChannelListControl.ItemsSource = null;
+        ChannelListControl.ItemsSource = _channels;
+
+        // Rebuild auto-join combo whenever channels change.
+        var current = (CmbAutoJoin.SelectedItem as string) ?? string.Empty;
+        PopulateAutoJoin(current);
+    }
+
+    private void PopulateAutoJoin(string selectedName)
+    {
+        CmbAutoJoin.Items.Clear();
+        CmbAutoJoin.Items.Add("(none)");
+        foreach (var ch in _channels)
+            CmbAutoJoin.Items.Add(ch.Name);
+
+        var idx = _channels.FindIndex(c =>
+            c.Name.Equals(selectedName, StringComparison.OrdinalIgnoreCase));
+        CmbAutoJoin.SelectedIndex = idx >= 0 ? idx + 1 : 0;
     }
 
     private async void PopulateDevices()
@@ -36,21 +64,18 @@ public partial class SettingsWindow : Window
         CmbMic.Items.Add("Default");
         CmbSpeaker.Items.Add("Default");
 
-        // Audio input devices (synchronous via NAudio)
         foreach (var d in CaptureService.GetAudioDevices())
             CmbMic.Items.Add(d);
 
-        // Audio output devices
         foreach (var d in AudioPlaybackService.GetOutputDevices())
             CmbSpeaker.Items.Add(d);
 
-        // Video devices (async)
         try
         {
             foreach (var d in await CaptureService.GetVideoDevicesAsync())
                 CmbCamera.Items.Add(d);
         }
-        catch { /* no camera or permission denied */ }
+        catch { /* no camera */ }
 
         var s = _settingsService.Current;
         SelectDeviceItem(CmbCamera,  s.SelectedCameraDevice,  s.SelectedCameraDeviceName);
@@ -58,75 +83,107 @@ public partial class SettingsWindow : Window
         SelectDeviceItem(CmbSpeaker, s.SelectedSpeakerDevice, s.SelectedSpeakerDeviceName);
     }
 
-    /// <summary>
-    /// Select a device by ID first; if not found, fall back to matching by name.
-    /// Windows frequently reassigns device IDs (especially numeric indices for
-    /// audio devices) when USB devices are reconnected or new devices appear.
-    /// Name-based fallback ensures the user's chosen device stays "pinned".
-    /// </summary>
     private static void SelectDeviceItem(ComboBox combo, string savedId, string savedName)
     {
         if (string.IsNullOrWhiteSpace(savedId) && string.IsNullOrWhiteSpace(savedName))
-        {
-            combo.SelectedIndex = 0;
-            return;
-        }
+        { combo.SelectedIndex = 0; return; }
 
-        // Try exact ID match first.
         for (int i = 0; i < combo.Items.Count; i++)
-        {
             if (combo.Items[i] is DeviceInfo d && d.Id == savedId)
-            {
-                combo.SelectedIndex = i;
-                return;
-            }
-        }
+            { combo.SelectedIndex = i; return; }
 
-        // Fallback: match by device name (robust when Windows reassigns IDs).
         if (!string.IsNullOrWhiteSpace(savedName))
         {
             for (int i = 0; i < combo.Items.Count; i++)
-            {
                 if (combo.Items[i] is DeviceInfo d &&
                     string.Equals(d.Name, savedName, StringComparison.OrdinalIgnoreCase))
-                {
-                    combo.SelectedIndex = i;
-                    return;
-                }
-            }
+                { combo.SelectedIndex = i; return; }
 
-            // Partial name match as last resort (device names can be truncated).
             for (int i = 0; i < combo.Items.Count; i++)
-            {
-                if (combo.Items[i] is DeviceInfo d &&
-                    !string.IsNullOrWhiteSpace(d.Name) &&
+                if (combo.Items[i] is DeviceInfo d && !string.IsNullOrWhiteSpace(d.Name) &&
                     (d.Name.Contains(savedName, StringComparison.OrdinalIgnoreCase) ||
                      savedName.Contains(d.Name, StringComparison.OrdinalIgnoreCase)))
-                {
-                    combo.SelectedIndex = i;
-                    return;
-                }
-            }
+                { combo.SelectedIndex = i; return; }
         }
 
         combo.SelectedIndex = 0;
     }
 
+    // ── Channel actions ───────────────────────────────────────────────────────
+
+    private void BtnAddChannel_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new AddChannelDialog { Owner = this };
+        if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.ChannelName)) return;
+
+        if (_channels.Any(c => c.Name.Equals(dlg.ChannelName, StringComparison.OrdinalIgnoreCase)))
+        {
+            MessageBox.Show("That channel already exists.", "PreeceMeet",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        _channels.Add(new ChannelConfig
+        {
+            Name        = dlg.ChannelName,
+            DisplayName = string.IsNullOrWhiteSpace(dlg.DisplayName) ? dlg.ChannelName : dlg.DisplayName,
+            Emoji       = dlg.Emoji,
+        });
+        RefreshChannelList();
+    }
+
+    private void BtnEditChannel_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not ChannelConfig cfg) return;
+
+        var dlg = new AddChannelDialog(cfg) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+
+        cfg.DisplayName = string.IsNullOrWhiteSpace(dlg.DisplayName) ? cfg.Name : dlg.DisplayName;
+        cfg.Emoji       = dlg.Emoji;
+        RefreshChannelList();
+    }
+
+    private void BtnDeleteChannel_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not ChannelConfig cfg) return;
+
+        var result = MessageBox.Show($"Delete #{cfg.DisplayName}?", "PreeceMeet",
+            MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (result != MessageBoxResult.Yes) return;
+
+        _channels.Remove(cfg);
+        RefreshChannelList();
+    }
+
+    // ── Save / Cancel ─────────────────────────────────────────────────────────
+
     private void BtnSave_Click(object sender, RoutedEventArgs e)
     {
         var s = _settingsService.Current;
-        s.DisplayName           = TxtDisplayName.Text.Trim();
-        s.ServerUrl             = TxtServerUrl.Text.Trim();
-        s.LastRoomName          = TxtLastRoom.Text.Trim();
+        s.DisplayName = TxtDisplayName.Text.Trim();
+        s.ServerUrl   = TxtServerUrl.Text.Trim();
+
+        // Channels
+        s.Channels = _channels;
+
+        // Auto-join — selectedIndex 0 = "(none)", rest are channel names.
+        s.AutoJoinChannel = CmbAutoJoin.SelectedIndex > 0
+            ? CmbAutoJoin.SelectedItem as string ?? string.Empty
+            : string.Empty;
+        // Guard: if the auto-join channel no longer exists, clear it.
+        if (!s.Channels.Any(c => c.Name.Equals(s.AutoJoinChannel, StringComparison.OrdinalIgnoreCase)))
+            s.AutoJoinChannel = string.Empty;
+
         var cam     = CmbCamera.SelectedItem  as DeviceInfo;
-        var mic     = CmbMic.SelectedItem      as DeviceInfo;
+        var mic     = CmbMic.SelectedItem     as DeviceInfo;
         var speaker = CmbSpeaker.SelectedItem as DeviceInfo;
 
-        s.SelectedCameraDevice      = cam?.Id     ?? string.Empty;
-        s.SelectedCameraDeviceName  = cam?.Name   ?? string.Empty;
-        s.SelectedMicDevice         = mic?.Id     ?? string.Empty;
-        s.SelectedMicDeviceName     = mic?.Name   ?? string.Empty;
-        s.SelectedSpeakerDevice     = speaker?.Id ?? string.Empty;
+        s.SelectedCameraDevice      = cam?.Id       ?? string.Empty;
+        s.SelectedCameraDeviceName  = cam?.Name     ?? string.Empty;
+        s.SelectedMicDevice         = mic?.Id       ?? string.Empty;
+        s.SelectedMicDeviceName     = mic?.Name     ?? string.Empty;
+        s.SelectedSpeakerDevice     = speaker?.Id   ?? string.Empty;
         s.SelectedSpeakerDeviceName = speaker?.Name ?? string.Empty;
 
         _settingsService.Save();
@@ -139,5 +196,4 @@ public partial class SettingsWindow : Window
         DialogResult = false;
         Close();
     }
-
 }

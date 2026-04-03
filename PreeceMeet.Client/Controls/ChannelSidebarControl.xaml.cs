@@ -10,6 +10,8 @@ public partial class ChannelSidebarControl : UserControl
 {
     public event Action<ChannelInfo>? ChannelJoinRequested;
     public event Action?              AddChannelRequested;
+    public event Action<ChannelInfo>? ChannelEditRequested;
+    public event Action<ChannelInfo>? ChannelDeleteRequested;
     public event Action?              SettingsRequested;
     public event Action?              SignOutRequested;
 
@@ -49,6 +51,24 @@ public partial class ChannelSidebarControl : UserControl
     {
         if ((sender as FrameworkElement)?.DataContext is ChannelInfo ch)
             ChannelJoinRequested?.Invoke(ch);
+    }
+
+    private void Channel_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        // Let the ContextMenu open naturally via WPF.
+        e.Handled = false;
+    }
+
+    private void MenuChannelEdit_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is ChannelInfo ch)
+            ChannelEditRequested?.Invoke(ch);
+    }
+
+    private void MenuChannelDelete_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is ChannelInfo ch)
+            ChannelDeleteRequested?.Invoke(ch);
     }
 
     private void BtnAddChannel_Click(object sender, RoutedEventArgs e)

@@ -62,10 +62,12 @@ public partial class MainWindow : Window
         Sidebar.BindChannels(_roomService.Channels);
         var email = session.Load()?.Email ?? string.Empty;
         Sidebar.SetUser(email);
-        Sidebar.ChannelJoinRequested  += OnChannelJoinRequested;
-        Sidebar.AddChannelRequested   += OnAddChannelRequested;
-        Sidebar.SettingsRequested     += () => OpenSettings();
-        Sidebar.SignOutRequested      += OnSignOutFromSidebar;
+        Sidebar.ChannelJoinRequested   += OnChannelJoinRequested;
+        Sidebar.AddChannelRequested    += OnAddChannelRequested;
+        Sidebar.ChannelEditRequested   += OnChannelEditRequested;
+        Sidebar.ChannelDeleteRequested += OnChannelDeleteRequested;
+        Sidebar.SettingsRequested      += () => OpenSettings();
+        Sidebar.SignOutRequested       += OnSignOutFromSidebar;
 
         // Apply saved sidebar visibility.
         SetSidebarVisible(_settings.Current.SidebarVisible);
@@ -299,8 +301,8 @@ public partial class MainWindow : Window
         var dlg = new AddChannelDialog { Owner = this };
         if (dlg.ShowDialog() != true || string.IsNullOrWhiteSpace(dlg.ChannelName)) return;
 
-        var name = dlg.ChannelName.Trim().ToLowerInvariant();
-        var display = string.IsNullOrWhiteSpace(dlg.DisplayName) ? name : dlg.DisplayName.Trim();
+        var name    = dlg.ChannelName;
+        var display = string.IsNullOrWhiteSpace(dlg.DisplayName) ? name : dlg.DisplayName;
 
         if (_settings.Current.Channels.Any(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
         {
@@ -308,9 +310,45 @@ public partial class MainWindow : Window
             return;
         }
 
-        _settings.Current.Channels.Add(new ChannelConfig { Name = name, DisplayName = display });
+        _settings.Current.Channels.Add(new ChannelConfig { Name = name, DisplayName = display, Emoji = dlg.Emoji });
         _settings.Save();
         _roomService.RebuildFromSettings();
+    }
+
+    private void OnChannelEditRequested(ChannelInfo ch)
+    {
+        var cfg = _settings.Current.Channels.FirstOrDefault(c =>
+            c.Name.Equals(ch.Name, StringComparison.OrdinalIgnoreCase));
+        if (cfg is null) return;
+
+        var dlg = new AddChannelDialog(cfg) { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+
+        cfg.DisplayName = string.IsNullOrWhiteSpace(dlg.DisplayName) ? cfg.Name : dlg.DisplayName;
+        cfg.Emoji       = dlg.Emoji;
+        _settings.Save();
+        _roomService.RebuildFromSettings();
+    }
+
+    private void OnChannelDeleteRequested(ChannelInfo ch)
+    {
+        var result = MessageBox.Show($"Delete #{ch.DisplayName}?", "PreeceMeet",
+            MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (result != MessageBoxResult.Yes) return;
+
+        _settings.Current.Channels.RemoveAll(c =>
+            c.Name.Equals(ch.Name, StringComparison.OrdinalIgnoreCase));
+
+        // Clear auto-join if it was this channel.
+        if (_settings.Current.AutoJoinChannel.Equals(ch.Name, StringComparison.OrdinalIgnoreCase))
+            _settings.Current.AutoJoinChannel = string.Empty;
+
+        _settings.Save();
+        _roomService.RebuildFromSettings();
+
+        // Disconnect if we were in this channel.
+        if (_activeChannel?.Name.Equals(ch.Name, StringComparison.OrdinalIgnoreCase) == true)
+            _ = DisconnectAsync();
     }
 
     // ── Connect / disconnect ──────────────────────────────────────────────────
@@ -473,10 +511,8 @@ public partial class MainWindow : Window
         {
             PnlUpdateOverlay.Visibility = Visibility.Visible;
             TxtUpdateDetail.Text        = detail;
-            TxtUpdatePercent.Text       = $"{percent}%";
-            // Animate progress bar width (relative to parent).
-            var parentWidth = 280.0; // approximate inner width
-            UpdateProgressFill.Width = parentWidth * (percent / 100.0);
+            TxtUpdatePercent.Text = $"{percent}%";
+            ProgressScale.ScaleX  = percent / 100.0;
         });
     }
 
@@ -487,7 +523,7 @@ public partial class MainWindow : Window
             TxtUpdateTitle.Text   = "Restarting...";
             TxtUpdateDetail.Text  = "Applying update and restarting PreeceMeet";
             TxtUpdatePercent.Text = "";
-            UpdateProgressFill.Width = 280;
+            ProgressScale.ScaleX  = 1.0;
         });
     }
 

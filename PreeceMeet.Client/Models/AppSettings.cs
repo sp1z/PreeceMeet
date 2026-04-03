@@ -67,8 +67,12 @@ public class AppSettings
     [JsonPropertyName("channels")]
     public List<ChannelConfig> Channels { get; set; } = new()
     {
-        new ChannelConfig { Name = "preecemeet", DisplayName = "General" },
+        new ChannelConfig { Name = "preecemeet", DisplayName = "General", Emoji = "💬" },
     };
+
+    /// <summary>Room name to auto-join on startup. Empty = don't auto-join.</summary>
+    [JsonPropertyName("autoJoinChannel")]
+    public string AutoJoinChannel { get; set; } = string.Empty;
 }
 
 public class ChannelConfig
@@ -78,4 +82,7 @@ public class ChannelConfig
 
     [JsonPropertyName("displayName")]
     public string DisplayName { get; set; } = string.Empty;
+
+    [JsonPropertyName("emoji")]
+    public string Emoji { get; set; } = string.Empty;
 }

@@ -175,8 +175,11 @@
                                     <Border x:Name="UpdateProgressFill"
                                             Background="{StaticResource AccentBlue}"
                                             CornerRadius="3"
-                                            HorizontalAlignment="Left"
-                                            Width="0"/>
+                                            RenderTransformOrigin="0,0.5">
+                                        <Border.RenderTransform>
+                                            <ScaleTransform x:Name="ProgressScale" ScaleX="0"/>
+                                        </Border.RenderTransform>
+                                    </Border>
                                 </Grid>
                                 <TextBlock x:Name="TxtUpdatePercent" Text="0%"
                                            FontSize="11" Foreground="#555"

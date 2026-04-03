@@ -7,6 +7,7 @@ public class ChannelInfo : INotifyPropertyChanged
 {
     private string       _name             = string.Empty;
     private string       _displayName      = string.Empty;
+    private string       _emoji            = string.Empty;
     private int          _participantCount;
     private List<string> _participantNames = new();
     private bool         _isJoined;
@@ -23,6 +24,15 @@ public class ChannelInfo : INotifyPropertyChanged
         get => _displayName;
         set { _displayName = value; OnPropertyChanged(); }
     }
+
+    public string Emoji
+    {
+        get => _emoji;
+        set { _emoji = value; OnPropertyChanged(); OnPropertyChanged(nameof(ChannelIcon)); }
+    }
+
+    /// <summary>The emoji if set, otherwise "#".</summary>
+    public string ChannelIcon => string.IsNullOrWhiteSpace(_emoji) ? "#" : _emoji;
 
     public int ParticipantCount
     {

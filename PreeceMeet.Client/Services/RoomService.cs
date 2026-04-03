@@ -103,7 +103,15 @@ public class RoomService : IDisposable
         foreach (var cfg in _settings.Current.Channels)
         {
             if (!existingNames.Contains(cfg.Name))
-                Channels.Add(new ChannelInfo { Name = cfg.Name, DisplayName = cfg.DisplayName });
+                Channels.Add(new ChannelInfo { Name = cfg.Name, DisplayName = cfg.DisplayName, Emoji = cfg.Emoji });
+        }
+
+        // Keep emoji in sync if config changed.
+        foreach (var ch in Channels)
+        {
+            var cfg = _settings.Current.Channels.FirstOrDefault(c =>
+                c.Name.Equals(ch.Name, StringComparison.OrdinalIgnoreCase));
+            if (cfg is not null) ch.Emoji = cfg.Emoji;
         }
     }
 
@@ -121,7 +129,7 @@ public class RoomService : IDisposable
             var existing = new HashSet<string>(Channels.Select(c => c.Name), StringComparer.OrdinalIgnoreCase);
             foreach (var cfg in _settings.Current.Channels)
                 if (!existing.Contains(cfg.Name))
-                    Channels.Add(new ChannelInfo { Name = cfg.Name, DisplayName = cfg.DisplayName });
+                    Channels.Add(new ChannelInfo { Name = cfg.Name, DisplayName = cfg.DisplayName, Emoji = cfg.Emoji });
         });
     }
 

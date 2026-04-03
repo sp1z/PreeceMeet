@@ -94,9 +94,13 @@ public partial class App : Application
         // Check for updates silently in the background.
         _ = CheckAndApplyUpdatesAsync();
 
-        // If launched from a URL scheme, join the specified room immediately.
+        // If launched from a URL scheme, join that room; otherwise auto-join if configured.
         if (urlRoomName is not null)
             _mainWindow.JoinRoom(urlRoomName);
+        else if (!string.IsNullOrEmpty(_settings.Current.AutoJoinChannel) &&
+                 _settings.Current.Channels.Any(c =>
+                     c.Name.Equals(_settings.Current.AutoJoinChannel, StringComparison.OrdinalIgnoreCase)))
+            _mainWindow.JoinRoom(_settings.Current.AutoJoinChannel);
     }
 
     protected override void OnExit(ExitEventArgs e)
