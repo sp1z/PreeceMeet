@@ -31,7 +31,7 @@
         </Border>
 
         <!-- ── Section label ───────────────────────────────────────────────── -->
-        <TextBlock Grid.Row="1" Text="CHANNELS" FontSize="10" FontWeight="SemiBold" LetterSpacing="1.2"
+        <TextBlock Grid.Row="1" Text="CHANNELS" FontSize="10" FontWeight="SemiBold"
                    Foreground="{StaticResource TextMuted}" Margin="12,12,12,4"/>
 
         <!-- ── Channel list ────────────────────────────────────────────────── -->

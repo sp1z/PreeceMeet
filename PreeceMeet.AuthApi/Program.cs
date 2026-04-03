@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Livekit.Server.Sdk.Dotnet;
 using Microsoft.EntityFrameworkCore;
 using OtpNet;
 using PreeceMeet.AuthApi.Data;
@@ -183,13 +184,13 @@ app.MapGet("/api/rooms", async (HttpContext ctx) =>
 
     try
     {
-        var listResp = await roomService.ListRooms(new Livekit.ListRoomsRequest());
+        var listResp = await roomService.ListRooms(new ListRoomsRequest());
         var result   = new List<object>();
 
         foreach (var room in listResp.Rooms)
         {
             var partResp = await roomService.ListParticipants(
-                new Livekit.ListParticipantsRequest { Room = room.Name });
+                new ListParticipantsRequest { Room = room.Name });
             var names = partResp.Participants.Select(p =>
                 string.IsNullOrWhiteSpace(p.Name) ? p.Identity : p.Name).ToList();
             result.Add(new { name = room.Name, numParticipants = room.NumParticipants, participantNames = names });
