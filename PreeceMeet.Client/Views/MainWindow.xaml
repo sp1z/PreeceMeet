@@ -36,12 +36,6 @@
 
                 <!-- Right-side utility buttons -->
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center">
-                    <Button x:Name="BtnHideUI"
-                            Content="&#xE70D;"
-                            FontFamily="Segoe MDL2 Assets" FontSize="14"
-                            Background="Transparent" Foreground="#888"
-                            ToolTip="Hide toolbars (click top edge to restore)"
-                            Margin="0,0,4,0" Click="BtnHideUI_Click"/>
                     <Button x:Name="BtnFullscreen"
                             Content="&#xE740;"
                             FontFamily="Segoe MDL2 Assets" FontSize="14"

@@ -52,20 +52,9 @@ public class LiveKitService : IDisposable
         ServerUrl   = url;
         ConnectedAt = DateTime.UtcNow;
 
-        // Start capture devices and audio playback before connecting.
-        _capture = new CaptureService();
         _audioPlayback = new AudioPlaybackService();
         _audioPlayback.SetOutputDeviceFromId(
             string.IsNullOrWhiteSpace(settings.SelectedSpeakerDevice) ? null : settings.SelectedSpeakerDevice);
-
-        var camId = ResolveCamera(settings);
-        var micId = ResolveMic(settings);
-
-        try { await _capture.StartCameraAsync(camId); }
-        catch (Exception ex) { Error?.Invoke($"Camera: {ex.Message}"); }
-
-        try { await _capture.StartMicAsync(micId); }
-        catch (Exception ex) { Error?.Invoke($"Microphone: {ex.Message}"); }
 
         _room = new Room();
 
@@ -90,6 +79,19 @@ public class LiveKitService : IDisposable
                 EncryptionType     = LiveKit.Proto.EncryptionType.Gcm,
             },
         }, ct);
+
+        // Start capture AFTER the room is connected so that CaptureFrame is never
+        // called into a partially-initialised or post-disconnect FFI state.
+        var camId = ResolveCamera(settings);
+        var micId = ResolveMic(settings);
+
+        _capture = new CaptureService();
+
+        try { await _capture.StartCameraAsync(camId); }
+        catch (Exception ex) { Error?.Invoke($"Camera: {ex.Message}"); }
+
+        try { await _capture.StartMicAsync(micId); }
+        catch (Exception ex) { Error?.Invoke($"Microphone: {ex.Message}"); }
 
         // Publish local tracks.
         if (_capture?.VideoTrack != null)
