@@ -50,6 +50,9 @@ public class VerifyTotpResponse
 
     [JsonPropertyName("livekitUrl")]
     public string LiveKitUrl { get; set; } = string.Empty;
+
+    [JsonPropertyName("sessionToken")]
+    public string SessionToken { get; set; } = string.Empty;
 }
 
 // ── Rooms ─────────────────────────────────────────────────────────────────────
@@ -101,6 +104,10 @@ public class SavedSession
 
     [JsonPropertyName("livekitToken")]
     public string LiveKitToken { get; set; } = string.Empty;
+
+    /// <summary>Dedicated API session token (HS256, 30-day). Replaces using LiveKit JWT as bearer.</summary>
+    [JsonPropertyName("sessionToken")]
+    public string SessionToken { get; set; } = string.Empty;
 
     [JsonPropertyName("email")]
     public string Email { get; set; } = string.Empty;

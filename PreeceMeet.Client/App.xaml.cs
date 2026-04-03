@@ -127,6 +127,7 @@ public partial class App : Application
         {
             LiveKitUrl   = result.LiveKitUrl,
             LiveKitToken = result.LiveKitToken,
+            SessionToken = result.SessionToken,
             Email        = _settings.Current.SavedEmail,
             SavedAt      = DateTimeOffset.UtcNow,
         });

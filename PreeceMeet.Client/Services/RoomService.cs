@@ -52,12 +52,12 @@ public class RoomService : IDisposable
         try
         {
             var session = _session.Load();
-            if (session is null || string.IsNullOrEmpty(session.LiveKitToken)) return;
+            if (session is null || string.IsNullOrEmpty(session.SessionToken)) return;
 
             var baseUrl = _settings.Current.ServerUrl.TrimEnd('/');
             using var req = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/api/rooms");
             req.Headers.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", session.LiveKitToken);
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", session.SessionToken);
 
             using var resp = await _http.SendAsync(req);
             if (!resp.IsSuccessStatusCode) return;
@@ -138,7 +138,7 @@ public class RoomService : IDisposable
     public async Task<RoomTokenResponse?> GetRoomTokenAsync(string room, string? displayName = null)
     {
         var session = _session.Load();
-        if (session is null || string.IsNullOrEmpty(session.LiveKitToken)) return null;
+        if (session is null || string.IsNullOrEmpty(session.SessionToken)) return null;
 
         var baseUrl = _settings.Current.ServerUrl.TrimEnd('/');
         var url     = $"{baseUrl}/api/rooms/token?room={Uri.EscapeDataString(room)}";
@@ -147,7 +147,7 @@ public class RoomService : IDisposable
 
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", session.LiveKitToken);
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", session.SessionToken);
 
         using var resp = await _http.SendAsync(req);
         resp.EnsureSuccessStatusCode();

@@ -28,6 +28,7 @@ builder.Services.AddDbContext<AppDbContext>(opts =>
 
 builder.Services.AddSingleton<TempTokenStore>();
 builder.Services.AddSingleton(new LiveKitTokenService(livekitApiKey, livekitSecret));
+builder.Services.AddSingleton(new SessionTokenService(livekitSecret));
 
 var livekitHttpUrl = livekitUrl.Replace("wss://", "https://").Replace("ws://", "http://");
 var roomService    = new RoomServiceClient(livekitHttpUrl, livekitApiKey, livekitSecret);
@@ -79,7 +80,8 @@ app.MapPost("/api/auth/verify-totp", async (
     string? name,
     AppDbContext db,
     TempTokenStore tokens,
-    LiveKitTokenService livekit) =>
+    LiveKitTokenService livekit,
+    SessionTokenService session) =>
 {
     if (string.IsNullOrWhiteSpace(req.TempToken) || string.IsNullOrWhiteSpace(req.Code))
         return Results.BadRequest(new { error = "tempToken and code are required." });
@@ -111,11 +113,11 @@ app.MapPost("/api/auth/verify-totp", async (
         await db.SaveChangesAsync();
     }
 
-    // Session token: long-lived (30 days) — used as API bearer in the client.
-    // Room join tokens are issued fresh per-room via /api/rooms/token (6h TTL).
-    var livekitToken = livekit.GenerateToken(email, room.NullIfEmpty() ?? livekitRoom,
-        name.NullIfEmpty(), ttl: TimeSpan.FromDays(30));
-    return Results.Ok(new { livekitToken, livekitUrl });
+    // LiveKit join token (6h) for the initial room connection.
+    var livekitToken = livekit.GenerateToken(email, room.NullIfEmpty() ?? livekitRoom, name.NullIfEmpty());
+    // Session token (30 days) — used as API Bearer for room list / room token endpoints.
+    var sessionToken = session.Generate(email, TimeSpan.FromDays(30));
+    return Results.Ok(new { livekitToken, livekitUrl, sessionToken });
 });
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -180,9 +182,9 @@ static string? GetAdminIdentity(string? authHeader)
 
 // ── Rooms: list ───────────────────────────────────────────────────────────────
 
-app.MapGet("/api/rooms", async (HttpContext ctx) =>
+app.MapGet("/api/rooms", async (HttpContext ctx, SessionTokenService session) =>
 {
-    if (GetIdentity(ctx.Request.Headers.Authorization) is null)
+    if (session.Validate(ctx.Request.Headers.Authorization) is null)
         return Results.Unauthorized();
 
     try
@@ -209,9 +211,9 @@ app.MapGet("/api/rooms", async (HttpContext ctx) =>
 
 // ── Rooms: get token for a specific room ──────────────────────────────────────
 
-app.MapGet("/api/rooms/token", (HttpContext ctx, string? room, string? name, LiveKitTokenService livekit) =>
+app.MapGet("/api/rooms/token", (HttpContext ctx, string? room, string? name, LiveKitTokenService livekit, SessionTokenService session) =>
 {
-    var identity = GetIdentity(ctx.Request.Headers.Authorization);
+    var identity = session.Validate(ctx.Request.Headers.Authorization);
     if (identity is null)
         return Results.Unauthorized();
 
