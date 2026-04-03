@@ -447,9 +447,16 @@ public partial class MainWindow : Window
             SetStep(2);
             TxtStatus.Text = "Starting devices...";
 
+            // Save current mute state before switching so we can restore it.
+            bool wasMicMuted   = _micMuted;
+            bool wasCamStopped = _camStopped;
+
             if (_activeChannel is not null)
             {
                 _isSwitchingRooms = true;
+                // Hide the grid during transition to prevent a green-frame flash
+                // from the new camera warming up while old tiles are still visible.
+                VideoGrid.Visibility = Visibility.Collapsed;
                 await _liveKit.DisconnectAsync();
                 _isSwitchingRooms = false;
                 VideoGrid.Clear();
@@ -477,10 +484,18 @@ public partial class MainWindow : Window
             if (_statsVisible)
                 VideoGrid.SetStatsVisible(true, _liveKit, _settings.Current.ServerUrl);
 
-            // Mute camera on auto-join (user can unmute manually).
-            if (muteCamera)
+            // Restore mute states from before the room switch.
+            _micMuted   = wasMicMuted || false;
+            _camStopped = wasCamStopped || muteCamera;
+
+            if (_micMuted)
             {
-                _camStopped = true;
+                await _liveKit.SetMicrophoneEnabledAsync(false);
+                BtnToggleMic.Background = _mutedBrush;
+                BtnToggleMic.ToolTip    = "Unmute microphone (Ctrl+M)";
+            }
+            if (_camStopped)
+            {
                 await _liveKit.SetCameraEnabledAsync(false);
                 BtnToggleCam.Background = _mutedBrush;
                 BtnToggleCam.ToolTip    = "Start camera (Ctrl+E)";
@@ -524,10 +539,9 @@ public partial class MainWindow : Window
 
     private void SetConnectedState(bool connected)
     {
-        BtnHangup.IsEnabled          = connected;
-        PnlEmptyState.Visibility     = connected ? Visibility.Collapsed : Visibility.Visible;
-        VideoGrid.Visibility         = connected ? Visibility.Visible   : Visibility.Collapsed;
-        BtnDisconnect.Visibility     = connected ? Visibility.Visible   : Visibility.Collapsed;
+        BtnHangup.IsEnabled      = connected;
+        PnlEmptyState.Visibility = connected ? Visibility.Collapsed : Visibility.Visible;
+        VideoGrid.Visibility     = connected ? Visibility.Visible   : Visibility.Collapsed;
     }
 
     private void ShowStatus(string title, string subtitle = "", bool showSteps = false)

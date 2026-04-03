@@ -212,9 +212,21 @@ public partial class VideoGridControl : UserControl
         tile.SwapRequested        += OnSwapRequested;
         tile.MuteLocallyRequested += OnMuteLocallyRequested;
         tile.PinToTopRequested    += OnPinToTopRequested;
-        // For the local tile, use the configured display name if the JWT has no name yet.
         var nameOverride = isLocal ? _settingsService?.Current.DisplayName : null;
         tile.Bind(participant, isLocal, nameOverride);
+
+        // Attach any video track that was already subscribed before the tile was created.
+        // This covers participants who were in the room when we joined — their TrackSubscribed
+        // events fire during ConnectAsync before the tile exists, so we attach here.
+        if (!isLocal && participant is RemoteParticipant rp)
+        {
+            foreach (var pub in rp.TrackPublications.Values)
+            {
+                if (pub is RemoteTrackPublication rtp && rtp.IsSubscribed && rtp.Track is RemoteVideoTrack rvt)
+                    tile.AttachVideo(rvt);
+            }
+        }
+
         _tiles.Add(tile);
         PART_Grid.Children.Add(tile);
     }

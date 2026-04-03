@@ -239,7 +239,5 @@
                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Border>
 
-        <!-- Hidden sentinel used by call-controls IsEnabled binding -->
-        <Button x:Name="BtnDisconnect" Visibility="Collapsed" Grid.Row="0"/>
     </Grid>
 </Window>
