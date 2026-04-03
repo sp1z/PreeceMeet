@@ -56,9 +56,13 @@ public class AppSettings
     [JsonPropertyName("participantOrder")]
     public Dictionary<string, int> ParticipantOrder { get; set; } = new();
 
-    /// <summary>"Grid" (default) or "Strip" (single horizontal row for gaming overlay).</summary>
+    /// <summary>"Grid" (default) or "GameMode" (single horizontal row with auto-hide UI).</summary>
     [JsonPropertyName("layoutMode")]
     public string LayoutMode { get; set; } = "Grid";
+
+    /// <summary>Height in pixels of each video tile in Game Mode. Default 200.</summary>
+    [JsonPropertyName("gameModeTileHeight")]
+    public int GameModeTileHeight { get; set; } = 200;
 
     [JsonPropertyName("sidebarVisible")]
     public bool SidebarVisible { get; set; } = true;

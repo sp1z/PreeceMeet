@@ -20,6 +20,11 @@ public partial class VideoGridControl : UserControl
     private SettingsService?                         _settingsService;
     private bool                                     _stripMode;
 
+    /// <summary>Fired (on the UI thread) whenever the tile count changes. Only fires in strip/game mode.</summary>
+    public event Action<int>? TileCountChanged;
+
+    public int TileCount => _tiles.Count;
+
     public VideoGridControl() => InitializeComponent();
 
     public void SetStripMode(bool strip)
@@ -49,7 +54,7 @@ public partial class VideoGridControl : UserControl
         _service.TrackUnmuted          += OnTrackMuteChanged;
         _service.ActiveSpeakersChanged += OnActiveSpeakersChanged;
 
-        _stripMode = settingsService.Current.LayoutMode == "Strip";
+        _stripMode = settingsService.Current.LayoutMode is "Strip" or "GameMode";
         RebuildGrid();
     }
 
@@ -219,7 +224,8 @@ public partial class VideoGridControl : UserControl
         if (_stripMode)
         {
             PART_Grid.Rows    = 1;
-            PART_Grid.Columns = 0; // UniformGrid auto-fills when Columns=0
+            PART_Grid.Columns = _tiles.Count; // explicit count so UniformGrid tiles are equally sized
+            TileCountChanged?.Invoke(_tiles.Count);
         }
         else
         {

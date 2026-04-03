@@ -29,7 +29,10 @@
                 <ComboBox x:Name="CmbMic" Margin="0,0,0,12"/>
 
                 <Label Content="Speaker Device" Padding="0,0,0,2"/>
-                <ComboBox x:Name="CmbSpeaker" Margin="0,0,0,16"/>
+                <ComboBox x:Name="CmbSpeaker" Margin="0,0,0,12"/>
+
+                <Label Content="Game Mode tile height (px)" Padding="0,0,0,2"/>
+                <TextBox x:Name="TxtGameModeTileHeight" Margin="0,0,0,16"/>
 
                 <!-- ── Channels ─────────────────────────────────────────── -->
                 <Separator Margin="0,0,0,12"/>

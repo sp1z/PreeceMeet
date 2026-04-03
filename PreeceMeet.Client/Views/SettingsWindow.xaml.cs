@@ -24,8 +24,9 @@ public partial class SettingsWindow : Window
     private void PopulateFields()
     {
         var s = _settingsService.Current;
-        TxtDisplayName.Text = s.DisplayName;
-        TxtServerUrl.Text   = s.ServerUrl;
+        TxtDisplayName.Text       = s.DisplayName;
+        TxtServerUrl.Text         = s.ServerUrl;
+        TxtGameModeTileHeight.Text = (s.GameModeTileHeight > 0 ? s.GameModeTileHeight : 200).ToString();
 
         // Deep-copy channels so edits don't affect live sidebar until saved.
         _channels = s.Channels.Select(c => new ChannelConfig
@@ -163,6 +164,8 @@ public partial class SettingsWindow : Window
         var s = _settingsService.Current;
         s.DisplayName = TxtDisplayName.Text.Trim();
         s.ServerUrl   = TxtServerUrl.Text.Trim();
+        if (int.TryParse(TxtGameModeTileHeight.Text.Trim(), out int tileH) && tileH >= 80 && tileH <= 1200)
+            s.GameModeTileHeight = tileH;
 
         // Channels
         s.Channels = _channels;

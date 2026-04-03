@@ -112,7 +112,9 @@ public class CaptureService : IAsyncDisposable
 
     private void OnNewFrame(object sender, NewFrameEventArgs e)
     {
-        if (_disposed || _videoSource == null) return;
+        if (_disposed) return;
+        var vs = _videoSource;
+        if (vs == null) return;
 
         Bitmap bmp = e.Frame;
         int w = bmp.Width, h = bmp.Height;
@@ -127,7 +129,11 @@ public class CaptureService : IAsyncDisposable
             int size = Math.Abs(bd.Stride) * h;
             byte[] data = new byte[size];
             Marshal.Copy(bd.Scan0, data, 0, size);
-            _videoSource.CaptureFrame(new VideoFrame(w, h, VideoBufferType.Bgra, data));
+            try
+            {
+                vs.CaptureFrame(new VideoFrame(w, h, VideoBufferType.Bgra, data));
+            }
+            catch { /* LiveKit FFI may be disposed between null-check and call */ }
         }
         finally
         {
@@ -184,11 +190,17 @@ public class CaptureService : IAsyncDisposable
         if (_videoDevice != null)
         {
             _videoDevice.NewFrame -= OnNewFrame;
+            var vs = _videoSource;
+            _videoSource = null;          // null before stopping so in-flight frames are dropped
             _videoDevice.SignalToStop();
             _videoDevice.WaitForStop();
+            vs?.Dispose();
+        }
+        else
+        {
+            _videoSource?.Dispose();
         }
         VideoTrack?.Dispose();
-        _videoSource?.Dispose();
 
         if (_waveIn != null)
         {

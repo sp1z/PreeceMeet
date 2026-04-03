@@ -52,7 +52,7 @@
                             Content="&#xE8A9;"
                             FontFamily="Segoe MDL2 Assets" FontSize="14"
                             Background="Transparent" Foreground="#888"
-                            ToolTip="Switch to strip layout"
+                            ToolTip="Game Mode"
                             Margin="0,0,4,0" Click="BtnLayoutToggle_Click"/>
                     <Button x:Name="BtnAdmin" Content="Admin" FontSize="11"
                             Background="Transparent" Foreground="#888"
@@ -133,14 +133,11 @@
                                 <StackPanel x:Name="PnlStatusSteps" Margin="0,16,0,0"
                                             HorizontalAlignment="Center"
                                             Visibility="Collapsed">
-                                    <TextBlock x:Name="TxtStep1" Text="&#xE73E;  Authenticating"
-                                               FontFamily="Segoe MDL2 Assets, Segoe UI"
+                                    <TextBlock x:Name="TxtStep1" Text="●  Authenticating"
                                                FontSize="12" Foreground="#555" Margin="0,3"/>
-                                    <TextBlock x:Name="TxtStep2" Text="&#xEA3A;  Starting devices"
-                                               FontFamily="Segoe MDL2 Assets, Segoe UI"
+                                    <TextBlock x:Name="TxtStep2" Text="○  Starting devices"
                                                FontSize="12" Foreground="#555" Margin="0,3"/>
-                                    <TextBlock x:Name="TxtStep3" Text="&#xEA3A;  Joining room"
-                                               FontFamily="Segoe MDL2 Assets, Segoe UI"
+                                    <TextBlock x:Name="TxtStep3" Text="○  Joining room"
                                                FontSize="12" Foreground="#555" Margin="0,3"/>
                                 </StackPanel>
                             </StackPanel>

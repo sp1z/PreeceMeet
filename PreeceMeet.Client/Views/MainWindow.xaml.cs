@@ -19,9 +19,10 @@ public partial class MainWindow : Window
     private readonly AdminService     _adminService;
     private readonly RoomService      _roomService;
 
-    private bool        _micMuted      = false;
-    private bool        _camStopped    = false;
-    private bool        _uiHidden      = false;
+    private bool        _micMuted          = false;
+    private bool        _camStopped        = false;
+    private bool        _uiHidden          = false;
+    private bool        _isSwitchingRooms  = false;
     private WindowState _preFullscreen = WindowState.Normal;
     private WindowStyle _preFullscreenStyle = WindowStyle.SingleBorderWindow;
     private Storyboard? _spinnerStoryboard;
@@ -78,6 +79,11 @@ public partial class MainWindow : Window
 
         _liveKit.Disconnected        += OnLiveKitDisconnected;
         _urlScheme.RoomJoinRequested += OnRoomJoinRequested;
+        VideoGrid.TileCountChanged   += OnTileCountChanged;
+
+        // Restore Game Mode if it was active when we last closed (also accept old "Strip" value).
+        if (_settings.Current.LayoutMode is "GameMode" or "Strip")
+            EnterGameMode();
     }
 
     // ── Join from URL scheme ──────────────────────────────────────────────────
@@ -216,25 +222,80 @@ public partial class MainWindow : Window
         win.ShowDialog();
     }
 
-    // ── Layout toggle ─────────────────────────────────────────────────────────
+    // ── Game Mode (strip layout) ──────────────────────────────────────────────
 
     private void BtnLayoutToggle_Click(object sender, RoutedEventArgs e)
     {
-        bool nowStrip = _settings.Current.LayoutMode != "Strip";
-        _settings.Current.LayoutMode = nowStrip ? "Strip" : "Grid";
-        _settings.Save();
-        VideoGrid.SetStripMode(nowStrip);
-        BtnLayoutToggle.ToolTip = nowStrip ? "Switch to grid layout" : "Switch to strip layout";
-        if (nowStrip)
-        {
-            Height    = 200;
-            MinHeight = 80;
-        }
+        if (_settings.Current.LayoutMode == "GameMode")
+            ExitGameMode();
         else
-        {
-            MinHeight = 0;
-            if (Height < 400) Height = 600;
-        }
+            EnterGameMode();
+    }
+
+    private void EnterGameMode()
+    {
+        _settings.Current.LayoutMode = "GameMode";
+        _settings.Save();
+
+        VideoGrid.SetStripMode(true);
+        SetSidebarVisible(false);
+        SetUIHidden(true);
+
+        BtnLayoutToggle.ToolTip = "Exit Game Mode";
+
+        // Size window to current tile count (SetStripMode triggers TileCountChanged too, but do
+        // an immediate resize here so the window snaps before the dispatcher round-trip).
+        ResizeForGameMode(Math.Max(1, VideoGrid.TileCount));
+    }
+
+    private void ExitGameMode()
+    {
+        _settings.Current.LayoutMode = "Grid";
+        _settings.Save();
+
+        VideoGrid.SetStripMode(false);
+        SetSidebarVisible(_settings.Current.SidebarVisible);
+        SetUIHidden(false);
+
+        BtnLayoutToggle.ToolTip = "Game Mode";
+
+        // Restore normal window constraints and size.
+        MinHeight = 0;
+        MinWidth  = 0;
+        MaxHeight = double.PositiveInfinity;
+        MaxWidth  = double.PositiveInfinity;
+        ResizeMode = ResizeMode.CanResizeWithGrip;
+        if (Height < 400) Height = 600;
+    }
+
+    private void ResizeForGameMode(int tileCount)
+    {
+        int tileH = _settings.Current.GameModeTileHeight > 0
+            ? _settings.Current.GameModeTileHeight : 200;
+
+        double tileW = tileH * 16.0 / 9.0;
+        int    count = Math.Max(1, tileCount);
+
+        double chrome = SystemParameters.WindowCaptionHeight
+                      + SystemParameters.ResizeFrameHorizontalBorderHeight * 2;
+
+        double targetH = tileH + chrome;
+        double targetW = count * tileW;
+
+        ResizeMode = ResizeMode.CanMinimize; // prevent manual vertical resize
+        MinHeight = targetH;
+        MaxHeight = targetH;
+        MinWidth  = tileW;
+        MaxWidth  = double.PositiveInfinity;
+
+        Height = targetH;
+        Width  = targetW;
+    }
+
+    private void OnTileCountChanged(int count)
+    {
+        if (_settings.Current.LayoutMode != "GameMode") return;
+        Dispatcher.BeginInvoke(() => ResizeForGameMode(count));
     }
 
     // ── Settings ──────────────────────────────────────────────────────────────
@@ -388,7 +449,9 @@ public partial class MainWindow : Window
 
             if (_activeChannel is not null)
             {
+                _isSwitchingRooms = true;
                 await _liveKit.DisconnectAsync();
+                _isSwitchingRooms = false;
                 VideoGrid.Clear();
             }
 
@@ -435,6 +498,7 @@ public partial class MainWindow : Window
     private void OnLiveKitDisconnected()
         => Dispatcher.Invoke(() =>
         {
+            if (_isSwitchingRooms) return;
             VideoGrid.Clear();
             Sidebar.SetActiveChannel(null);
             _activeChannel = null;
@@ -467,26 +531,27 @@ public partial class MainWindow : Window
 
     private void SetStep(int step)
     {
-        var checkmark = "\uE73E";  // Completed
-        var pending   = "\uEA3A";  // Ring/circle
+        const string checkmark = "✓";  // U+2713
+        const string active    = "●";  // U+25CF
+        const string pending   = "○";  // U+25CB
 
         var completedColor = new SolidColorBrush(Color.FromRgb(0x23, 0xd1, 0x8b)); // green
         var activeColor    = new SolidColorBrush(Color.FromRgb(0xe3, 0xe5, 0xe8)); // white
         var inactiveColor  = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)); // dim
 
         // Step 1
-        if (step > 1) { TxtStep1.Text = $"{checkmark}  Authenticated"; TxtStep1.Foreground = completedColor; }
-        else if (step == 1) { TxtStep1.Foreground = activeColor; }
+        if (step > 1) { TxtStep1.Text = $"{checkmark}  Authenticated";    TxtStep1.Foreground = completedColor; }
+        else if (step == 1) { TxtStep1.Text = $"{active}  Authenticating"; TxtStep1.Foreground = activeColor; }
 
         // Step 2
-        if (step > 2) { TxtStep2.Text = $"{checkmark}  Devices ready"; TxtStep2.Foreground = completedColor; }
-        else if (step == 2) { TxtStep2.Text = $"{pending}  Starting devices"; TxtStep2.Foreground = activeColor; }
-        else { TxtStep2.Foreground = inactiveColor; }
+        if (step > 2) { TxtStep2.Text = $"{checkmark}  Devices ready";       TxtStep2.Foreground = completedColor; }
+        else if (step == 2) { TxtStep2.Text = $"{active}  Starting devices";  TxtStep2.Foreground = activeColor; }
+        else { TxtStep2.Text = $"{pending}  Starting devices"; TxtStep2.Foreground = inactiveColor; }
 
         // Step 3
-        if (step > 3) { TxtStep3.Text = $"{checkmark}  Connected"; TxtStep3.Foreground = completedColor; }
-        else if (step == 3) { TxtStep3.Text = $"{pending}  Joining room"; TxtStep3.Foreground = activeColor; }
-        else { TxtStep3.Foreground = inactiveColor; }
+        if (step > 3) { TxtStep3.Text = $"{checkmark}  Connected";         TxtStep3.Foreground = completedColor; }
+        else if (step == 3) { TxtStep3.Text = $"{active}  Joining room";   TxtStep3.Foreground = activeColor; }
+        else { TxtStep3.Text = $"{pending}  Joining room"; TxtStep3.Foreground = inactiveColor; }
     }
 
     private void HideStatus()

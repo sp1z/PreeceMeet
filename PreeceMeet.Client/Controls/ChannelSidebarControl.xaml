@@ -85,8 +85,8 @@
                                     </StackPanel>
 
                                     <!-- Participant names (shown when count > 0) -->
-                                    <TextBlock Text="{Binding ParticipantSummary}" FontSize="10"
-                                               Foreground="{StaticResource TextMuted}"
+                                    <TextBlock Text="{Binding ParticipantSummary}" FontSize="11"
+                                               Foreground="#9a9bc0"
                                                Margin="17,2,0,0" TextTrimming="CharacterEllipsis"
                                                Visibility="{Binding ShowParticipants, Converter={StaticResource BoolToVis}}"/>
                                 </StackPanel>
@@ -96,8 +96,8 @@
                                         Background="#2a2b3d" Padding="5,1"
                                         VerticalAlignment="Center"
                                         Visibility="{Binding ShowCount, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="{Binding ParticipantCount}" FontSize="10"
-                                               Foreground="{StaticResource TextMuted}"/>
+                                    <TextBlock Text="{Binding ParticipantCount}" FontSize="11"
+                                               Foreground="#9a9bc0"/>
                                 </Border>
                             </Grid>
 
