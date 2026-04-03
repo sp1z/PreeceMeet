@@ -33,6 +33,8 @@ public class RoomService : IDisposable
 
     public void Start() => _ = PollLoopAsync(_cts.Token);
 
+    public Task PollNowAsync() => PollOnceAsync();
+
     private async Task PollLoopAsync(CancellationToken ct)
     {
         // Initial poll immediately, then every 15 s.

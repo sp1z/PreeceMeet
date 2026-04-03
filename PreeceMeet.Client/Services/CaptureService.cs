@@ -20,6 +20,7 @@ public class CaptureService : IAsyncDisposable
     private VideoCaptureDevice? _videoDevice;
     private VideoSource?        _videoSource;
     private volatile bool       _disposed;
+    private volatile bool       _suspended;   // separate flag so Suspend doesn't block Dispose
     private readonly object     _frameLock = new();
 
     public AudioSource?     AudioSource { get; private set; }
@@ -111,14 +112,24 @@ public class CaptureService : IAsyncDisposable
         return tcs.Task;
     }
 
+    /// <summary>
+    /// Synchronously stops frame delivery and waits for any in-flight frame to
+    /// finish. Safe to call from any thread.  Does not stop the camera device —
+    /// call DisposeAsync() to fully tear down.
+    /// </summary>
+    public void SuspendFrameDelivery()
+    {
+        _suspended = true;
+        lock (_frameLock) { } // wait for any frame currently inside the lock
+    }
+
     private void OnNewFrame(object sender, NewFrameEventArgs e)
     {
-        // Hold the frame lock for the entire frame delivery.  DisposeAsync waits
-        // for this lock after WaitForStop(), guaranteeing that vs.CaptureFrame()
-        // can never be called on an already-disposed VideoSource.
         lock (_frameLock)
         {
-            if (_disposed || _videoSource == null) return;
+            if (_disposed || _suspended || _videoSource == null) return;
+
+            var vs = _videoSource; // capture to local so it can't race to null mid-call
 
             Bitmap bmp = e.Frame;
             int w = bmp.Width, h = bmp.Height;
@@ -132,7 +143,7 @@ public class CaptureService : IAsyncDisposable
                 int size = Math.Abs(bd.Stride) * h;
                 byte[] data = new byte[size];
                 Marshal.Copy(bd.Scan0, data, 0, size);
-                _videoSource.CaptureFrame(new VideoFrame(w, h, VideoBufferType.Bgra, data));
+                vs.CaptureFrame(new VideoFrame(w, h, VideoBufferType.Bgra, data));
             }
             finally
             {

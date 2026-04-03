@@ -503,6 +503,9 @@ public partial class MainWindow : Window
 
             SetConnectedState(true);
             HideStatus();
+
+            // Refresh sidebar participant counts immediately after joining.
+            _ = _roomService.PollNowAsync();
         }
         catch (Exception ex)
         {

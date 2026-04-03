@@ -165,13 +165,16 @@ public class LiveKitService : IDisposable
 
     private void OnRoomDisconnected(object? sender, DisconnectReason reason)
     {
-        // Stop frame delivery immediately so CaptureFrame is not called after
-        // the room's FFI state is torn down by an unexpected disconnect.
+        // Synchronously stop frame delivery before CleanupRoom() alters FFI state.
+        // SuspendFrameDelivery() sets _suspended=true then acquires _frameLock to
+        // drain any in-flight CaptureFrame call — after it returns, no more calls
+        // to NativeMethods.Request can originate from OnNewFrame.
         if (_capture != null)
         {
             var cap = _capture;
             _capture = null;
-            Task.Run(async () => await cap.DisposeAsync());
+            cap.SuspendFrameDelivery();               // synchronous, blocks until safe
+            Task.Run(async () => await cap.DisposeAsync()); // stop camera device async
         }
 
         Dispatch(() =>

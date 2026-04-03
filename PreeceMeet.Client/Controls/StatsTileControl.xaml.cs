@@ -49,15 +49,20 @@ public partial class StatsTileControl : UserControl
         int count = _liveKit.RemoteParticipants.Count + (_liveKit.LocalParticipant != null ? 1 : 0);
         TxtParticipants.Text = $"Participants: {count}";
 
-        var names = new List<string>();
+        var rows = new List<string>();
         if (_liveKit.LocalParticipant != null)
         {
             var me = _liveKit.LocalParticipant.Name ?? _liveKit.LocalParticipant.Identity ?? "You";
-            names.Add($"● {me} (you)");
+            var trackInfo = GetLocalTrackInfo(_liveKit.LocalParticipant);
+            rows.Add($"● {me} (you)  {trackInfo}");
         }
         foreach (var p in _liveKit.RemoteParticipants)
-            names.Add($"● {(p.Name ?? p.Identity ?? p.Sid)}");
-        ParticipantList.ItemsSource = names;
+        {
+            var name = p.Name ?? p.Identity ?? p.Sid;
+            var trackInfo = GetRemoteTrackInfo(p);
+            rows.Add($"● {name}  {trackInfo}");
+        }
+        ParticipantList.ItemsSource = rows;
 
         long pingMs = await MeasurePingAsync();
         TxtPing.Text = pingMs >= 0 ? $"Server ping: {pingMs} ms" : "Server ping: —";
@@ -75,6 +80,32 @@ public partial class StatsTileControl : UserControl
             return reply.Status == IPStatus.Success ? reply.RoundtripTime : -1;
         }
         catch { return -1; }
+    }
+
+    private static string GetLocalTrackInfo(LiveKit.Rtc.LocalParticipant p)
+    {
+        bool hasVideo = false, videoMuted = false, hasAudio = false, audioMuted = false;
+        foreach (var pub in p.TrackPublications.Values)
+        {
+            if (pub.Kind == LiveKit.Proto.TrackKind.KindVideo) { hasVideo = true; videoMuted = pub.IsMuted; }
+            if (pub.Kind == LiveKit.Proto.TrackKind.KindAudio) { hasAudio = true; audioMuted = pub.IsMuted; }
+        }
+        var cam = hasVideo  ? (videoMuted ? "📷✗" : "📷") : "—";
+        var mic = hasAudio  ? (audioMuted ? "🎤✗" : "🎤") : "—";
+        return $"{cam} {mic}";
+    }
+
+    private static string GetRemoteTrackInfo(LiveKit.Rtc.RemoteParticipant p)
+    {
+        bool hasVideo = false, videoMuted = false, hasAudio = false, audioMuted = false;
+        foreach (var pub in p.TrackPublications.Values)
+        {
+            if (pub.Kind == LiveKit.Proto.TrackKind.KindVideo) { hasVideo = true; videoMuted = pub.IsMuted; }
+            if (pub.Kind == LiveKit.Proto.TrackKind.KindAudio) { hasAudio = true; audioMuted = pub.IsMuted; }
+        }
+        var cam = hasVideo ? (videoMuted ? "📷✗" : "📷") : "—";
+        var mic = hasAudio ? (audioMuted ? "🎤✗" : "🎤") : "—";
+        return $"{cam} {mic}";
     }
 
     private static string FormatDuration(TimeSpan ts)
