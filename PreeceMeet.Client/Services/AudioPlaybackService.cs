@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using LiveKit.Proto;
 using LiveKit.Rtc;
 using NAudio.Wave;
+using PreeceMeet.Models;
 
 namespace PreeceMeet.Services;
 
