@@ -76,8 +76,10 @@ public partial class ChannelSidebarControl : UserControl
 
     private void Footer_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (sender is Border b)
+        if (sender is Border b && b.ContextMenu is not null)
         {
+            b.ContextMenu.PlacementTarget = b;
+            b.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Top;
             b.ContextMenu.IsOpen = true;
             e.Handled = true;
         }

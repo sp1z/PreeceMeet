@@ -165,6 +165,15 @@ public class LiveKitService : IDisposable
 
     private void OnRoomDisconnected(object? sender, DisconnectReason reason)
     {
+        // Stop frame delivery immediately so CaptureFrame is not called after
+        // the room's FFI state is torn down by an unexpected disconnect.
+        if (_capture != null)
+        {
+            var cap = _capture;
+            _capture = null;
+            Task.Run(async () => await cap.DisposeAsync());
+        }
+
         Dispatch(() =>
         {
             RemoteParticipants.Clear();
