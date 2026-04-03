@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private bool        _camStopped        = false;
     private bool        _uiHidden          = false;
     private bool        _isSwitchingRooms  = false;
+    private bool        _statsVisible      = false;
     private WindowState _preFullscreen = WindowState.Normal;
     private WindowStyle _preFullscreenStyle = WindowStyle.SingleBorderWindow;
     private Storyboard? _spinnerStoryboard;
@@ -214,6 +215,20 @@ public partial class MainWindow : Window
         PnlRevealBar.Visibility    = hide ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    // ── Stats panel ───────────────────────────────────────────────────────────
+
+    private void BtnStats_Click(object sender, RoutedEventArgs e)
+    {
+        _statsVisible = !_statsVisible;
+        BtnStats.ToolTip = _statsVisible ? "Hide debug stats panel" : "Show debug stats panel";
+        BtnStats.Opacity = _statsVisible ? 1.0 : 0.6;
+        VideoGrid.SetStatsVisible(_statsVisible, _liveKit, _settings.Current.ServerUrl);
+
+        // In game mode, the window width needs to update for the new tile count.
+        if (_settings.Current.LayoutMode == "GameMode")
+            ResizeForGameMode(VideoGrid.TileCount);
+    }
+
     // ── Admin ─────────────────────────────────────────────────────────────────
 
     private void BtnAdmin_Click(object sender, RoutedEventArgs e)
@@ -258,13 +273,6 @@ public partial class MainWindow : Window
         SetUIHidden(false);
 
         BtnLayoutToggle.ToolTip = "Game Mode";
-
-        // Restore normal window constraints and size.
-        MinHeight = 0;
-        MinWidth  = 0;
-        MaxHeight = double.PositiveInfinity;
-        MaxWidth  = double.PositiveInfinity;
-        ResizeMode = ResizeMode.CanResizeWithGrip;
         if (Height < 400) Height = 600;
     }
 
@@ -279,17 +287,8 @@ public partial class MainWindow : Window
         double chrome = SystemParameters.WindowCaptionHeight
                       + SystemParameters.ResizeFrameHorizontalBorderHeight * 2;
 
-        double targetH = tileH + chrome;
-        double targetW = count * tileW;
-
-        ResizeMode = ResizeMode.CanMinimize; // prevent manual vertical resize
-        MinHeight = targetH;
-        MaxHeight = targetH;
-        MinWidth  = tileW;
-        MaxWidth  = double.PositiveInfinity;
-
-        Height = targetH;
-        Width  = targetW;
+        Height = tileH + chrome;
+        Width  = count * tileW;
     }
 
     private void OnTileCountChanged(int count)

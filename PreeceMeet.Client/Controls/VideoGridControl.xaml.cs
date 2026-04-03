@@ -19,11 +19,29 @@ public partial class VideoGridControl : UserControl
     private LiveKitService?                          _service;
     private SettingsService?                         _settingsService;
     private bool                                     _stripMode;
+    private StatsTileControl?                        _statsTile;
 
     /// <summary>Fired (on the UI thread) whenever the tile count changes. Only fires in strip/game mode.</summary>
     public event Action<int>? TileCountChanged;
 
-    public int TileCount => _tiles.Count;
+    public int TileCount => _tiles.Count + (_statsTile != null ? 1 : 0);
+
+    public void SetStatsVisible(bool show, LiveKitService? svc = null, string serverUrl = "")
+    {
+        if (show && _statsTile == null && svc != null)
+        {
+            _statsTile = new StatsTileControl();
+            _statsTile.Initialize(svc, serverUrl);
+            PART_Grid.Children.Add(_statsTile);
+        }
+        else if (!show && _statsTile != null)
+        {
+            _statsTile.Stop();
+            PART_Grid.Children.Remove(_statsTile);
+            _statsTile = null;
+        }
+        UpdateColumns();
+    }
 
     public VideoGridControl() => InitializeComponent();
 
@@ -82,6 +100,11 @@ public partial class VideoGridControl : UserControl
 
         _tiles.Clear();
         PART_Grid.Children.Clear();
+        if (_statsTile != null)
+        {
+            _statsTile.Stop();
+            _statsTile = null;
+        }
         _remoteParticipants = null;
         _service            = null;
         _localParticipant   = null;
@@ -221,17 +244,17 @@ public partial class VideoGridControl : UserControl
 
     private void UpdateColumns()
     {
+        int total = _tiles.Count + (_statsTile != null ? 1 : 0);
         if (_stripMode)
         {
             PART_Grid.Rows    = 1;
-            PART_Grid.Columns = _tiles.Count; // explicit count so UniformGrid tiles are equally sized
-            TileCountChanged?.Invoke(_tiles.Count);
+            PART_Grid.Columns = total;
+            TileCountChanged?.Invoke(total);
         }
         else
         {
             PART_Grid.Rows = 0;
-            int count = _tiles.Count;
-            PART_Grid.Columns = count switch
+            PART_Grid.Columns = total switch
             {
                 <= 1 => 1,
                 <= 4 => 2,

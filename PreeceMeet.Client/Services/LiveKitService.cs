@@ -27,6 +27,8 @@ public class LiveKitService : IDisposable
     public bool IsConnected  => _room is { ConnectionState: ConnectionState.ConnConnected };
     public bool MicEnabled   { get; private set; } = true;
     public bool CameraEnabled{ get; private set; } = true;
+    public DateTime? ConnectedAt { get; private set; }
+    public string?   ServerUrl   { get; private set; }
 
     // ── Events ────────────────────────────────────────────────────────────────
 
@@ -46,6 +48,9 @@ public class LiveKitService : IDisposable
     {
         if (_room is not null)
             await DisconnectAsync();
+
+        ServerUrl   = url;
+        ConnectedAt = DateTime.UtcNow;
 
         // Start capture devices and audio playback before connecting.
         _capture = new CaptureService();
@@ -110,15 +115,18 @@ public class LiveKitService : IDisposable
     public async Task DisconnectAsync()
     {
         if (_room is null) return;
-        try { await _room.DisconnectAsync(); } catch { /* ignore */ }
-        CleanupRoom();
-        _audioPlayback?.Dispose();
-        _audioPlayback = null;
+
+        // Dispose capture first — prevents camera frames from racing into a disposed LiveKit FFI.
         if (_capture != null)
         {
             await _capture.DisposeAsync();
             _capture = null;
         }
+        _audioPlayback?.Dispose();
+        _audioPlayback = null;
+
+        try { await _room.DisconnectAsync(); } catch { /* ignore */ }
+        CleanupRoom();
     }
 
     // ── Media controls ────────────────────────────────────────────────────────
@@ -203,6 +211,7 @@ public class LiveKitService : IDisposable
         _room.TrackUnmuted            -= OnTrackUnmuted;
         _room.ActiveSpeakersChanged   -= OnActiveSpeakersChanged;
         _room.Dispose();
+        ConnectedAt = null;
         _room = null;
     }
 

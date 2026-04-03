@@ -130,6 +130,16 @@ public class RoomService : IDisposable
             foreach (var cfg in _settings.Current.Channels)
                 if (!existing.Contains(cfg.Name))
                     Channels.Add(new ChannelInfo { Name = cfg.Name, DisplayName = cfg.DisplayName, Emoji = cfg.Emoji });
+
+            // Sync display name and emoji for existing channels.
+            foreach (var ch in Channels)
+            {
+                var cfg = _settings.Current.Channels.FirstOrDefault(c =>
+                    c.Name.Equals(ch.Name, StringComparison.OrdinalIgnoreCase));
+                if (cfg is null) continue;
+                ch.DisplayName = cfg.DisplayName;
+                ch.Emoji       = cfg.Emoji;
+            }
         });
     }
 

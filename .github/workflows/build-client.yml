@@ -87,3 +87,27 @@ jobs:
             - Windows 10 x64 or later (runtime is bundled — no .NET install needed)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: Email notification
+    runs-on: [self-hosted, linux, deploy]
+    needs: build
+    if: ${{ always() && needs.build.result == 'success' }}
+
+    steps:
+      - name: Send build ready email
+        run: |
+          VERSION="1.0.${{ github.run_number }}"
+          COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
+          sendmail -t <<EOF
+          From: PreeceMeet CI <ci@russellpreece.com>
+          To: russell@preece.org.uk
+          Subject: PreeceMeet v${VERSION} ready
+          Content-Type: text/plain
+
+          PreeceMeet v${VERSION} has been built and published to GitHub.
+
+          Changes: ${COMMIT_MSG}
+
+          Download: https://github.com/sp1z/PreeceMeet/releases/tag/v${VERSION}
+          EOF

@@ -54,6 +54,12 @@
                             Background="Transparent" Foreground="#888"
                             ToolTip="Game Mode"
                             Margin="0,0,4,0" Click="BtnLayoutToggle_Click"/>
+                    <Button x:Name="BtnStats"
+                            Content="📊"
+                            FontSize="13"
+                            Background="Transparent" Foreground="#888"
+                            ToolTip="Show debug stats panel"
+                            Margin="0,0,4,0" Click="BtnStats_Click"/>
                     <Button x:Name="BtnAdmin" Content="Admin" FontSize="11"
                             Background="Transparent" Foreground="#888"
                             Visibility="Collapsed"

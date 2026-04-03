@@ -37,6 +37,10 @@ public partial class VideoTileControl : UserControl
         _participant = participant;
         _isLocal     = isLocal;
 
+        // Mirror local video horizontally (webcam selfie convention).
+        PART_VideoImage.RenderTransformOrigin = new Point(0.5, 0.5);
+        PART_VideoImage.RenderTransform = isLocal ? new ScaleTransform(-1, 1) : Transform.Identity;
+
         PART_NameLabel.Text = !string.IsNullOrWhiteSpace(displayNameOverride)
             ? displayNameOverride : DisplayName(participant);
         var initial = PART_NameLabel.Text.Length > 0
