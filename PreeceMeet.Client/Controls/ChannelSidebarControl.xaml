@@ -28,8 +28,7 @@
 
         <!-- ── Section label ───────────────────────────────────────────────── -->
         <TextBlock Grid.Row="1" Text="CHANNELS" FontSize="11" FontWeight="SemiBold"
-                   Foreground="{StaticResource TextMuted}" Margin="14,12,12,4"
-                   LetterSpacing="1"/>
+                   Foreground="{StaticResource TextMuted}" Margin="14,12,12,4"/>
 
         <!-- ── Channel list ────────────────────────────────────────────────── -->
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
