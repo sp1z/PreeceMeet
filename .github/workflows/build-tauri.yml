@@ -74,13 +74,16 @@ jobs:
         working-directory: PreeceMeet.Tauri
         run: npm install
 
+      - name: Generate all icon sizes
+        working-directory: PreeceMeet.Tauri
+        run: npx tauri icon src-tauri/icons/app-source.png
+
       - name: Build and release with Tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: PreeceMeet.Tauri
-          iconPath: PreeceMeet.Tauri/src-tauri/icons/app-source.png
           tagName: tauri-v__VERSION__
           releaseName: 'PreeceMeet (cross-platform) v__VERSION__'
           releaseBody: |
