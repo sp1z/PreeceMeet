@@ -100,11 +100,14 @@ public partial class App : Application
         else if (!string.IsNullOrEmpty(_settings.Current.AutoJoinChannel) &&
                  _settings.Current.Channels.Any(c =>
                      c.Name.Equals(_settings.Current.AutoJoinChannel, StringComparison.OrdinalIgnoreCase)))
-            _mainWindow.JoinRoom(_settings.Current.AutoJoinChannel);
+            _mainWindow.JoinRoom(_settings.Current.AutoJoinChannel, muteCamera: true);
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // Disconnect and release all devices before the process exits.
+        // LiveKit disconnect is fire-and-forget — we can't await in OnExit.
+        try { _liveKit?.DisconnectAsync().GetAwaiter().GetResult(); } catch { }
         _urlScheme.Dispose();
         _roomService?.Dispose();
         _liveKit?.Dispose();

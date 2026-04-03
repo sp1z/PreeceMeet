@@ -82,16 +82,19 @@ public partial class MainWindow : Window
         _urlScheme.RoomJoinRequested += OnRoomJoinRequested;
         VideoGrid.TileCountChanged   += OnTileCountChanged;
 
-        // Restore Game Mode if it was active when we last closed (also accept old "Strip" value).
-        if (_settings.Current.LayoutMode is "GameMode" or "Strip")
-            EnterGameMode();
+        // Migrate old "Strip" layout value — don't auto-enter Game Mode on startup.
+        if (_settings.Current.LayoutMode is "Strip" or "GameMode")
+        {
+            _settings.Current.LayoutMode = "Grid";
+            _settings.Save();
+        }
     }
 
     // ── Join from URL scheme ──────────────────────────────────────────────────
 
-    public void JoinRoom(string roomName)
+    public void JoinRoom(string roomName, bool muteCamera = false)
     {
-        Dispatcher.Invoke(() => _ = ConnectToChannelAsync(roomName));
+        Dispatcher.Invoke(() => _ = ConnectToChannelAsync(roomName, muteCamera));
     }
 
     // ── Window lifecycle ──────────────────────────────────────────────────────
@@ -413,7 +416,7 @@ public partial class MainWindow : Window
 
     // ── Connect / disconnect ──────────────────────────────────────────────────
 
-    private async Task ConnectToChannelAsync(string channelName)
+    private async Task ConnectToChannelAsync(string channelName, bool muteCamera = false)
     {
         ShowStatus("Connecting...", $"Joining #{channelName}", showSteps: true);
         SetStep(1);
@@ -470,7 +473,20 @@ public partial class MainWindow : Window
             TxtCurrentRoom.Text = $"#{channelName}";
 
             VideoGrid.Initialize(_liveKit.RemoteParticipants, _liveKit.LocalParticipant, _liveKit, _settings);
-            VideoGrid.SetStripMode(_settings.Current.LayoutMode == "Strip");
+            VideoGrid.SetStripMode(_settings.Current.LayoutMode is "GameMode" or "Strip");
+
+            // Re-attach stats tile if it was visible.
+            if (_statsVisible)
+                VideoGrid.SetStatsVisible(true, _liveKit, _settings.Current.ServerUrl);
+
+            // Mute camera on auto-join (user can unmute manually).
+            if (muteCamera)
+            {
+                _camStopped = true;
+                await _liveKit.SetCameraEnabledAsync(false);
+                BtnToggleCam.Background = _mutedBrush;
+                BtnToggleCam.ToolTip    = "Start camera (Ctrl+E)";
+            }
 
             SetConnectedState(true);
             HideStatus();

@@ -199,7 +199,7 @@ public class LiveKitService : IDisposable
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private void CleanupRoom()
+    private void CleanupRoom(bool dispose = false)
     {
         if (_room is null) return;
         _room.ParticipantConnected    -= OnParticipantConnected;
@@ -210,7 +210,10 @@ public class LiveKitService : IDisposable
         _room.TrackMuted              -= OnTrackMuted;
         _room.TrackUnmuted            -= OnTrackUnmuted;
         _room.ActiveSpeakersChanged   -= OnActiveSpeakersChanged;
-        _room.Dispose();
+        // Skip Dispose() on room switch — disposing the Room can corrupt the shared
+        // LiveKit FFI client, crashing camera frames on the very next connection.
+        // Only dispose at full app shutdown where we won't be reconnecting.
+        if (dispose) _room.Dispose();
         ConnectedAt = null;
         _room = null;
     }
@@ -288,7 +291,7 @@ public class LiveKitService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        CleanupRoom();
+        CleanupRoom(dispose: true);
         _audioPlayback?.Dispose();
         _audioPlayback = null;
         if (_capture != null)
