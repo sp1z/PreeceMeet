@@ -34,8 +34,23 @@ public class AppSettings
     [JsonPropertyName("selectedCameraDevice")]
     public string SelectedCameraDevice { get; set; } = string.Empty;
 
+    /// <summary>Saved camera device name for robust matching when device IDs change.</summary>
+    [JsonPropertyName("selectedCameraDeviceName")]
+    public string SelectedCameraDeviceName { get; set; } = string.Empty;
+
     [JsonPropertyName("selectedMicDevice")]
     public string SelectedMicDevice { get; set; } = string.Empty;
+
+    /// <summary>Saved mic device name for robust matching when device IDs change.</summary>
+    [JsonPropertyName("selectedMicDeviceName")]
+    public string SelectedMicDeviceName { get; set; } = string.Empty;
+
+    [JsonPropertyName("selectedSpeakerDevice")]
+    public string SelectedSpeakerDevice { get; set; } = string.Empty;
+
+    /// <summary>Saved speaker device name for robust matching when device IDs change.</summary>
+    [JsonPropertyName("selectedSpeakerDeviceName")]
+    public string SelectedSpeakerDeviceName { get; set; } = string.Empty;
 
     /// <summary>Participant identity → preferred grid position. Persisted per user.</summary>
     [JsonPropertyName("participantOrder")]

@@ -143,14 +143,23 @@ public partial class App : Application
             if (updateInfo == null) return;
 
             _mainWindow?.ShowUpdateStatus("Update available, downloading...");
+            _mainWindow?.ShowUpdateOverlay("Downloading update...", 0);
             await mgr.DownloadUpdatesAsync(updateInfo,
-                p => _mainWindow?.ShowUpdateStatus($"Downloading update... {p}%"));
+                p =>
+                {
+                    _mainWindow?.ShowUpdateStatus($"Downloading update... {p}%");
+                    _mainWindow?.ShowUpdateOverlay("Downloading update...", p);
+                });
 
             _mainWindow?.ShowUpdateStatus("Restarting to apply update...");
+            _mainWindow?.ShowUpdateRestarting();
             await Task.Delay(1500);
             mgr.ApplyUpdatesAndRestart(updateInfo.TargetFullRelease);
         }
-        catch { /* update failures are non-critical */ }
+        catch
+        {
+            _mainWindow?.HideUpdateOverlay();
+        }
     }
 
     // ── Sign-out ──────────────────────────────────────────────────────────────
