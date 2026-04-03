@@ -82,22 +82,107 @@
             <Border Grid.Column="1" Background="#0d0d1a">
                 <Grid>
                     <StackPanel x:Name="PnlEmptyState" VerticalAlignment="Center" HorizontalAlignment="Center">
-                        <TextBlock Text="Select a channel to join" FontSize="20" Foreground="#555"
+                        <TextBlock Text="&#xE717;"
+                                   FontFamily="Segoe MDL2 Assets" FontSize="48"
+                                   Foreground="#2a2b3d" HorizontalAlignment="Center"
+                                   Margin="0,0,0,16"/>
+                        <TextBlock Text="Select a channel to join" FontSize="20"
+                                   Foreground="#72748c" FontWeight="SemiBold"
                                    HorizontalAlignment="Center"/>
-                        <TextBlock Text="Or click a channel in the sidebar to start a call."
-                                   FontSize="13" Foreground="#3a3a3a"
+                        <TextBlock Text="Click a channel in the sidebar to start a call"
+                                   FontSize="13" Foreground="#3a3a5c"
                                    HorizontalAlignment="Center" Margin="0,8,0,0"/>
                     </StackPanel>
 
                     <controls:VideoGridControl x:Name="VideoGrid" Visibility="Collapsed"/>
 
-                    <Border x:Name="PnlStatus" Background="#CC000000" Visibility="Collapsed">
-                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock x:Name="TxtStatus" Text="Connecting..." FontSize="20"
-                                       Foreground="White" HorizontalAlignment="Center"/>
-                            <TextBlock x:Name="TxtStatusSub" Text="" FontSize="13"
-                                       Foreground="#aaa" HorizontalAlignment="Center" Margin="0,6,0,0"/>
-                        </StackPanel>
+                    <!-- Professional status overlay with spinner -->
+                    <Border x:Name="PnlStatus" Background="#E6080816" Visibility="Collapsed">
+                        <Border Background="#1a1b2e" CornerRadius="16" Padding="40,32"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                MaxWidth="400"
+                                Effect="{StaticResource CardShadow}">
+                            <StackPanel HorizontalAlignment="Center">
+                                <!-- Spinning ring -->
+                                <Grid Width="48" Height="48" HorizontalAlignment="Center" Margin="0,0,0,20">
+                                    <Ellipse Width="48" Height="48"
+                                             Stroke="#2a2b3d" StrokeThickness="4"/>
+                                    <Ellipse x:Name="SpinnerArc" Width="48" Height="48"
+                                             Stroke="{StaticResource AccentBlue}" StrokeThickness="4"
+                                             StrokeDashArray="2.5 5"
+                                             StrokeDashCap="Round"
+                                             RenderTransformOrigin="0.5,0.5">
+                                        <Ellipse.RenderTransform>
+                                            <RotateTransform x:Name="SpinnerRotation" Angle="0"/>
+                                        </Ellipse.RenderTransform>
+                                    </Ellipse>
+                                </Grid>
+
+                                <TextBlock x:Name="TxtStatus" Text="Connecting..."
+                                           FontSize="18" FontWeight="SemiBold"
+                                           Foreground="#e3e5e8"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"/>
+                                <TextBlock x:Name="TxtStatusSub" Text=""
+                                           FontSize="13" Foreground="#72748c"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           Margin="0,8,0,0"/>
+
+                                <!-- Step indicators -->
+                                <StackPanel x:Name="PnlStatusSteps" Margin="0,16,0,0"
+                                            HorizontalAlignment="Center"
+                                            Visibility="Collapsed">
+                                    <TextBlock x:Name="TxtStep1" Text="&#xE73E;  Authenticating"
+                                               FontFamily="Segoe MDL2 Assets, Segoe UI"
+                                               FontSize="12" Foreground="#555" Margin="0,3"/>
+                                    <TextBlock x:Name="TxtStep2" Text="&#xEA3A;  Starting devices"
+                                               FontFamily="Segoe MDL2 Assets, Segoe UI"
+                                               FontSize="12" Foreground="#555" Margin="0,3"/>
+                                    <TextBlock x:Name="TxtStep3" Text="&#xEA3A;  Joining room"
+                                               FontFamily="Segoe MDL2 Assets, Segoe UI"
+                                               FontSize="12" Foreground="#555" Margin="0,3"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Border>
+
+                    <!-- Update overlay -->
+                    <Border x:Name="PnlUpdateOverlay" Background="#E6080816" Visibility="Collapsed">
+                        <Border Background="#1a1b2e" CornerRadius="16" Padding="40,32"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                MaxWidth="420"
+                                Effect="{StaticResource CardShadow}">
+                            <StackPanel HorizontalAlignment="Center">
+                                <!-- Update icon -->
+                                <TextBlock Text="&#xE895;"
+                                           FontFamily="Segoe MDL2 Assets" FontSize="36"
+                                           Foreground="{StaticResource AccentBlue}"
+                                           HorizontalAlignment="Center" Margin="0,0,0,16"/>
+
+                                <TextBlock x:Name="TxtUpdateTitle" Text="Updating PreeceMeet"
+                                           FontSize="18" FontWeight="SemiBold"
+                                           Foreground="#e3e5e8"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="TxtUpdateDetail" Text=""
+                                           FontSize="13" Foreground="#72748c"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,8,0,16"/>
+
+                                <!-- Progress bar -->
+                                <Grid Height="6" Margin="0,0,0,8">
+                                    <Border Background="#2a2b3d" CornerRadius="3"/>
+                                    <Border x:Name="UpdateProgressFill"
+                                            Background="{StaticResource AccentBlue}"
+                                            CornerRadius="3"
+                                            HorizontalAlignment="Left"
+                                            Width="0"/>
+                                </Grid>
+                                <TextBlock x:Name="TxtUpdatePercent" Text="0%"
+                                           FontSize="11" Foreground="#555"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
                     </Border>
                 </Grid>
             </Border>

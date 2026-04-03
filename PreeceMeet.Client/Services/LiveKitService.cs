@@ -11,9 +11,10 @@ using PreeceMeet.Services;
 /// </summary>
 public class LiveKitService : IDisposable
 {
-    private Room?           _room;
-    private bool            _disposed;
-    private CaptureService? _capture;
+    private Room?                 _room;
+    private bool                  _disposed;
+    private CaptureService?       _capture;
+    private AudioPlaybackService? _audioPlayback;
 
     // ── Observable collections (always mutated on the UI thread) ──────────────
 
@@ -46,11 +47,14 @@ public class LiveKitService : IDisposable
         if (_room is not null)
             await DisconnectAsync();
 
-        // Start capture devices before connecting.
+        // Start capture devices and audio playback before connecting.
         _capture = new CaptureService();
+        _audioPlayback = new AudioPlaybackService();
+        _audioPlayback.SetOutputDeviceFromId(
+            string.IsNullOrWhiteSpace(settings.SelectedSpeakerDevice) ? null : settings.SelectedSpeakerDevice);
 
-        var camId = string.IsNullOrWhiteSpace(settings.SelectedCameraDevice) ? null : settings.SelectedCameraDevice;
-        var micId = string.IsNullOrWhiteSpace(settings.SelectedMicDevice)    ? null : settings.SelectedMicDevice;
+        var camId = ResolveCamera(settings);
+        var micId = ResolveMic(settings);
 
         try { await _capture.StartCameraAsync(camId); }
         catch (Exception ex) { Error?.Invoke($"Camera: {ex.Message}"); }
@@ -93,7 +97,14 @@ public class LiveKitService : IDisposable
 
         // Populate participants that were already in the room.
         foreach (var (_, participant) in _room.RemoteParticipants)
+        {
             Dispatch(() => RemoteParticipants.Add(participant));
+
+            // Attach any already-subscribed audio tracks.
+            foreach (var pub in participant.TrackPublications.Values)
+                if (pub is RemoteTrackPublication rtp && rtp.IsSubscribed && rtp.Track is RemoteAudioTrack rat)
+                    _audioPlayback?.AttachTrack(participant, rat);
+        }
     }
 
     public async Task DisconnectAsync()
@@ -101,6 +112,8 @@ public class LiveKitService : IDisposable
         if (_room is null) return;
         try { await _room.DisconnectAsync(); } catch { /* ignore */ }
         CleanupRoom();
+        _audioPlayback?.Dispose();
+        _audioPlayback = null;
         if (_capture != null)
         {
             await _capture.DisposeAsync();
@@ -151,10 +164,21 @@ public class LiveKitService : IDisposable
     }
 
     private void OnTrackSubscribed(object? sender, TrackSubscribedEventArgs e)
-        => Dispatch(() => TrackSubscribed?.Invoke(sender, e));
+    {
+        // Play remote audio through NAudio — the LiveKit .NET SDK does NOT auto-play audio.
+        if (e.Track is RemoteAudioTrack audioTrack && e.Participant is RemoteParticipant remote)
+            _audioPlayback?.AttachTrack(remote, audioTrack);
+
+        Dispatch(() => TrackSubscribed?.Invoke(sender, e));
+    }
 
     private void OnTrackUnsubscribed(object? sender, TrackSubscribedEventArgs e)
-        => Dispatch(() => TrackUnsubscribed?.Invoke(sender, e));
+    {
+        if (e.Track is RemoteAudioTrack && e.Participant is RemoteParticipant remote)
+            _audioPlayback?.DetachTrack(remote);
+
+        Dispatch(() => TrackUnsubscribed?.Invoke(sender, e));
+    }
 
     private void OnTrackMuted(object? sender, TrackMutedEventArgs e)
         => Dispatch(() => TrackMuted?.Invoke(sender, e));
@@ -190,11 +214,74 @@ public class LiveKitService : IDisposable
             Application.Current?.Dispatcher?.Invoke(action);
     }
 
+    // ── Robust device resolution (ID → name fallback) ────────────────────────
+
+    private static string? ResolveCamera(AppSettings s)
+    {
+        if (string.IsNullOrWhiteSpace(s.SelectedCameraDevice) &&
+            string.IsNullOrWhiteSpace(s.SelectedCameraDeviceName))
+            return null;
+
+        var devices = CaptureService.GetVideoDevicesAsync().GetAwaiter().GetResult();
+
+        // Try exact ID match.
+        if (!string.IsNullOrWhiteSpace(s.SelectedCameraDevice) &&
+            devices.Any(d => d.Id == s.SelectedCameraDevice))
+            return s.SelectedCameraDevice;
+
+        // Fallback to name match.
+        if (!string.IsNullOrWhiteSpace(s.SelectedCameraDeviceName))
+        {
+            var match = devices.FirstOrDefault(d =>
+                string.Equals(d.Name, s.SelectedCameraDeviceName, StringComparison.OrdinalIgnoreCase));
+            if (match is not null) return match.Id;
+
+            // Partial name match.
+            match = devices.FirstOrDefault(d =>
+                d.Name.Contains(s.SelectedCameraDeviceName, StringComparison.OrdinalIgnoreCase) ||
+                s.SelectedCameraDeviceName.Contains(d.Name, StringComparison.OrdinalIgnoreCase));
+            if (match is not null) return match.Id;
+        }
+
+        return null;
+    }
+
+    private static string? ResolveMic(AppSettings s)
+    {
+        if (string.IsNullOrWhiteSpace(s.SelectedMicDevice) &&
+            string.IsNullOrWhiteSpace(s.SelectedMicDeviceName))
+            return null;
+
+        var devices = CaptureService.GetAudioDevices();
+
+        // Try exact ID match.
+        if (!string.IsNullOrWhiteSpace(s.SelectedMicDevice) &&
+            devices.Any(d => d.Id == s.SelectedMicDevice))
+            return s.SelectedMicDevice;
+
+        // Fallback to name match.
+        if (!string.IsNullOrWhiteSpace(s.SelectedMicDeviceName))
+        {
+            var match = devices.FirstOrDefault(d =>
+                string.Equals(d.Name, s.SelectedMicDeviceName, StringComparison.OrdinalIgnoreCase));
+            if (match is not null) return match.Id;
+
+            match = devices.FirstOrDefault(d =>
+                d.Name.Contains(s.SelectedMicDeviceName, StringComparison.OrdinalIgnoreCase) ||
+                s.SelectedMicDeviceName.Contains(d.Name, StringComparison.OrdinalIgnoreCase));
+            if (match is not null) return match.Id;
+        }
+
+        return null;
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         CleanupRoom();
+        _audioPlayback?.Dispose();
+        _audioPlayback = null;
         if (_capture != null)
         {
             _capture.DisposeAsync().GetAwaiter().GetResult();

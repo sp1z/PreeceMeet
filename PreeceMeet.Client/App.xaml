@@ -17,6 +17,10 @@
         <SolidColorBrush x:Key="TextPrimary"   Color="#e3e5e8"/>
         <SolidColorBrush x:Key="OnlineDot"     Color="#23d18b"/>
 
+        <!-- ── Effects ──────────────────────────────────────────────────────── -->
+        <DropShadowEffect x:Key="CardShadow" BlurRadius="24" ShadowDepth="4"
+                          Direction="270" Opacity="0.5" Color="#000000"/>
+
         <!-- ── Converters ──────────────────────────────────────────────────── -->
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 

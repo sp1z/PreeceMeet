@@ -2,6 +2,8 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using PreeceMeet.Models;
 using PreeceMeet.Services;
 
@@ -22,6 +24,7 @@ public partial class MainWindow : Window
     private bool        _uiHidden      = false;
     private WindowState _preFullscreen = WindowState.Normal;
     private WindowStyle _preFullscreenStyle = WindowStyle.SingleBorderWindow;
+    private Storyboard? _spinnerStoryboard;
 
     private ChannelInfo? _activeChannel;
 
@@ -308,7 +311,8 @@ public partial class MainWindow : Window
 
     private async Task ConnectToChannelAsync(string channelName)
     {
-        ShowStatus("Connecting...", $"#{channelName}");
+        ShowStatus("Connecting...", $"Joining #{channelName}", showSteps: true);
+        SetStep(1);
 
         try
         {
@@ -323,13 +327,21 @@ public partial class MainWindow : Window
                 return;
             }
 
+            SetStep(2);
+            TxtStatus.Text = "Starting devices...";
+
             if (_activeChannel is not null)
             {
                 await _liveKit.DisconnectAsync();
                 VideoGrid.Clear();
             }
 
+            SetStep(3);
+            TxtStatus.Text = "Joining room...";
+
             await _liveKit.ConnectAsync(tokenResp.LiveKitUrl, tokenResp.LiveKitToken, _settings.Current);
+
+            SetStep(4); // all done
 
             // Update sidebar active state.
             var ch = _roomService.Channels.FirstOrDefault(c =>
@@ -385,16 +397,96 @@ public partial class MainWindow : Window
         BtnDisconnect.Visibility     = connected ? Visibility.Visible   : Visibility.Collapsed;
     }
 
-    private void ShowStatus(string title, string subtitle = "")
+    private void ShowStatus(string title, string subtitle = "", bool showSteps = false)
     {
         TxtStatus.Text           = title;
         TxtStatusSub.Text        = subtitle;
         PnlStatus.Visibility     = Visibility.Visible;
         PnlEmptyState.Visibility = Visibility.Collapsed;
+        PnlStatusSteps.Visibility = showSteps ? Visibility.Visible : Visibility.Collapsed;
+
+        // Start spinner animation.
+        StartSpinner();
+    }
+
+    private void SetStep(int step)
+    {
+        var checkmark = "\uE73E";  // Completed
+        var pending   = "\uEA3A";  // Ring/circle
+
+        var completedColor = new SolidColorBrush(Color.FromRgb(0x23, 0xd1, 0x8b)); // green
+        var activeColor    = new SolidColorBrush(Color.FromRgb(0xe3, 0xe5, 0xe8)); // white
+        var inactiveColor  = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55)); // dim
+
+        // Step 1
+        if (step > 1) { TxtStep1.Text = $"{checkmark}  Authenticated"; TxtStep1.Foreground = completedColor; }
+        else if (step == 1) { TxtStep1.Foreground = activeColor; }
+
+        // Step 2
+        if (step > 2) { TxtStep2.Text = $"{checkmark}  Devices ready"; TxtStep2.Foreground = completedColor; }
+        else if (step == 2) { TxtStep2.Text = $"{pending}  Starting devices"; TxtStep2.Foreground = activeColor; }
+        else { TxtStep2.Foreground = inactiveColor; }
+
+        // Step 3
+        if (step > 3) { TxtStep3.Text = $"{checkmark}  Connected"; TxtStep3.Foreground = completedColor; }
+        else if (step == 3) { TxtStep3.Text = $"{pending}  Joining room"; TxtStep3.Foreground = activeColor; }
+        else { TxtStep3.Foreground = inactiveColor; }
     }
 
     private void HideStatus()
-        => PnlStatus.Visibility = Visibility.Collapsed;
+    {
+        PnlStatus.Visibility = Visibility.Collapsed;
+        StopSpinner();
+    }
+
+    private void StartSpinner()
+    {
+        if (_spinnerStoryboard is not null) return;
+        var anim = new DoubleAnimation(0, 360, TimeSpan.FromSeconds(1.2))
+        {
+            RepeatBehavior = RepeatBehavior.Forever,
+        };
+        _spinnerStoryboard = new Storyboard();
+        _spinnerStoryboard.Children.Add(anim);
+        Storyboard.SetTarget(anim, SpinnerArc);
+        Storyboard.SetTargetProperty(anim, new PropertyPath("RenderTransform.Angle"));
+        _spinnerStoryboard.Begin();
+    }
+
+    private void StopSpinner()
+    {
+        _spinnerStoryboard?.Stop();
+        _spinnerStoryboard = null;
+    }
+
+    // ── Update overlay ───────────────────────────────────────────────────────
+
+    public void ShowUpdateOverlay(string detail, int percent)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            PnlUpdateOverlay.Visibility = Visibility.Visible;
+            TxtUpdateDetail.Text        = detail;
+            TxtUpdatePercent.Text       = $"{percent}%";
+            // Animate progress bar width (relative to parent).
+            var parentWidth = 280.0; // approximate inner width
+            UpdateProgressFill.Width = parentWidth * (percent / 100.0);
+        });
+    }
+
+    public void ShowUpdateRestarting()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            TxtUpdateTitle.Text   = "Restarting...";
+            TxtUpdateDetail.Text  = "Applying update and restarting PreeceMeet";
+            TxtUpdatePercent.Text = "";
+            UpdateProgressFill.Width = 280;
+        });
+    }
+
+    public void HideUpdateOverlay()
+        => Dispatcher.Invoke(() => PnlUpdateOverlay.Visibility = Visibility.Collapsed);
 }
 
 // ── String helper ─────────────────────────────────────────────────────────────
