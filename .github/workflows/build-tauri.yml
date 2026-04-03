@@ -1,0 +1,95 @@
+name: Build & Release Tauri Client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'PreeceMeet.Tauri/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            args: ''
+          - platform: windows-latest
+            args: ''
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-latest
+            args: '--target x86_64-apple-darwin'
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Generate app icon
+        shell: python3 {0}
+        run: |
+          import struct, zlib, os
+          os.makedirs('PreeceMeet.Tauri/src-tauri/icons', exist_ok=True)
+
+          def make_png(size, r=91, g=155, b=213):
+              def chunk(name, data):
+                  crc = zlib.crc32(name + data) & 0xffffffff
+                  return struct.pack('>I', len(data)) + name + data + struct.pack('>I', crc)
+              scanline = bytes([0] + [r, g, b] * size)
+              raw = scanline * size
+              return (b'\x89PNG\r\n\x1a\n' +
+                      chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 2, 0, 0, 0)) +
+                      chunk(b'IDAT', zlib.compress(raw)) +
+                      chunk(b'IEND', b''))
+
+          with open('PreeceMeet.Tauri/src-tauri/icons/app-source.png', 'wb') as f:
+              f.write(make_png(512))
+
+      - name: Install frontend dependencies
+        working-directory: PreeceMeet.Tauri
+        run: npm install
+
+      - name: Build and release with Tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: PreeceMeet.Tauri
+          iconPath: PreeceMeet.Tauri/src-tauri/icons/app-source.png
+          tagName: tauri-v__VERSION__
+          releaseName: 'PreeceMeet (cross-platform) v__VERSION__'
+          releaseBody: |
+            Cross-platform PreeceMeet built with Tauri + LiveKit JS SDK.
+
+            **Downloads:**
+            - Windows: `.msi` or `.exe` setup
+            - Linux: `.AppImage` or `.deb`
+            - macOS: `.dmg`
+          releaseDraft: true
+          prerelease: true
+          args: ${{ matrix.args }}
