@@ -100,12 +100,14 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
-      # tauri-action doesn't upload .sig files as release assets — do it explicitly.
-      # Uses direct known paths per platform (avoids cross-platform find issues).
+      # tauri-action re-packages the .app bundle AFTER Tauri's build, invalidating the
+      # original .sig.  We re-sign the final archives ourselves and upload the .sig files.
       - name: Upload updater signatures
         shell: python3 {0}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         run: |
           import json, os, subprocess, tempfile, shutil
 
@@ -113,8 +115,22 @@ jobs:
           tag  = f"tauri-v{version}"
           repo = "${{ github.repository }}"
           args = "${{ matrix.args }}"
+          tgt  = "PreeceMeet.Tauri/src-tauri/target"
 
-          tgt = "PreeceMeet.Tauri/src-tauri/target"
+          def sign(archive_path):
+              """Re-sign archive; returns path to .sig or None on failure."""
+              print(f"Signing {archive_path} ...")
+              r = subprocess.run(
+                  ["npx", "--yes", "tauri", "signer", "sign", os.path.abspath(archive_path)],
+                  cwd="PreeceMeet.Tauri",
+                  capture_output=True, text=True,
+              )
+              sig_path = archive_path + ".sig"
+              if r.returncode == 0 and os.path.exists(sig_path):
+                  print(f"  Signature written: {sig_path}")
+                  return sig_path
+              print(f"  Signing failed (rc={r.returncode}):\n{r.stdout}\n{r.stderr}")
+              return None
 
           def upload(src, dest_name=None):
               if dest_name is None:
@@ -128,28 +144,39 @@ jobs:
               shutil.copy2(src, dst)
               subprocess.run(
                   ["gh", "release", "upload", tag, dst, "--clobber", "--repo", repo],
-                  check=True
+                  check=True,
               )
+
+          def sign_and_upload(archive, archive_name, sig_name):
+              sig = sign(archive)
+              if sig:
+                  upload(archive, archive_name)
+                  upload(sig, sig_name)
 
           if "aarch64-apple-darwin" in args:
               base = f"{tgt}/aarch64-apple-darwin/release/bundle/macos"
-              upload(f"{base}/PreeceMeet.app.tar.gz",     "PreeceMeet_aarch64.app.tar.gz")
-              upload(f"{base}/PreeceMeet.app.tar.gz.sig", "PreeceMeet_aarch64.app.tar.gz.sig")
+              sign_and_upload(f"{base}/PreeceMeet.app.tar.gz",
+                              "PreeceMeet_aarch64.app.tar.gz",
+                              "PreeceMeet_aarch64.app.tar.gz.sig")
           elif "x86_64-apple-darwin" in args:
               base = f"{tgt}/x86_64-apple-darwin/release/bundle/macos"
-              upload(f"{base}/PreeceMeet.app.tar.gz",     "PreeceMeet_x64.app.tar.gz")
-              upload(f"{base}/PreeceMeet.app.tar.gz.sig", "PreeceMeet_x64.app.tar.gz.sig")
+              sign_and_upload(f"{base}/PreeceMeet.app.tar.gz",
+                              "PreeceMeet_x64.app.tar.gz",
+                              "PreeceMeet_x64.app.tar.gz.sig")
           elif os.name != "nt":  # Linux
               base = f"{tgt}/release/bundle/appimage"
-              upload(f"{base}/PreeceMeet_{version}_amd64.AppImage.tar.gz")
-              upload(f"{base}/PreeceMeet_{version}_amd64.AppImage.tar.gz.sig")
+              sign_and_upload(f"{base}/PreeceMeet_{version}_amd64.AppImage.tar.gz",
+                              f"PreeceMeet_{version}_amd64.AppImage.tar.gz",
+                              f"PreeceMeet_{version}_amd64.AppImage.tar.gz.sig")
           else:  # Windows
               nsis = f"{tgt}/release/bundle/nsis"
               msi  = f"{tgt}/release/bundle/msi"
-              upload(f"{nsis}/PreeceMeet_{version}_x64-setup.nsis.zip")
-              upload(f"{nsis}/PreeceMeet_{version}_x64-setup.nsis.zip.sig")
-              upload(f"{msi}/PreeceMeet_{version}_x64_en-US.msi.zip")
-              upload(f"{msi}/PreeceMeet_{version}_x64_en-US.msi.zip.sig")
+              sign_and_upload(f"{nsis}/PreeceMeet_{version}_x64-setup.nsis.zip",
+                              f"PreeceMeet_{version}_x64-setup.nsis.zip",
+                              f"PreeceMeet_{version}_x64-setup.nsis.zip.sig")
+              sign_and_upload(f"{msi}/PreeceMeet_{version}_x64_en-US.msi.zip",
+                              f"PreeceMeet_{version}_x64_en-US.msi.zip",
+                              f"PreeceMeet_{version}_x64_en-US.msi.zip.sig")
 
   # After all platforms built, generate latest.json for the auto-updater
   # and commit it to main so the endpoint URL always returns the newest version.
