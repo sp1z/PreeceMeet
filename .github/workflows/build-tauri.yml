@@ -100,35 +100,53 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
-      # tauri-action doesn't upload .sig files as release assets — do it explicitly
+      # tauri-action doesn't upload .sig files as release assets — do it explicitly.
+      # macOS builds both produce "PreeceMeet.app.tar.gz[.sig]" so we rename on upload.
       - name: Upload updater signatures
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           VERSION=$(python3 -c "import json; print(json.load(open('PreeceMeet.Tauri/src-tauri/tauri.conf.json'))['version'])")
           TAG="tauri-v${VERSION}"
+          REPO="${{ github.repository }}"
+          ARGS="${{ matrix.args }}"
 
-          # Find .sig files that belong to updater packages (.tar.gz.sig, .zip.sig)
-          find PreeceMeet.Tauri/src-tauri/target \
-            \( -name "*.AppImage.tar.gz.sig" \
-            -o -name "*.app.tar.gz.sig" \
-            -o -name "*.nsis.zip.sig" \
-            -o -name "*.msi.zip.sig" \) \
-            | while read sigfile; do
-              echo "Uploading $sigfile"
-              gh release upload "$TAG" "$sigfile" --clobber --repo ${{ github.repository }}
-            done
+          echo "=== Updater artifacts in target ==="
+          find "PreeceMeet.Tauri/src-tauri/target" \
+            \( -name "*.sig" -o -name "*.AppImage.tar.gz" -o -name "*.nsis.zip" -o -name "*.msi.zip" -o -name "*.app.tar.gz" \) \
+            2>/dev/null | sort || true
 
-          # Also upload the updater archives if not already present
-          find PreeceMeet.Tauri/src-tauri/target \
-            \( -name "*.AppImage.tar.gz" \
-            -o -name "*.nsis.zip" \
-            -o -name "*.msi.zip" \) \
-            | while read archive; do
-              echo "Uploading updater archive $archive"
-              gh release upload "$TAG" "$archive" --clobber --repo ${{ github.repository }}
-            done
+          upload() {
+            local src="$1" name="${2:-$(basename "$1")}"
+            if [ -f "$src" ]; then
+              echo "Uploading $name"
+              cp "$src" "/tmp/$name"
+              gh release upload "$TAG" "/tmp/$name" --clobber --repo "$REPO"
+            else
+              echo "Not found (skipping): $src"
+            fi
+          }
+
+          if [[ "$ARGS" == *"aarch64-apple-darwin"* ]]; then
+            BASE="PreeceMeet.Tauri/src-tauri/target/aarch64-apple-darwin/release/bundle/macos"
+            upload "$BASE/PreeceMeet.app.tar.gz"     "PreeceMeet_aarch64.app.tar.gz"
+            upload "$BASE/PreeceMeet.app.tar.gz.sig" "PreeceMeet_aarch64.app.tar.gz.sig"
+          elif [[ "$ARGS" == *"x86_64-apple-darwin"* ]]; then
+            BASE="PreeceMeet.Tauri/src-tauri/target/x86_64-apple-darwin/release/bundle/macos"
+            upload "$BASE/PreeceMeet.app.tar.gz"     "PreeceMeet_x64.app.tar.gz"
+            upload "$BASE/PreeceMeet.app.tar.gz.sig" "PreeceMeet_x64.app.tar.gz.sig"
+          else
+            # Linux and Windows — filenames already include version+platform
+            while IFS= read -r -d '' f; do
+              upload "$f"
+            done < <(find "PreeceMeet.Tauri/src-tauri/target" \
+              \( -name "*.AppImage.tar.gz" -o -name "*.AppImage.tar.gz.sig" \
+                 -o -name "*.nsis.zip"     -o -name "*.nsis.zip.sig" \
+                 -o -name "*.msi.zip"      -o -name "*.msi.zip.sig" \) \
+              -print0 2>/dev/null)
+          fi
 
   # After all platforms built, generate latest.json for the auto-updater
   # and commit it to main so the endpoint URL always returns the newest version.
