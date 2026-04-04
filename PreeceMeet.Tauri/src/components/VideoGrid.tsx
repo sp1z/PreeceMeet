@@ -179,8 +179,8 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
         next.delete(sid);
       }
 
-      // Apply to the actual track subscription
-      const participant = room.remoteParticipants.get(sid);
+      // remoteParticipants is keyed by identity, so find by SID
+      const participant = [...room.remoteParticipants.values()].find(p => p.sid === sid);
       if (participant) {
         participant.trackPublications.forEach(pub => {
           if (pub.kind === Track.Kind.Audio) {
