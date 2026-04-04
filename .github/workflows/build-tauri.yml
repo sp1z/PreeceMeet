@@ -96,7 +96,7 @@ jobs:
             - Windows: `.msi` or `.exe` setup
             - Linux: `.AppImage` or `.deb`
             - macOS: `.dmg`
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
 
