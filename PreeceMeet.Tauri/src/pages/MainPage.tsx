@@ -150,9 +150,9 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     saveSettings(s);
   }
 
-  function handleSignOut() { clearSession(); onSignOut(); }
-
-  function handleAdminSignOut() { clearSession(); onSignOut(); }
+  // Stable reference — AdminPanel's load() useCallback dep on onSignOut must not
+  // change on every parent render (rooms poll fires every 5 s).
+  const handleSignOut = useCallback(() => { clearSession(); onSignOut(); }, [onSignOut]);
 
   const activeRoomName = connection?.roomName ?? null;
 
@@ -259,7 +259,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           onJoin={joinChannel}
           onSettings={() => setSettingsOpen(true)}
           onSignOut={handleSignOut}
-          visible={sidebarVisible}
+        visible={sidebarVisible}
         />
 
         <div className="video-area">
@@ -334,7 +334,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
         <AdminPanel
           session={session}
           onClose={() => setAdminOpen(false)}
-          onSignOut={handleAdminSignOut}
+          onSignOut={handleSignOut}
         />
       )}
     </div>

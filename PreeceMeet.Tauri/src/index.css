@@ -377,37 +377,39 @@ input::placeholder { color: var(--text-muted); }
 /* ── Video grid ─────────────────────────────────────────────────────────── */
 .video-grid {
   flex: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
+  display: grid;
+  /* gridTemplateColumns is set inline by VideoGrid.tsx based on participant count */
+  grid-auto-rows: 1fr;
   gap: 4px;
   padding: 4px;
-  overflow: hidden;
   min-height: 0;
 }
+/* Each tile wrapper fills its grid cell */
 .video-grid > * {
-  flex: 1 1 calc(50% - 4px);
-  min-width: 200px;
-  min-height: 150px;
+  min-height: 0;
+  min-width: 0;
   border-radius: 8px;
   overflow: hidden;
 }
-/* Single participant fills the area */
-.video-grid.one-participant > * {
-  flex: 1 1 100%;
-}
-/* 3+ participants: 3 column grid */
-.video-grid.many-participants > * {
-  flex: 1 1 calc(33.333% - 4px);
-}
 
-/* Override livekit tile styles */
+/* Override livekit tile styles — tile must fill its wrapper */
 .lk-participant-tile {
+  height: 100% !important;
   background: #12121e !important;
   border-radius: 8px !important;
 }
 .lk-participant-name {
   font-size: 13px !important;
+}
+
+/* Speaking indicator: green ring matching WPF PART_SpeakingRing (#00C853) */
+.lk-participant-tile[data-lk-speaking="true"] {
+  box-shadow: inset 0 0 0 2px #00C853 !important;
+}
+
+/* Contain video (don't crop) — matches WPF Stretch="Uniform" */
+.lk-participant-tile video {
+  object-fit: contain !important;
 }
 
 /* Mirror only the video for the local camera tile; leave overlays unmirrored */

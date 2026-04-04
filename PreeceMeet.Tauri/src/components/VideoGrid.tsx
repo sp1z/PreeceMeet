@@ -15,12 +15,15 @@ export default function VideoGrid({ gameMode }: Props) {
   );
 
   const count = tracks.length;
-  const gridClass = gameMode
-    ? 'game-mode-grid'
-    : count === 1 ? 'one-participant' : count >= 3 ? 'many-participants' : '';
+
+  // Column count mirrors the WPF UniformGrid logic: 1→1, 2-4→2, 5-9→3, 10+→4
+  const cols = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
 
   return (
-    <div className={`video-grid ${gridClass}`}>
+    <div
+      className={`video-grid${gameMode ? ' game-mode-grid' : ''}`}
+      style={!gameMode ? { gridTemplateColumns: `repeat(${cols}, 1fr)` } : undefined}
+    >
       {tracks.map(track => {
         const isLocalCamera = track.participant.isLocal && track.source === Track.Source.Camera;
         return (
