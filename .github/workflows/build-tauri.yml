@@ -164,19 +164,19 @@ jobs:
                               "PreeceMeet_x64.app.tar.gz",
                               "PreeceMeet_x64.app.tar.gz.sig")
           elif os.name != "nt":  # Linux
+              # Tauri v2: updater uses the .AppImage directly (no .tar.gz wrapper)
+              # tauri-action uploads the .AppImage but NOT the .AppImage.sig
               base = f"{tgt}/release/bundle/appimage"
-              sign_and_upload(f"{base}/PreeceMeet_{version}_amd64.AppImage.tar.gz",
-                              f"PreeceMeet_{version}_amd64.AppImage.tar.gz",
-                              f"PreeceMeet_{version}_amd64.AppImage.tar.gz.sig")
+              upload(f"{base}/PreeceMeet_{version}_amd64.AppImage.sig")
           else:  # Windows
+              # tauri-action uploads .exe and .msi but NOT the updater .nsis.zip
+              # The .nsis.zip and .sig are already correctly signed by Tauri's build
               nsis = f"{tgt}/release/bundle/nsis"
               msi  = f"{tgt}/release/bundle/msi"
-              sign_and_upload(f"{nsis}/PreeceMeet_{version}_x64-setup.nsis.zip",
-                              f"PreeceMeet_{version}_x64-setup.nsis.zip",
-                              f"PreeceMeet_{version}_x64-setup.nsis.zip.sig")
-              sign_and_upload(f"{msi}/PreeceMeet_{version}_x64_en-US.msi.zip",
-                              f"PreeceMeet_{version}_x64_en-US.msi.zip",
-                              f"PreeceMeet_{version}_x64_en-US.msi.zip.sig")
+              upload(f"{nsis}/PreeceMeet_{version}_x64-setup.nsis.zip")
+              upload(f"{nsis}/PreeceMeet_{version}_x64-setup.nsis.zip.sig")
+              upload(f"{msi}/PreeceMeet_{version}_x64_en-US.msi.zip")
+              upload(f"{msi}/PreeceMeet_{version}_x64_en-US.msi.zip.sig")
 
   # After all platforms built, generate latest.json for the auto-updater
   # and commit it to main so the endpoint URL always returns the newest version.
@@ -223,7 +223,7 @@ jobs:
 
           platforms = {}
 
-          # Windows — prefer NSIS updater zip
+          # Windows — NSIS updater zip (prefer NSIS over MSI)
           nsis = f"PreeceMeet_{version}_x64-setup.nsis.zip"
           s = sig(nsis)
           if s:
@@ -234,11 +234,14 @@ jobs:
               if s:
                   platforms["windows-x86_64"] = {"url": f"{base}/{msi}", "signature": s}
 
-          # Linux — AppImage
-          ai = f"PreeceMeet_{version}_amd64.AppImage.tar.gz"
-          s = sig(ai)
-          if s:
-              platforms["linux-x86_64"] = {"url": f"{base}/{ai}", "signature": s}
+          # Linux — AppImage (Tauri v2 uses .AppImage directly, not .AppImage.tar.gz)
+          ai_name = f"PreeceMeet_{version}_amd64.AppImage"
+          sig_path = f"/tmp/sigs/{ai_name}.sig"
+          if os.path.exists(sig_path):
+              platforms["linux-x86_64"] = {
+                  "url": f"{base}/{ai_name}",
+                  "signature": open(sig_path).read().strip(),
+              }
 
           # macOS
           for arch, key in [("aarch64", "darwin-aarch64"), ("x64", "darwin-x86_64")]:
