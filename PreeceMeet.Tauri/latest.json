@@ -1,15 +1,19 @@
 {
   "version": "0.2.0",
   "notes": "PreeceMeet (cross-platform) v0.2.0",
-  "pub_date": "2026-04-04T19:26:43Z",
+  "pub_date": "2026-04-04T19:36:37Z",
   "platforms": {
+    "linux-x86_64": {
+      "url": "https://github.com/sp1z/PreeceMeet/releases/download/tauri-v0.2.0/PreeceMeet_0.2.0_amd64.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZTlDaTlzLzlrazZwNG05R3BVdnpGTU13QkQwbXRlUHVGTWg5UzYxMHBwM1dpV1FRRzlVT0JtMGpXVlA3NjA1MjVLOXpVWUJEMWQ3VGRydE93ZE51b0FZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1MzMxMzQ3CWZpbGU6UHJlZWNlTWVldF8wLjIuMF9hbWQ2NC5BcHBJbWFnZQpQR3ZtYkpqeS9aVnBLZmN5Q0hYcFNRM2ZlM2VGK09oQ2I4VGF3c3VmQjVySGJybzlpdUIrNGlXU3BXcENmSERrZUJ5OEZHRXlsYmtJMmFNanY1clREUT09Cg=="
+    },
     "darwin-aarch64": {
       "url": "https://github.com/sp1z/PreeceMeet/releases/download/tauri-v0.2.0/PreeceMeet_aarch64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZTVOeUYwNW5ZeE5ueEFlUEJaaDBKVXYra2pUVWt2Wk9YQzYrNmVDYVdFd3RXcERaLzY4ZXlRL1dqcDFrUHBBclJPV0lWbm9rbUlPMXdielhpVWMyYkE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1MzMwNTY0CWZpbGU6UHJlZWNlTWVldC5hcHAudGFyLmd6CkVZc3BxdmIvdGd6eWcwMWFNUWFHVUpOb3ZVQ2J4V29RQ1AvdjhnWkJMNm1GakhBck1zRGpmb3BnMkxYNTMzd1BoeitRUzl6eUZTSFBCZm1IS3ZIVUJBPT0K"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZXd4Rzg0UFY4VUV2Z0VCemhsQzVCTkFEaTd2YUo4ck5uN1lKbmpnUU5wTTVpQnpNd3k0cm9Dc3FHTnZ0VlRLNEpuWWNXUXRuMmlWMHZEcTVRUTM0SlFzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1MzMxMjUyCWZpbGU6UHJlZWNlTWVldC5hcHAudGFyLmd6Cm11RUErTDBwQ3lkMUpSQjR2Ylp4bkptcGhiOE8vSnpEQmh1MENiSnBHUHJZYU5MWlk4QnVHQUNLZ3VFTlpIOTJKYVpUNFk1dnhrMGNuOHdkT200UEFBPT0K"
     },
     "darwin-x86_64": {
       "url": "https://github.com/sp1z/PreeceMeet/releases/download/tauri-v0.2.0/PreeceMeet_x64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZTBtQ3A3MktHcEwrSDRocGVza1BhZ2hGem5LWXRZZ2djK3BRejZ6Q3hkRTFFUG0wWHU1NkVLV1ZCQU5WS0tDKzZwZEt2b2Uvc2xlODNJRWhUMk5uM0FrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1MzMwNjM0CWZpbGU6UHJlZWNlTWVldC5hcHAudGFyLmd6Ck0wSWlja2l5d3dRa2djQVgweHpZaWE2U1IvZE5ibzFQbS85OTlJZGkyQnBpakdmWkRhMjZZa1RBbGFrdnBrbE81MllnRG5uSlhhK3lveEIyWlpHT0JRPT0K"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZXpHZ3E5VGxwYllzT3M5aTZPMnpxQzQzQ3lIVFdqbUUxVUtXUVhVL3V4czRNb0xHRkp2NU1sZFduTExPVVhXUUJ4dFN5aE4vNVNVQXlqU0JqYnRPeWdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1MzMxMjQ5CWZpbGU6UHJlZWNlTWVldC5hcHAudGFyLmd6ClN6QzFnczRkTDZrbzdLdG44Yzlob3NPd2x3RkNLN0VOTjBKTjc4Y1o3SUlWeENsTnRIYWJoeEJKSlozQ09rVjVrU2V4aG5Gc1E0MWx4b2ovZDFyNUNBPT0K"
     }
   }
 }
