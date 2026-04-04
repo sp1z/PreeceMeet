@@ -85,6 +85,10 @@ jobs:
           GITHUB_TOKEN:                    ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY:       ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+          # Ad-hoc signing prevents macOS from reporting the app as "damaged".
+          # Users will still see an "unidentified developer" Gatekeeper prompt
+          # on first launch; right-click → Open bypasses it.
+          APPLE_SIGNING_IDENTITY:          ${{ matrix.platform == 'macos-latest' && '-' || '' }}
         with:
           projectPath: PreeceMeet.Tauri
           tagName: tauri-v__VERSION__
