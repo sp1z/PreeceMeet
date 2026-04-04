@@ -101,52 +101,55 @@ jobs:
           args: ${{ matrix.args }}
 
       # tauri-action doesn't upload .sig files as release assets — do it explicitly.
-      # macOS builds both produce "PreeceMeet.app.tar.gz[.sig]" so we rename on upload.
+      # Uses direct known paths per platform (avoids cross-platform find issues).
       - name: Upload updater signatures
-        shell: bash
+        shell: python3 {0}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
-          VERSION=$(python3 -c "import json; print(json.load(open('PreeceMeet.Tauri/src-tauri/tauri.conf.json'))['version'])")
-          TAG="tauri-v${VERSION}"
-          REPO="${{ github.repository }}"
-          ARGS="${{ matrix.args }}"
+          import json, os, subprocess, tempfile, shutil
 
-          echo "=== Updater artifacts in target ==="
-          find "PreeceMeet.Tauri/src-tauri/target" \
-            \( -name "*.sig" -o -name "*.AppImage.tar.gz" -o -name "*.nsis.zip" -o -name "*.msi.zip" -o -name "*.app.tar.gz" \) \
-            2>/dev/null | sort || true
+          version = json.load(open("PreeceMeet.Tauri/src-tauri/tauri.conf.json"))["version"]
+          tag  = f"tauri-v{version}"
+          repo = "${{ github.repository }}"
+          args = "${{ matrix.args }}"
 
-          upload() {
-            local src="$1" name="${2:-$(basename "$1")}"
-            if [ -f "$src" ]; then
-              echo "Uploading $name"
-              cp "$src" "/tmp/$name"
-              gh release upload "$TAG" "/tmp/$name" --clobber --repo "$REPO"
-            else
-              echo "Not found (skipping): $src"
-            fi
-          }
+          tgt = "PreeceMeet.Tauri/src-tauri/target"
 
-          if [[ "$ARGS" == *"aarch64-apple-darwin"* ]]; then
-            BASE="PreeceMeet.Tauri/src-tauri/target/aarch64-apple-darwin/release/bundle/macos"
-            upload "$BASE/PreeceMeet.app.tar.gz"     "PreeceMeet_aarch64.app.tar.gz"
-            upload "$BASE/PreeceMeet.app.tar.gz.sig" "PreeceMeet_aarch64.app.tar.gz.sig"
-          elif [[ "$ARGS" == *"x86_64-apple-darwin"* ]]; then
-            BASE="PreeceMeet.Tauri/src-tauri/target/x86_64-apple-darwin/release/bundle/macos"
-            upload "$BASE/PreeceMeet.app.tar.gz"     "PreeceMeet_x64.app.tar.gz"
-            upload "$BASE/PreeceMeet.app.tar.gz.sig" "PreeceMeet_x64.app.tar.gz.sig"
-          else
-            # Linux and Windows — filenames already include version+platform
-            while IFS= read -r -d '' f; do
-              upload "$f"
-            done < <(find "PreeceMeet.Tauri/src-tauri/target" \
-              \( -name "*.AppImage.tar.gz" -o -name "*.AppImage.tar.gz.sig" \
-                 -o -name "*.nsis.zip"     -o -name "*.nsis.zip.sig" \
-                 -o -name "*.msi.zip"      -o -name "*.msi.zip.sig" \) \
-              -print0 2>/dev/null)
-          fi
+          def upload(src, dest_name=None):
+              if dest_name is None:
+                  dest_name = os.path.basename(src)
+              if not os.path.exists(src):
+                  print(f"Not found (skipping): {src}")
+                  return
+              print(f"Uploading {dest_name} ...")
+              tmp = tempfile.mkdtemp()
+              dst = os.path.join(tmp, dest_name)
+              shutil.copy2(src, dst)
+              subprocess.run(
+                  ["gh", "release", "upload", tag, dst, "--clobber", "--repo", repo],
+                  check=True
+              )
+
+          if "aarch64-apple-darwin" in args:
+              base = f"{tgt}/aarch64-apple-darwin/release/bundle/macos"
+              upload(f"{base}/PreeceMeet.app.tar.gz",     "PreeceMeet_aarch64.app.tar.gz")
+              upload(f"{base}/PreeceMeet.app.tar.gz.sig", "PreeceMeet_aarch64.app.tar.gz.sig")
+          elif "x86_64-apple-darwin" in args:
+              base = f"{tgt}/x86_64-apple-darwin/release/bundle/macos"
+              upload(f"{base}/PreeceMeet.app.tar.gz",     "PreeceMeet_x64.app.tar.gz")
+              upload(f"{base}/PreeceMeet.app.tar.gz.sig", "PreeceMeet_x64.app.tar.gz.sig")
+          elif os.name != "nt":  # Linux
+              base = f"{tgt}/release/bundle/appimage"
+              upload(f"{base}/PreeceMeet_{version}_amd64.AppImage.tar.gz")
+              upload(f"{base}/PreeceMeet_{version}_amd64.AppImage.tar.gz.sig")
+          else:  # Windows
+              nsis = f"{tgt}/release/bundle/nsis"
+              msi  = f"{tgt}/release/bundle/msi"
+              upload(f"{nsis}/PreeceMeet_{version}_x64-setup.nsis.zip")
+              upload(f"{nsis}/PreeceMeet_{version}_x64-setup.nsis.zip.sig")
+              upload(f"{msi}/PreeceMeet_{version}_x64_en-US.msi.zip")
+              upload(f"{msi}/PreeceMeet_{version}_x64_en-US.msi.zip.sig")
 
   # After all platforms built, generate latest.json for the auto-updater
   # and commit it to main so the endpoint URL always returns the newest version.
