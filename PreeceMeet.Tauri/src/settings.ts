@@ -11,6 +11,8 @@ const defaults: Settings = {
   channels: [{ name: 'preecemeet', displayName: 'General', emoji: '💬' }],
   autoJoinChannel: '',
   sidebarVisible: true,
+  preferredMicDeviceId: '',
+  preferredCamDeviceId: '',
 };
 
 export function loadSettings(): Settings {

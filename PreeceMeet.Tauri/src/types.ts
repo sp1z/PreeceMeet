@@ -12,6 +12,8 @@ export interface Settings {
   channels: Channel[];
   autoJoinChannel: string;
   sidebarVisible: boolean;
+  preferredMicDeviceId: string;
+  preferredCamDeviceId: string;
 }
 
 export interface Session {

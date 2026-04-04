@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { LiveKitRoom, RoomAudioRenderer } from '@livekit/components-react';
+import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useRoomContext } from '@livekit/components-react';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel } from '../types';
 import { saveSettings, clearSession } from '../settings';
 import { getRooms, getRoomToken, UnauthorizedError } from '../api';
@@ -46,6 +46,15 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     pollRef.current = setInterval(() => void pollRooms(), 5000);
     return () => clearInterval(pollRef.current);
   }, [pollRooms]);
+
+  // Auto-join on mount if a channel is configured
+  useEffect(() => {
+    if (settings.autoJoinChannel) {
+      const ch = settings.channels.find(c => c.name === settings.autoJoinChannel);
+      if (ch) void joinChannel(ch);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally runs once on mount only
 
   async function joinChannel(channel: Channel) {
     if (connection?.roomName === channel.name) return;
@@ -139,7 +148,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       </div>
 
       {/* ── Content ──────────────────────────────────────────────── */}
-      <div className={`content-row${sidebarVisible ? '' : ' sidebar-hidden'}`}
+      <div className={`content-row${(!sidebarVisible || gameMode) ? ' sidebar-hidden' : ''}`}
            style={{ '--sidebar-width': '220px' } as React.CSSProperties}>
         <Sidebar
           channels={settings.channels}
@@ -189,12 +198,18 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               serverUrl={connection.url}
               token={connection.token}
               connect={true}
-              audio={!micMuted}
-              video={!camMuted}
+              audio={true}
+              video={true}
               onDisconnected={handleDisconnected}
               onError={err => setError(err.message)}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
             >
+              <MediaController
+                micMuted={micMuted}
+                camMuted={camMuted}
+                preferredMicDeviceId={settings.preferredMicDeviceId}
+                preferredCamDeviceId={settings.preferredCamDeviceId}
+              />
               <RoomAudioRenderer />
               <VideoGrid />
             </LiveKitRoom>
@@ -222,6 +237,53 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       )}
     </div>
   );
+}
+
+// ── MediaController ───────────────────────────────────────────────────────────
+// Must live inside <LiveKitRoom> to access the LiveKit room context.
+// Reacts to micMuted/camMuted changes and calls the LiveKit participant API.
+interface MediaControllerProps {
+  micMuted: boolean;
+  camMuted: boolean;
+  preferredMicDeviceId: string;
+  preferredCamDeviceId: string;
+}
+
+function MediaController({ micMuted, camMuted, preferredMicDeviceId, preferredCamDeviceId }: MediaControllerProps) {
+  const { localParticipant } = useLocalParticipant();
+  const room    = useRoomContext();
+  const mounted = useRef(false);
+
+  // Apply preferred devices once on connect, falling back to default if unavailable
+  useEffect(() => {
+    async function applyPreferredDevices() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        if (preferredMicDeviceId) {
+          const available = devices.some(d => d.kind === 'audioinput' && d.deviceId === preferredMicDeviceId);
+          if (available) await room.switchActiveDevice('audioinput', preferredMicDeviceId);
+        }
+        if (preferredCamDeviceId) {
+          const available = devices.some(d => d.kind === 'videoinput' && d.deviceId === preferredCamDeviceId);
+          if (available) await room.switchActiveDevice('videoinput', preferredCamDeviceId);
+        }
+      } catch { /* ignore — falls back to default */ }
+    }
+    void applyPreferredDevices();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount (room connection)
+
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return; } // skip initial render
+    localParticipant?.setMicrophoneEnabled(!micMuted).catch(() => {});
+  }, [micMuted, localParticipant]);
+
+  useEffect(() => {
+    if (!mounted.current) return;
+    localParticipant?.setCameraEnabled(!camMuted).catch(() => {});
+  }, [camMuted, localParticipant]);
+
+  return null;
 }
 
 // ── Top-bar icon SVGs ─────────────────────────────────────────────────────────

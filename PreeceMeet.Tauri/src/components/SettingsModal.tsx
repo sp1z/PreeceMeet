@@ -11,19 +11,23 @@ type Tab       = 'profile' | 'channels' | 'permissions';
 type PermState = 'unknown' | 'granted' | 'denied' | 'prompt';
 
 export default function SettingsModal({ settings, onSave, onClose }: Props) {
-  const [tab,         setTab]         = useState<Tab>('profile');
-  const [displayName, setDisplayName] = useState(settings.displayName);
-  const [serverUrl,   setServerUrl]   = useState(settings.serverUrl);
-  const [channels,    setChannels]    = useState<Channel[]>([...settings.channels]);
-  const [autoJoin,    setAutoJoin]    = useState(settings.autoJoinChannel);
-  const [newName,     setNewName]     = useState('');
-  const [newLabel,    setNewLabel]    = useState('');
-  const [newEmoji,    setNewEmoji]    = useState('💬');
-  const [micState,    setMicState]    = useState<PermState>('unknown');
-  const [camState,    setCamState]    = useState<PermState>('unknown');
-  const [permMsg,     setPermMsg]     = useState('');
+  const [tab,           setTab]           = useState<Tab>('profile');
+  const [displayName,   setDisplayName]   = useState(settings.displayName);
+  const [serverUrl,     setServerUrl]     = useState(settings.serverUrl);
+  const [channels,      setChannels]      = useState<Channel[]>([...settings.channels]);
+  const [autoJoin,      setAutoJoin]      = useState(settings.autoJoinChannel);
+  const [newName,       setNewName]       = useState('');
+  const [newLabel,      setNewLabel]      = useState('');
+  const [newEmoji,      setNewEmoji]      = useState('💬');
+  const [micState,      setMicState]      = useState<PermState>('unknown');
+  const [camState,      setCamState]      = useState<PermState>('unknown');
+  const [permMsg,       setPermMsg]       = useState('');
+  const [micDevices,    setMicDevices]    = useState<MediaDeviceInfo[]>([]);
+  const [camDevices,    setCamDevices]    = useState<MediaDeviceInfo[]>([]);
+  const [prefMic,       setPrefMic]       = useState(settings.preferredMicDeviceId);
+  const [prefCam,       setPrefCam]       = useState(settings.preferredCamDeviceId);
 
-  useEffect(() => { void checkPerms(); }, []);
+  useEffect(() => { void checkPerms(); void enumerateDevices(); }, []);
 
   async function checkPerms() {
     try {
@@ -36,12 +40,21 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
     } catch { setCamState('unknown'); }
   }
 
+  async function enumerateDevices() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setMicDevices(devices.filter(d => d.kind === 'audioinput'));
+      setCamDevices(devices.filter(d => d.kind === 'videoinput'));
+    } catch { /* ignore */ }
+  }
+
   async function requestPerms() {
     setPermMsg('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
       stream.getTracks().forEach(t => t.stop());
       await checkPerms();
+      await enumerateDevices();
       setPermMsg('Permissions granted.');
     } catch {
       await checkPerms();
@@ -62,7 +75,7 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
   }
 
   function save() {
-    onSave({ ...settings, displayName: displayName.trim(), serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin });
+    onSave({ ...settings, displayName: displayName.trim(), serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin, preferredMicDeviceId: prefMic, preferredCamDeviceId: prefCam });
     onClose();
   }
 
@@ -175,6 +188,38 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
 
               {permMsg && (
                 <p style={{ fontSize: 13, color: permMsg.startsWith('Could') ? '#ef5350' : '#23d18b' }}>{permMsg}</p>
+              )}
+
+              {micDevices.length > 0 && (
+                <div className="form-field" style={{ marginTop: 4 }}>
+                  <label>Preferred microphone</label>
+                  <select
+                    value={prefMic}
+                    onChange={e => setPrefMic(e.target.value)}
+                    style={{ background: 'var(--bg-main)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px', width: '100%', fontSize: 13 }}
+                  >
+                    <option value="">System default</option>
+                    {micDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${d.deviceId.slice(0, 8)}`}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {camDevices.length > 0 && (
+                <div className="form-field" style={{ marginTop: 4 }}>
+                  <label>Preferred camera</label>
+                  <select
+                    value={prefCam}
+                    onChange={e => setPrefCam(e.target.value)}
+                    style={{ background: 'var(--bg-main)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px', width: '100%', fontSize: 13 }}
+                  >
+                    <option value="">System default</option>
+                    {camDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Camera ${d.deviceId.slice(0, 8)}`}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {(micDevices.length === 0 && camDevices.length === 0) && (
+                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Grant permissions above to see available devices.</p>
               )}
 
               {(micState === 'denied' || camState === 'denied') && (
