@@ -21,6 +21,7 @@ type ConnectState = 'idle' | 'connecting' | 'connected';
 
 export default function MainPage({ session, settings, onSettingsChange, onSignOut, updateVersion }: Props) {
   const [sidebarVisible, setSidebarVisible] = useState(settings.sidebarVisible);
+  const [sidebarWidth,   setSidebarWidth]   = useState(settings.sidebarWidth ?? 220);
   const [rooms,          setRooms]          = useState<RoomInfo[]>([]);
   const [connection,     setConnection]     = useState<RoomConnection | null>(null);
   const [connectState,   setConnectState]   = useState<ConnectState>('idle');
@@ -31,8 +32,27 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [adminOpen,      setAdminOpen]      = useState(false);
   const [gameMode,       setGameMode]       = useState(false);
   const [installing,     setInstalling]     = useState(false);
-  const pollRef     = useRef<ReturnType<typeof setInterval>>();
-  const savedSizeRef = useRef<{ width: number; height: number } | null>(null);
+  const [uiHidden,       setUiHidden]       = useState(false);
+  const [isFullscreen,   setIsFullscreen]   = useState(false);
+  const [statsVisible,   setStatsVisible]   = useState(false);
+
+  const pollRef        = useRef<ReturnType<typeof setInterval>>();
+  const savedSizeRef   = useRef<{ width: number; height: number } | null>(null);
+  const resizingRef    = useRef(false);
+  const settingsRef    = useRef(settings);
+  const sidebarWidthRef = useRef(sidebarWidth);
+
+  // Keep refs in sync
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { sidebarWidthRef.current = sidebarWidth; }, [sidebarWidth]);
+
+  // Sync sidebarWidth from settings when changed externally
+  useEffect(() => {
+    if (settings.sidebarWidth !== undefined && settings.sidebarWidth !== sidebarWidth) {
+      setSidebarWidth(settings.sidebarWidth);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.sidebarWidth]);
 
   // Poll room list every 5 seconds
   const pollRooms = useCallback(async () => {
@@ -58,6 +78,73 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally runs once on mount only
+
+  // Fullscreen state tracking
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  // F11 keyboard shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'F11') {
+        e.preventDefault();
+        void toggleFullscreen();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFullscreen]);
+
+  // Sidebar resize mouse events
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!resizingRef.current) return;
+      // The sidebar starts at x=0, so its width = mouse x
+      const newWidth = Math.max(160, Math.min(480, e.clientX));
+      setSidebarWidth(newWidth);
+      sidebarWidthRef.current = newWidth;
+    };
+    const onMouseUp = () => {
+      if (!resizingRef.current) return;
+      resizingRef.current = false;
+      const updated = { ...settingsRef.current, sidebarWidth: sidebarWidthRef.current };
+      onSettingsChange(updated);
+      saveSettings(updated);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [onSettingsChange]);
+
+  async function toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch {
+      // Fallback to Tauri window API
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        const win = getCurrentWindow();
+        await win.setFullscreen(!isFullscreen);
+        setIsFullscreen(!isFullscreen);
+      } catch { /* ignore */ }
+    }
+  }
+
+  function handleSidebarMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    resizingRef.current = true;
+  }
 
   async function joinChannel(channel: Channel) {
     if (connection?.roomName === channel.name) return;
@@ -146,8 +233,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   }
 
   function handleSaveSettings(s: Settings) {
-    onSettingsChange(s);
-    saveSettings(s);
+    onSettingsChange({ ...s, sidebarWidth: sidebarWidthRef.current });
+    saveSettings({ ...s, sidebarWidth: sidebarWidthRef.current });
   }
 
   // Stable reference — AdminPanel's load() useCallback dep on onSignOut must not
@@ -199,7 +286,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 preferredSpeakerDeviceId={settings.preferredSpeakerDeviceId}
               />
               <RoomAudioRenderer />
-              <VideoGrid gameMode />
+              <VideoGrid gameMode statsVisible={statsVisible} />
             </LiveKitRoom>
           )}
         </div>
@@ -209,58 +296,95 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
 
   // ── Normal layout ─────────────────────────────────────────────────────────
 
+  const contentColumns = sidebarVisible
+    ? `${sidebarWidth}px 6px 1fr`
+    : '1fr';
+
   return (
-    <div className="app-layout">
+    <div className={`app-layout${uiHidden ? ' ui-hidden' : ''}`}>
 
       {/* ── Top bar ──────────────────────────────────────────────── */}
-      <div className="top-bar">
-        <button className="icon-btn" onClick={toggleSidebar} title="Toggle sidebar">
-          <BurgerIcon />
-        </button>
-        <span className="room-name">
-          {activeRoomName ? `#${activeRoomName}` : 'No active call'}
-        </span>
-        {error && <span style={{ fontSize: 12, color: '#ef5350', flex: 1 }}>{error}</span>}
-        {updateVersion && !error && (
+      {!uiHidden && (
+        <div className="top-bar">
+          <button className="icon-btn" onClick={toggleSidebar} title="Toggle sidebar">
+            <BurgerIcon />
+          </button>
+          <span className="room-name">
+            {activeRoomName ? `#${activeRoomName}` : 'No active call'}
+          </span>
+          {error && <span style={{ fontSize: 12, color: '#ef5350', flex: 1 }}>{error}</span>}
+          {updateVersion && !error && (
+            <button
+              className="update-pill"
+              onClick={installUpdate}
+              disabled={installing}
+              title={`Update to v${updateVersion}`}
+            >
+              {installing ? 'Installing…' : `↑ v${updateVersion} available`}
+            </button>
+          )}
           <button
-            className="update-pill"
-            onClick={installUpdate}
-            disabled={installing}
-            title={`Update to v${updateVersion}`}
+            className="icon-btn"
+            onClick={() => void enterGameMode()}
+            title="Game Mode — overlay strip for streaming"
           >
-            {installing ? 'Installing…' : `↑ v${updateVersion} available`}
+            <GameModeIcon />
           </button>
-        )}
-        <button
-          className="icon-btn"
-          onClick={() => void enterGameMode()}
-          title="Game Mode — overlay strip for streaming"
-        >
-          <GameModeIcon />
-        </button>
-        {session.isAdmin && (
-          <button className="icon-btn" onClick={() => setAdminOpen(true)} title="Admin Panel">
-            <AdminIcon />
+          <button
+            className={`icon-btn${statsVisible ? ' active' : ''}`}
+            onClick={() => setStatsVisible(v => !v)}
+            title="Toggle stats panel"
+          >
+            📊
           </button>
-        )}
-        <button className="icon-btn" onClick={() => setSettingsOpen(true)} title="Settings">
-          <SettingsIcon />
-        </button>
-      </div>
+          <button
+            className="icon-btn"
+            onClick={() => void toggleFullscreen()}
+            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          >
+            {isFullscreen ? '⛶' : '⛶'}
+          </button>
+          <button
+            className="icon-btn"
+            onClick={() => setUiHidden(true)}
+            title="Hide UI"
+          >
+            ↕
+          </button>
+          {session.isAdmin && (
+            <button className="icon-btn" onClick={() => setAdminOpen(true)} title="Admin Panel">
+              <AdminIcon />
+            </button>
+          )}
+          <button className="icon-btn" onClick={() => setSettingsOpen(true)} title="Settings">
+            <SettingsIcon />
+          </button>
+        </div>
+      )}
 
       {/* ── Content ──────────────────────────────────────────────── */}
-      <div className={`content-row${!sidebarVisible ? ' sidebar-hidden' : ''}`}
-           style={{ '--sidebar-width': '220px' } as React.CSSProperties}>
-        <Sidebar
-          channels={settings.channels}
-          rooms={rooms}
-          activeRoom={activeRoomName}
-          email={session.email || ''}
-          onJoin={joinChannel}
-          onSettings={() => setSettingsOpen(true)}
-          onSignOut={handleSignOut}
-        visible={sidebarVisible}
-        />
+      <div
+        className="content-row"
+        style={{ gridTemplateColumns: contentColumns }}
+      >
+        {sidebarVisible && (
+          <Sidebar
+            channels={settings.channels}
+            rooms={rooms}
+            activeRoom={activeRoomName}
+            email={session.email || ''}
+            onJoin={joinChannel}
+            onSettings={() => setSettingsOpen(true)}
+            onSignOut={handleSignOut}
+            visible={true}
+          />
+        )}
+        {sidebarVisible && (
+          <div
+            className="sidebar-resize-handle"
+            onMouseDown={handleSidebarMouseDown}
+          />
+        )}
 
         <div className="video-area">
           {connectState === 'idle' && !connection && (
@@ -306,21 +430,27 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 preferredSpeakerDeviceId={settings.preferredSpeakerDeviceId}
               />
               <RoomAudioRenderer />
-              <VideoGrid />
+              <VideoGrid statsVisible={statsVisible} />
             </LiveKitRoom>
           )}
         </div>
       </div>
 
-      {/* ── Call controls ─────────────────────────────────────────── */}
-      <CallControls
-        connected={!!connection}
-        micMuted={micMuted}
-        camMuted={camMuted}
-        onToggleMic={() => setMicMuted(m => !m)}
-        onToggleCam={() => setCamMuted(c => !c)}
-        onHangup={handleHangup}
-      />
+      {/* ── Call controls / reveal bar ────────────────────────────── */}
+      {uiHidden ? (
+        <div className="reveal-bar" onClick={() => setUiHidden(false)}>
+          ▲&nbsp;&nbsp;Click to restore toolbar
+        </div>
+      ) : (
+        <CallControls
+          connected={!!connection}
+          micMuted={micMuted}
+          camMuted={camMuted}
+          onToggleMic={() => setMicMuted(m => !m)}
+          onToggleCam={() => setCamMuted(c => !c)}
+          onHangup={handleHangup}
+        />
+      )}
 
       {/* ── Modals ───────────────────────────────────────────────── */}
       {settingsOpen && (

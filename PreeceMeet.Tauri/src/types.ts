@@ -15,6 +15,7 @@ export interface Settings {
   preferredMicDeviceId: string;
   preferredCamDeviceId: string;
   preferredSpeakerDeviceId: string;
+  sidebarWidth?: number;
 }
 
 export interface Session {

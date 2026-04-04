@@ -14,6 +14,7 @@ const defaults: Settings = {
   preferredMicDeviceId: '',
   preferredCamDeviceId: '',
   preferredSpeakerDeviceId: '',
+  sidebarWidth: 220,
 };
 
 export function loadSettings(): Settings {
