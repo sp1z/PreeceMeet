@@ -300,6 +300,7 @@ jobs:
             echo "latest.json unchanged, nothing to commit"
           else
             git commit -m "chore: update Tauri auto-updater manifest to v${{ steps.ver.outputs.version }}"
+            git pull --rebase
             git push
           fi
 
