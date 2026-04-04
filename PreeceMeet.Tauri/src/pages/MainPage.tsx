@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { LiveKitRoom, RoomAudioRenderer } from '@livekit/components-react';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel } from '../types';
 import { saveSettings, clearSession } from '../settings';
-import { getRooms, getRoomToken } from '../api';
+import { getRooms, getRoomToken, UnauthorizedError } from '../api';
 import Sidebar from '../components/Sidebar';
 import VideoGrid from '../components/VideoGrid';
 import CallControls from '../components/CallControls';
@@ -28,9 +28,16 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
 
   // Poll room list every 5 seconds
   const pollRooms = useCallback(async () => {
-    const list = await getRooms(session.serverUrl, session.sessionToken);
-    setRooms(list);
-  }, [session]);
+    try {
+      const list = await getRooms(session.serverUrl, session.sessionToken);
+      setRooms(list);
+    } catch (e) {
+      if (e instanceof UnauthorizedError) {
+        clearSession();
+        onSignOut();
+      }
+    }
+  }, [session, onSignOut]);
 
   useEffect(() => {
     pollRooms();
@@ -61,6 +68,11 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       setMicMuted(false);
       setCamMuted(false);
     } catch (err) {
+      if (err instanceof UnauthorizedError) {
+        clearSession();
+        onSignOut();
+        return;
+      }
       setConnectState('idle');
       setError(err instanceof Error ? err.message : 'Could not join room.');
     }

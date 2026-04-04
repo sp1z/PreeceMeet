@@ -30,10 +30,17 @@ builder.Services.AddSingleton<TempTokenStore>();
 builder.Services.AddSingleton(new LiveKitTokenService(livekitApiKey, livekitSecret));
 builder.Services.AddSingleton(new SessionTokenService(livekitSecret));
 
+// Allow the Tauri desktop client (WebView-based) to make cross-origin requests.
+// Using AllowAnyOrigin is acceptable here because all endpoints require token auth.
+builder.Services.AddCors(opts => opts.AddDefaultPolicy(policy =>
+    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+
 var livekitHttpUrl = livekitUrl.Replace("wss://", "https://").Replace("ws://", "http://");
 var roomService    = new RoomServiceClient(livekitHttpUrl, livekitApiKey, livekitSecret);
 
 var app = builder.Build();
+
+app.UseCors();
 
 // ── Ensure DB exists ──────────────────────────────────────────────────────────
 

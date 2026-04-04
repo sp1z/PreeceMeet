@@ -1,5 +1,9 @@
 import type { RoomInfo } from './types';
 
+export class UnauthorizedError extends Error {
+  constructor() { super('Session expired. Please sign in again.'); this.name = 'UnauthorizedError'; }
+}
+
 export interface LoginResult {
   requireTotp: boolean;
   tempToken: string;
@@ -46,9 +50,13 @@ export async function getRooms(serverUrl: string, sessionToken: string): Promise
     const resp = await fetch(`${serverUrl}/api/rooms`, {
       headers: { Authorization: `Bearer ${sessionToken}` },
     });
+    if (resp.status === 401) throw new UnauthorizedError();
     if (!resp.ok) return [];
     return resp.json();
-  } catch { return []; }
+  } catch (e) {
+    if (e instanceof UnauthorizedError) throw e;
+    return [];
+  }
 }
 
 export async function getRoomToken(
@@ -62,6 +70,7 @@ export async function getRoomToken(
   const resp = await fetch(`${serverUrl}/api/rooms/token?${params}`, {
     headers: { Authorization: `Bearer ${sessionToken}` },
   });
+  if (resp.status === 401) throw new UnauthorizedError();
   if (!resp.ok) throw new Error(`Failed to get room token (${resp.status})`);
   return resp.json();
 }

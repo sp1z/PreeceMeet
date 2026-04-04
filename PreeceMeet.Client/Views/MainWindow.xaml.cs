@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
@@ -554,6 +555,16 @@ public partial class MainWindow : Window
 
             // Refresh sidebar participant counts immediately after joining.
             _ = _roomService.PollNowAsync();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            HideStatus();
+            SetConnectedState(false);
+            var r = MessageBox.Show(
+                "Your session has expired. Please sign out and sign back in.",
+                "PreeceMeet — Session Expired",
+                MessageBoxButton.OKCancel, MessageBoxImage.Information);
+            if (r == MessageBoxResult.OK) OnSignOutFromSidebar();
         }
         catch (Exception ex)
         {
