@@ -27,7 +27,12 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
   const [prefMic,       setPrefMic]       = useState(settings.preferredMicDeviceId);
   const [prefCam,       setPrefCam]       = useState(settings.preferredCamDeviceId);
 
-  useEffect(() => { void checkPerms(); void enumerateDevices(); }, []);
+  useEffect(() => { void checkPerms(); }, []);
+
+  // Re-enumerate whenever the permissions tab is opened — labels require a prior getUserMedia call.
+  useEffect(() => {
+    if (tab === 'permissions') void enumerateDevices();
+  }, [tab]);
 
   async function checkPerms() {
     try {
@@ -42,7 +47,16 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
 
   async function enumerateDevices() {
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
+      let devices = await navigator.mediaDevices.enumerateDevices();
+      // If labels are empty the user hasn't granted permission yet. Try a silent
+      // getUserMedia so the browser populates device labels, then re-enumerate.
+      if (devices.every(d => !d.label)) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+          stream.getTracks().forEach(t => t.stop());
+          devices = await navigator.mediaDevices.enumerateDevices();
+        } catch { /* permission denied — labels stay empty, that's OK */ }
+      }
       setMicDevices(devices.filter(d => d.kind === 'audioinput'));
       setCamDevices(devices.filter(d => d.kind === 'videoinput'));
     } catch { /* ignore */ }

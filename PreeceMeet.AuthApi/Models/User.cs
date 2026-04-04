@@ -11,4 +11,5 @@ public class User
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     /// <summary>True once the user has scanned the QR and verified their first TOTP code.</summary>
     public bool TotpConfigured { get; set; } = false;
+    public bool IsAdmin { get; set; } = false;
 }

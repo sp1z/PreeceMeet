@@ -20,6 +20,7 @@ export interface Session {
   email: string;
   sessionToken: string;
   serverUrl: string;
+  isAdmin: boolean;
 }
 
 export interface RoomInfo {

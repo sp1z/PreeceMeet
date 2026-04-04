@@ -9,7 +9,6 @@ using PreeceMeet.AuthApi.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // ── Configuration ─────────────────────────────────────────────────────────────
-// Values can come from appsettings.json, environment variables, or Docker env.
 
 string Cfg(string key) =>
     builder.Configuration[key] ?? Environment.GetEnvironmentVariable(key) ?? string.Empty;
@@ -30,8 +29,6 @@ builder.Services.AddSingleton<TempTokenStore>();
 builder.Services.AddSingleton(new LiveKitTokenService(livekitApiKey, livekitSecret));
 builder.Services.AddSingleton(new SessionTokenService(livekitSecret));
 
-// Allow the Tauri desktop client (WebView-based) to make cross-origin requests.
-// Using AllowAnyOrigin is acceptable here because all endpoints require token auth.
 builder.Services.AddCors(opts => opts.AddDefaultPolicy(policy =>
     policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
 
@@ -42,12 +39,48 @@ var app = builder.Build();
 
 app.UseCors();
 
-// ── Ensure DB exists ──────────────────────────────────────────────────────────
+// ── Ensure DB exists + migrate IsAdmin column ─────────────────────────────────
 
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.EnsureCreated();
+
+    // Add IsAdmin column to existing DBs that pre-date this field.
+    try
+    {
+        db.Database.ExecuteSqlRaw(
+            "ALTER TABLE Users ADD COLUMN IsAdmin INTEGER NOT NULL DEFAULT 0");
+    }
+    catch { /* Column already exists — ignore. */ }
+
+    // Auto-promote existing @russellpreece.com users to admin.
+    var domainUsers = await db.Users
+        .Where(u => u.Email.EndsWith("@russellpreece.com"))
+        .ToListAsync();
+    foreach (var u in domainUsers.Where(u => !u.IsAdmin))
+    {
+        u.IsAdmin = true;
+    }
+    if (domainUsers.Any(u => !u.IsAdmin == false)) // save if any were updated
+        await db.SaveChangesAsync();
+}
+
+// ── Admin auth helper ─────────────────────────────────────────────────────────
+// Checks DB IsAdmin flag so grant/revoke takes effect immediately.
+
+async Task<string?> RequireAdmin(string? authHeader, SessionTokenService session, AppDbContext db)
+{
+    var email = session.Validate(authHeader);
+    if (email is null) return null;
+
+    // @russellpreece.com domain always has admin access (bootstrap).
+    if (email.EndsWith("@russellpreece.com", StringComparison.OrdinalIgnoreCase))
+        return email;
+
+    var user = await db.Users.AsNoTracking()
+        .FirstOrDefaultAsync(u => u.Email == email);
+    return user?.IsAdmin == true ? email : null;
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────
@@ -67,7 +100,6 @@ app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db, TempTok
 
     var tempToken = tokens.Issue(user.Email);
 
-    // First-time login: return TOTP secret so client can display QR for setup.
     if (!user.TotpConfigured)
     {
         var issuer  = Uri.EscapeDataString("PreeceMeet");
@@ -79,7 +111,7 @@ app.MapPost("/api/auth/login", async (LoginRequest req, AppDbContext db, TempTok
     return Results.Ok(new { requireTotp = true, tempToken, totpSetup = false });
 });
 
-// ── Auth: verify TOTP and exchange for LiveKit token ─────────────────────────
+// ── Auth: verify TOTP ─────────────────────────────────────────────────────────
 
 app.MapPost("/api/auth/verify-totp", async (
     VerifyTotpRequest req,
@@ -93,7 +125,6 @@ app.MapPost("/api/auth/verify-totp", async (
     if (string.IsNullOrWhiteSpace(req.TempToken) || string.IsNullOrWhiteSpace(req.Code))
         return Results.BadRequest(new { error = "tempToken and code are required." });
 
-    // Peek at the token without consuming it yet, so a wrong code allows retry.
     var email = tokens.Peek(req.TempToken);
     if (email is null)
         return Results.Unauthorized();
@@ -102,7 +133,6 @@ app.MapPost("/api/auth/verify-totp", async (
     if (user is null)
         return Results.Unauthorized();
 
-    // Validate with +/-1 step (30 second) tolerance.
     var secretBytes = Base32Encoding.ToBytes(user.TotpSecret);
     var totp        = new Totp(secretBytes);
     var isValid     = totp.VerifyTotp(req.Code.Trim(), out _, new VerificationWindow(previous: 1, future: 1));
@@ -110,82 +140,38 @@ app.MapPost("/api/auth/verify-totp", async (
     if (!isValid)
         return Results.Unauthorized();
 
-    // Code is correct — now consume the token so it can't be reused.
     tokens.Consume(req.TempToken);
 
-    // Mark TOTP as configured on first successful verify.
     if (!user.TotpConfigured)
     {
         user.TotpConfigured = true;
         await db.SaveChangesAsync();
     }
 
-    // LiveKit join token (6h) for the initial room connection.
+    // Determine admin status: domain users always admin; others from DB flag.
+    var isAdmin = user.IsAdmin ||
+                  email.EndsWith("@russellpreece.com", StringComparison.OrdinalIgnoreCase);
+
     var livekitToken = livekit.GenerateToken(email, room.NullIfEmpty() ?? livekitRoom, name.NullIfEmpty());
-    // Session token (30 days) — used as API Bearer for room list / room token endpoints.
-    var sessionToken = session.Generate(email, TimeSpan.FromDays(30));
-    return Results.Ok(new { livekitToken, livekitUrl, sessionToken });
+    var sessionToken = session.Generate(email, TimeSpan.FromDays(30), isAdmin);
+    return Results.Ok(new { livekitToken, livekitUrl, sessionToken, isAdmin });
 });
 
-// ── Auth helpers ──────────────────────────────────────────────────────────────
-// Decode a LiveKit JWT without re-verifying the signature — HTTPS + expiry check
-// is sufficient for this private internal app.
+// ── Auth: me ──────────────────────────────────────────────────────────────────
 
-/// Any valid non-expired JWT sub (used for room endpoints).
-static string? GetIdentity(string? authHeader)
+app.MapGet("/api/auth/me", async (HttpContext ctx, SessionTokenService session, AppDbContext db) =>
 {
-    if (string.IsNullOrWhiteSpace(authHeader)) return null;
-    var token = authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-        ? authHeader[7..] : authHeader;
-    try
-    {
-        var parts = token.Split('.');
-        if (parts.Length != 3) return null;
-        var padded = parts[1].Replace('-', '+').Replace('_', '/');
-        padded = padded.PadRight(padded.Length + (4 - padded.Length % 4) % 4, '=');
-        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(padded));
-        using var doc = System.Text.Json.JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        if (root.TryGetProperty("exp", out var exp) &&
-            DateTimeOffset.FromUnixTimeSeconds(exp.GetInt64()) < DateTimeOffset.UtcNow)
-            return null;
-        return root.TryGetProperty("sub", out var sub) ? sub.GetString() : null;
-    }
-    catch { return null; }
-}
+    var email = session.Validate(ctx.Request.Headers.Authorization);
+    if (email is null) return Results.Unauthorized();
 
-// ── Admin auth helper ─────────────────────────────────────────────────────────
-// Decodes a LiveKit JWT (without re-validating the signature — HTTPS + token
-// expiry check is sufficient for this internal app) and returns the identity
-// if it belongs to @russellpreece.com, otherwise null.
+    var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == email);
+    if (user is null) return Results.Unauthorized();
 
-static string? GetAdminIdentity(string? authHeader)
-{
-    if (string.IsNullOrWhiteSpace(authHeader)) return null;
-    var token = authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-        ? authHeader[7..] : authHeader;
-    try
-    {
-        var parts = token.Split('.');
-        if (parts.Length != 3) return null;
-        var padded = parts[1].Replace('-', '+').Replace('_', '/');
-        padded = padded.PadRight(padded.Length + (4 - padded.Length % 4) % 4, '=');
-        var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(padded));
-        using var doc = System.Text.Json.JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        if (root.TryGetProperty("exp", out var exp) &&
-            DateTimeOffset.FromUnixTimeSeconds(exp.GetInt64()) < DateTimeOffset.UtcNow)
-            return null;
-        if (root.TryGetProperty("sub", out var sub))
-        {
-            var identity = sub.GetString() ?? string.Empty;
-            return identity.EndsWith("@russellpreece.com", StringComparison.OrdinalIgnoreCase)
-                ? identity : null;
-        }
-        return null;
-    }
-    catch { return null; }
-}
+    var isAdmin = user.IsAdmin ||
+                  email.EndsWith("@russellpreece.com", StringComparison.OrdinalIgnoreCase);
+
+    return Results.Ok(new { email, isAdmin });
+});
 
 // ── Rooms: list ───────────────────────────────────────────────────────────────
 
@@ -216,7 +202,7 @@ app.MapGet("/api/rooms", async (HttpContext ctx, SessionTokenService session) =>
     }
 });
 
-// ── Rooms: get token for a specific room ──────────────────────────────────────
+// ── Rooms: get token ──────────────────────────────────────────────────────────
 
 app.MapGet("/api/rooms/token", (HttpContext ctx, string? room, string? name, LiveKitTokenService livekit, SessionTokenService session) =>
 {
@@ -233,43 +219,24 @@ app.MapGet("/api/rooms/token", (HttpContext ctx, string? room, string? name, Liv
 
 // ── Admin: list users ─────────────────────────────────────────────────────────
 
-app.MapGet("/api/admin/users", async (HttpContext ctx, AppDbContext db) =>
+app.MapGet("/api/admin/users", async (HttpContext ctx, AppDbContext db, SessionTokenService session) =>
 {
-    if (GetAdminIdentity(ctx.Request.Headers.Authorization) is null)
+    if (await RequireAdmin(ctx.Request.Headers.Authorization, session, db) is null)
         return Results.Unauthorized();
 
     var users = await db.Users
         .OrderBy(u => u.Email)
-        .Select(u => new { u.Email, u.TotpConfigured, u.CreatedAt })
+        .Select(u => new { u.Email, u.TotpConfigured, u.CreatedAt, u.IsAdmin })
         .ToListAsync();
 
     return Results.Ok(users);
 });
 
-// ── Admin: change password ────────────────────────────────────────────────────
-
-app.MapPatch("/api/admin/users/{email}/password", async (string email, ChangePasswordRequest req, HttpContext ctx, AppDbContext db) =>
-{
-    if (GetAdminIdentity(ctx.Request.Headers.Authorization) is null)
-        return Results.Unauthorized();
-
-    if (string.IsNullOrWhiteSpace(req.Password))
-        return Results.BadRequest(new { error = "Password is required." });
-
-    var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
-    if (user is null)
-        return Results.NotFound(new { error = "User not found." });
-
-    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.Password);
-    await db.SaveChangesAsync();
-    return Results.Ok(new { message = "Password updated." });
-});
-
 // ── Admin: create user ────────────────────────────────────────────────────────
 
-app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpContext ctx, AppDbContext db) =>
+app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpContext ctx, AppDbContext db, SessionTokenService session) =>
 {
-    if (GetAdminIdentity(ctx.Request.Headers.Authorization) is null)
+    if (await RequireAdmin(ctx.Request.Headers.Authorization, session, db) is null)
         return Results.Unauthorized();
 
     if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password))
@@ -280,7 +247,6 @@ app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpContext ctx, A
     if (await db.Users.AnyAsync(u => u.Email == email))
         return Results.Conflict(new { error = "A user with that email already exists." });
 
-    // 20 random bytes -> base32 TOTP secret.
     var secretBytes = new byte[20];
     RandomNumberGenerator.Fill(secretBytes);
     var totpSecret = Base32Encoding.ToString(secretBytes);
@@ -296,7 +262,6 @@ app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpContext ctx, A
     db.Users.Add(user);
     await db.SaveChangesAsync();
 
-    // Build otpauth:// URI for QR scanning.
     var issuer  = Uri.EscapeDataString("PreeceMeet");
     var account = Uri.EscapeDataString(email);
     var otpUri  = $"otpauth://totp/{issuer}:{account}?secret={totpSecret}&issuer={issuer}&algorithm=SHA1&digits=6&period=30";
@@ -304,16 +269,33 @@ app.MapPost("/api/admin/users", async (CreateUserRequest req, HttpContext ctx, A
     return Results.Ok(new { email, otpUri });
 });
 
-// ── Admin: reset TOTP (generates new secret, forces re-enroll on next login) ──
+// ── Admin: change password ────────────────────────────────────────────────────
 
-app.MapPost("/api/admin/users/{email}/reset-totp", async (string email, HttpContext ctx, AppDbContext db) =>
+app.MapPatch("/api/admin/users/{email}/password", async (string email, ChangePasswordRequest req, HttpContext ctx, AppDbContext db, SessionTokenService session) =>
 {
-    if (GetAdminIdentity(ctx.Request.Headers.Authorization) is null)
+    if (await RequireAdmin(ctx.Request.Headers.Authorization, session, db) is null)
+        return Results.Unauthorized();
+
+    if (string.IsNullOrWhiteSpace(req.Password))
+        return Results.BadRequest(new { error = "Password is required." });
+
+    var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
+    if (user is null) return Results.NotFound(new { error = "User not found." });
+
+    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.Password);
+    await db.SaveChangesAsync();
+    return Results.Ok(new { message = "Password updated." });
+});
+
+// ── Admin: reset TOTP ─────────────────────────────────────────────────────────
+
+app.MapPost("/api/admin/users/{email}/reset-totp", async (string email, HttpContext ctx, AppDbContext db, SessionTokenService session) =>
+{
+    if (await RequireAdmin(ctx.Request.Headers.Authorization, session, db) is null)
         return Results.Unauthorized();
 
     var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
-    if (user is null)
-        return Results.NotFound(new { error = "User not found." });
+    if (user is null) return Results.NotFound(new { error = "User not found." });
 
     var secretBytes = new byte[20];
     RandomNumberGenerator.Fill(secretBytes);
@@ -324,16 +306,30 @@ app.MapPost("/api/admin/users/{email}/reset-totp", async (string email, HttpCont
     return Results.Ok(new { message = "TOTP reset. User will re-enroll on next login." });
 });
 
-// ── Admin: delete user ────────────────────────────────────────────────────────
+// ── Admin: set admin flag ─────────────────────────────────────────────────────
 
-app.MapDelete("/api/admin/users/{email}", async (string email, HttpContext ctx, AppDbContext db) =>
+app.MapPatch("/api/admin/users/{email}/is-admin", async (string email, SetAdminRequest req, HttpContext ctx, AppDbContext db, SessionTokenService session) =>
 {
-    if (GetAdminIdentity(ctx.Request.Headers.Authorization) is null)
+    if (await RequireAdmin(ctx.Request.Headers.Authorization, session, db) is null)
         return Results.Unauthorized();
 
     var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
-    if (user is null)
-        return Results.NotFound(new { error = "User not found." });
+    if (user is null) return Results.NotFound(new { error = "User not found." });
+
+    user.IsAdmin = req.IsAdmin;
+    await db.SaveChangesAsync();
+    return Results.Ok(new { email = user.Email, isAdmin = user.IsAdmin });
+});
+
+// ── Admin: delete user ────────────────────────────────────────────────────────
+
+app.MapDelete("/api/admin/users/{email}", async (string email, HttpContext ctx, AppDbContext db, SessionTokenService session) =>
+{
+    if (await RequireAdmin(ctx.Request.Headers.Authorization, session, db) is null)
+        return Results.Unauthorized();
+
+    var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email.ToLowerInvariant());
+    if (user is null) return Results.NotFound(new { error = "User not found." });
 
     db.Users.Remove(user);
     await db.SaveChangesAsync();
@@ -348,6 +344,7 @@ record LoginRequest(string Email, string Password);
 record VerifyTotpRequest(string TempToken, string Code);
 record CreateUserRequest(string Email, string Password);
 record ChangePasswordRequest(string Password);
+record SetAdminRequest(bool IsAdmin);
 
 // ── String helper ─────────────────────────────────────────────────────────────
 

@@ -457,31 +457,65 @@ input::placeholder { color: var(--text-muted); }
 .update-pill:disabled { opacity: 0.6; cursor: default; }
 
 /* ── Game Mode ──────────────────────────────────────────────────────────── */
-.app-layout.game-mode .top-bar    { display: none; }
-.app-layout.game-mode .call-controls { display: none; }
 .app-layout.game-mode {
-  grid-template-rows: 0 1fr 0;
+  grid-template-rows: 30px 1fr;
+  height: 100%;
 }
-.game-mode-strip {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 28px;
-  background: rgba(91,155,213,0.85);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
+
+/* Custom drag-region title bar replaces native decorations */
+.game-titlebar {
+  background: var(--bg-bar);
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 20;
-  opacity: 0;
-  transition: opacity 0.2s;
-  letter-spacing: 0.03em;
+  padding: 0 8px;
+  gap: 8px;
+  /* Tauri reads the data attribute to make this the drag region */
 }
-.video-area:hover .game-mode-strip { opacity: 1; }
+.game-titlebar-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  pointer-events: none; /* let drags pass through */
+}
+.game-exit-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 4px;
+  transition: opacity 0.15s;
+  pointer-events: all;
+  cursor: pointer;
+}
+.game-exit-btn:hover { opacity: 0.85; }
+
+/* Game mode video area: horizontal strip */
+.game-video-area {
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+  height: 100%;
+}
+.game-mode-grid {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  height: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  gap: 4px !important;
+  padding: 4px !important;
+  align-items: stretch !important;
+}
+.game-mode-grid > * {
+  flex: 0 0 auto !important;
+  height: 100% !important;
+  aspect-ratio: 16 / 9 !important;
+  min-width: 120px !important;
+}
 
 /* ── Settings modal ─────────────────────────────────────────────────────── */
 .modal-backdrop {
@@ -610,3 +644,25 @@ input::placeholder { color: var(--text-muted); }
   font-size: 13px;
 }
 .control-btn.hangup:hover { background: #c62828; }
+
+/* ── Admin panel ────────────────────────────────────────────────────────── */
+.admin-user-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: var(--bg-main);
+  border-radius: 6px;
+}
+.admin-action-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: var(--bg-sidebar-hover);
+  color: var(--text-muted);
+  transition: background 0.1s, color 0.1s;
+}
+.admin-action-btn:hover { background: var(--accent); color: #fff; }
+.admin-action-btn.active { background: rgba(91,155,213,0.25); color: var(--accent); }
+.admin-action-btn.danger:hover { background: var(--danger); color: #fff; }

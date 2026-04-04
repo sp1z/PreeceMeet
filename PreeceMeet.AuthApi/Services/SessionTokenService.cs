@@ -18,14 +18,15 @@ public class SessionTokenService
         _key = SHA256.HashData(Encoding.UTF8.GetBytes("preecemeet-session:" + secret));
     }
 
-    /// <summary>Issue a session token for the given email.</summary>
-    public string Generate(string email, TimeSpan ttl)
+    /// <summary>Issue a session token for the given email, optionally embedding an admin claim.</summary>
+    public string Generate(string email, TimeSpan ttl, bool isAdmin = false)
     {
         var header  = B64U("""{"alg":"HS256","typ":"JWT"}""");
         var payload = B64U(JsonSerializer.Serialize(new
         {
             sub = email,
             exp = DateTimeOffset.UtcNow.Add(ttl).ToUnixTimeSeconds(),
+            adm = isAdmin,
         }));
 
         var message = $"{header}.{payload}";
@@ -39,20 +40,30 @@ public class SessionTokenService
     /// </summary>
     public string? Validate(string? authHeader)
     {
-        if (string.IsNullOrWhiteSpace(authHeader)) return null;
+        var (email, _) = ValidateFull(authHeader);
+        return email;
+    }
+
+    /// <summary>
+    /// Validate a session token and return both email and admin flag.
+    /// Returns (null, false) on any failure.
+    /// </summary>
+    public (string? Email, bool IsAdmin) ValidateFull(string? authHeader)
+    {
+        if (string.IsNullOrWhiteSpace(authHeader)) return (null, false);
         var token = authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
             ? authHeader[7..] : authHeader;
         try
         {
             var parts = token.Split('.');
-            if (parts.Length != 3) return null;
+            if (parts.Length != 3) return (null, false);
 
             // Verify signature.
             var expected = B64U(HMAC($"{parts[0]}.{parts[1]}"));
             if (!CryptographicOperations.FixedTimeEquals(
                 Encoding.ASCII.GetBytes(expected),
                 Encoding.ASCII.GetBytes(parts[2])))
-                return null;
+                return (null, false);
 
             // Decode payload.
             var json = Encoding.UTF8.GetString(FromB64U(parts[1]));
@@ -62,11 +73,13 @@ public class SessionTokenService
             // Check expiry.
             if (root.TryGetProperty("exp", out var exp) &&
                 DateTimeOffset.FromUnixTimeSeconds(exp.GetInt64()) < DateTimeOffset.UtcNow)
-                return null;
+                return (null, false);
 
-            return root.TryGetProperty("sub", out var sub) ? sub.GetString() : null;
+            var email   = root.TryGetProperty("sub", out var sub) ? sub.GetString() : null;
+            var isAdmin = root.TryGetProperty("adm", out var adm) && adm.GetBoolean();
+            return (email, isAdmin);
         }
-        catch { return null; }
+        catch { return (null, false); }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

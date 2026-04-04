@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import type { AppPage, TotpState, Session, Settings } from './types';
 import { loadSession, loadSettings } from './settings';
+import { getMe } from './api';
 import LoginPage from './pages/LoginPage';
 import TotpPage from './pages/TotpPage';
 import MainPage from './pages/MainPage';
 
-// Tauri updater — only available in the native app build, not web.
 async function checkForUpdates(setUpdateAvailable: (v: string) => void) {
   try {
     const { check } = await import('@tauri-apps/plugin-updater');
@@ -23,10 +23,17 @@ export default function App() {
   const [settings, setSettings]           = useState<Settings>(loadSettings);
   const [updateVersion, setUpdateVersion] = useState('');
 
-  // Restore session on mount; check for updates after a short delay.
   useEffect(() => {
     const s = loadSession();
-    if (s) { setSession(s); setPage('main'); }
+    if (s) {
+      const restored: Session = { ...s, isAdmin: s.isAdmin ?? false };
+      setSession(restored);
+      setPage('main');
+      // Refresh isAdmin from server (grant/revoke takes effect without re-login).
+      getMe(s.serverUrl, s.sessionToken)
+        .then(me => setSession(prev => prev ? { ...prev, isAdmin: me.isAdmin } : prev))
+        .catch(() => { /* ignore — keep stored value */ });
+    }
     setTimeout(() => void checkForUpdates(setUpdateVersion), 5000);
   }, []);
 

@@ -1,7 +1,11 @@
 import { useTracks, ParticipantTile } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 
-export default function VideoGrid() {
+interface Props {
+  gameMode?: boolean;
+}
+
+export default function VideoGrid({ gameMode }: Props) {
   const tracks = useTracks(
     [
       { source: Track.Source.Camera,      withPlaceholder: true },
@@ -11,7 +15,9 @@ export default function VideoGrid() {
   );
 
   const count = tracks.length;
-  const gridClass = count === 1 ? 'one-participant' : count >= 3 ? 'many-participants' : '';
+  const gridClass = gameMode
+    ? 'game-mode-grid'
+    : count === 1 ? 'one-participant' : count >= 3 ? 'many-participants' : '';
 
   return (
     <div className={`video-grid ${gridClass}`}>

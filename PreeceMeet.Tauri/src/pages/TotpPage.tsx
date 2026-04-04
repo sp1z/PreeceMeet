@@ -28,6 +28,7 @@ export default function TotpPage({ totpState, serverUrl, onDone, onBack }: Props
         email:        '',   // we don't get email back from the API directly
         sessionToken: result.sessionToken,
         serverUrl,
+        isAdmin:      result.isAdmin ?? false,
       };
       saveSession(session);
       onDone(session);
