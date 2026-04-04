@@ -100,6 +100,36 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+      # tauri-action doesn't upload .sig files as release assets — do it explicitly
+      - name: Upload updater signatures
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('PreeceMeet.Tauri/src-tauri/tauri.conf.json'))['version'])")
+          TAG="tauri-v${VERSION}"
+
+          # Find .sig files that belong to updater packages (.tar.gz.sig, .zip.sig)
+          find PreeceMeet.Tauri/src-tauri/target \
+            \( -name "*.AppImage.tar.gz.sig" \
+            -o -name "*.app.tar.gz.sig" \
+            -o -name "*.nsis.zip.sig" \
+            -o -name "*.msi.zip.sig" \) \
+            | while read sigfile; do
+              echo "Uploading $sigfile"
+              gh release upload "$TAG" "$sigfile" --clobber --repo ${{ github.repository }}
+            done
+
+          # Also upload the updater archives if not already present
+          find PreeceMeet.Tauri/src-tauri/target \
+            \( -name "*.AppImage.tar.gz" \
+            -o -name "*.nsis.zip" \
+            -o -name "*.msi.zip" \) \
+            | while read archive; do
+              echo "Uploading updater archive $archive"
+              gh release upload "$TAG" "$archive" --clobber --repo ${{ github.repository }}
+            done
+
   # After all platforms built, generate latest.json for the auto-updater
   # and commit it to main so the endpoint URL always returns the newest version.
   generate-updater-json:
