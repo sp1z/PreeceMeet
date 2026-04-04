@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { AppPage, TotpState, Session, Settings } from './types';
 import { loadSession, loadSettings } from './settings';
 import { getMe } from './api';
+import pkg from '../package.json';
 import LoginPage from './pages/LoginPage';
 import TotpPage from './pages/TotpPage';
 import MainPage from './pages/MainPage';
@@ -22,6 +23,15 @@ export default function App() {
   const [session, setSession]             = useState<Session | null>(null);
   const [settings, setSettings]           = useState<Settings>(loadSettings);
   const [updateVersion, setUpdateVersion] = useState('');
+
+  // Set window title with version (matches WPF "PreeceMeet v0.x.x" title)
+  useEffect(() => {
+    const title = `PreeceMeet v${pkg.version}`;
+    document.title = title;
+    import('@tauri-apps/api/window')
+      .then(({ getCurrentWindow }) => void getCurrentWindow().setTitle(title))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const s = loadSession();

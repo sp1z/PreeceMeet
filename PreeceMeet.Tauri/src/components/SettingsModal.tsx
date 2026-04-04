@@ -2,16 +2,17 @@ import { useState, useEffect } from 'react';
 import type { Settings, Channel } from '../types';
 
 interface Props {
-  settings: Settings;
-  onSave:   (s: Settings) => void;
-  onClose:  () => void;
+  settings:     Settings;
+  onSave:       (s: Settings) => void;
+  onClose:      () => void;
+  initialTab?:  'profile' | 'channels' | 'permissions';
 }
 
 type Tab       = 'profile' | 'channels' | 'permissions';
 type PermState = 'unknown' | 'granted' | 'denied' | 'prompt';
 
-export default function SettingsModal({ settings, onSave, onClose }: Props) {
-  const [tab,           setTab]           = useState<Tab>('profile');
+export default function SettingsModal({ settings, onSave, onClose, initialTab }: Props) {
+  const [tab,           setTab]           = useState<Tab>(initialTab ?? 'profile');
   const [displayName,   setDisplayName]   = useState(settings.displayName);
   const [serverUrl,     setServerUrl]     = useState(settings.serverUrl);
   const [channels,      setChannels]      = useState<Channel[]>([...settings.channels]);

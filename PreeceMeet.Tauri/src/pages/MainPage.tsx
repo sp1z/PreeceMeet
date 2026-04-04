@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useRoomContext } from '@livekit/components-react';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel } from '../types';
 import { saveSettings, clearSession, saveSession } from '../settings';
+import pkg from '../../package.json';
 import { getRooms, getRoomToken, UnauthorizedError } from '../api';
 import Sidebar from '../components/Sidebar';
 import VideoGrid from '../components/VideoGrid';
@@ -28,8 +29,9 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [micMuted,       setMicMuted]       = useState(false);
   const [camMuted,       setCamMuted]       = useState(false);
   const [error,          setError]          = useState('');
-  const [settingsOpen,   setSettingsOpen]   = useState(false);
-  const [adminOpen,      setAdminOpen]      = useState(false);
+  const [settingsOpen,      setSettingsOpen]      = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'profile' | 'channels' | 'permissions'>('profile');
+  const [adminOpen,         setAdminOpen]          = useState(false);
   const [gameMode,       setGameMode]       = useState(false);
   const [installing,     setInstalling]     = useState(false);
   const [uiHidden,       setUiHidden]       = useState(false);
@@ -86,18 +88,21 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
-  // F11 keyboard shortcut
+  // Keyboard shortcuts: F11 fullscreen, Ctrl+M mic, Ctrl+E cam, Ctrl+D disconnect
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'F11') {
-        e.preventDefault();
-        void toggleFullscreen();
+      if (e.key === 'F11') { e.preventDefault(); void toggleFullscreen(); return; }
+      if (!e.ctrlKey) return;
+      switch (e.key.toLowerCase()) {
+        case 'm': e.preventDefault(); if (connection) setMicMuted(m => !m); break;
+        case 'e': e.preventDefault(); if (connection) setCamMuted(c => !c); break;
+        case 'd': e.preventDefault(); if (connection) handleHangup();       break;
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFullscreen]);
+  }, [isFullscreen, connection]);
 
   // Sidebar resize mouse events
   useEffect(() => {
@@ -232,6 +237,22 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     }
   }
 
+  function openSettingsAt(tab: 'profile' | 'channels' | 'permissions') {
+    setSettingsInitialTab(tab);
+    setSettingsOpen(true);
+  }
+
+  function handleDeleteChannel(channelName: string) {
+    const updated = {
+      ...settings,
+      channels: settings.channels.filter(c => c.name !== channelName),
+      autoJoinChannel: settings.autoJoinChannel === channelName ? '' : settings.autoJoinChannel,
+    };
+    onSettingsChange(updated);
+    saveSettings(updated);
+    if (connection?.roomName === channelName) handleHangup();
+  }
+
   function handleSaveSettings(s: Settings) {
     onSettingsChange({ ...s, sidebarWidth: sidebarWidthRef.current });
     saveSettings({ ...s, sidebarWidth: sidebarWidthRef.current });
@@ -249,7 +270,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     return (
       <div className="app-layout game-mode">
         <div className="game-titlebar" data-tauri-drag-region="">
-          <span className="game-titlebar-title">PreeceMeet</span>
+          <span className="game-titlebar-title">PreeceMeet v{pkg.version}</span>
           <button className="game-exit-btn" onClick={() => void exitGameMode()} title="Exit Game Mode">
             ⊞ Restore
           </button>
@@ -374,8 +395,10 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
             activeRoom={activeRoomName}
             email={session.email || ''}
             onJoin={joinChannel}
-            onSettings={() => setSettingsOpen(true)}
+            onSettings={() => openSettingsAt('profile')}
             onSignOut={handleSignOut}
+            onAddChannel={() => openSettingsAt('channels')}
+            onDeleteChannel={handleDeleteChannel}
             visible={true}
           />
         )}
@@ -458,6 +481,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           settings={settings}
           onSave={handleSaveSettings}
           onClose={() => setSettingsOpen(false)}
+          initialTab={settingsInitialTab}
         />
       )}
       {adminOpen && (

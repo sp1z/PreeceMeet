@@ -1,19 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Channel, RoomInfo } from '../types';
 
 interface Props {
-  channels:    Channel[];
-  rooms:       RoomInfo[];
-  activeRoom:  string | null;
-  email:       string;
-  onJoin:      (channel: Channel) => void;
-  onSettings:  () => void;
-  onSignOut:   () => void;
-  visible:     boolean;
+  channels:        Channel[];
+  rooms:           RoomInfo[];
+  activeRoom:      string | null;
+  email:           string;
+  onJoin:          (channel: Channel) => void;
+  onSettings:      () => void;
+  onSignOut:       () => void;
+  onAddChannel:    () => void;
+  onDeleteChannel: (channelName: string) => void;
+  visible:         boolean;
 }
 
-export default function Sidebar({ channels, rooms, activeRoom, email, onJoin, onSettings, onSignOut, visible }: Props) {
+interface ChannelMenu { name: string; x: number; y: number; }
+
+export default function Sidebar({ channels, rooms, activeRoom, email, onJoin, onSettings, onSignOut, onAddChannel, onDeleteChannel, visible }: Props) {
   const [footerMenuOpen, setFooterMenuOpen] = useState(false);
+  const [channelMenu,    setChannelMenu]    = useState<ChannelMenu | null>(null);
+
+  useEffect(() => {
+    if (!channelMenu) return;
+    const close = () => setChannelMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [channelMenu]);
 
   if (!visible) return null;
 
@@ -29,12 +41,21 @@ export default function Sidebar({ channels, rooms, activeRoom, email, onJoin, on
     return names + extra;
   }
 
+  function handleChannelContextMenu(e: React.MouseEvent, name: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setChannelMenu({ name, x: e.clientX, y: e.clientY });
+  }
+
   const initial = email ? email[0].toUpperCase() : '?';
 
   return (
     <aside className="sidebar" style={{ position: 'relative' }}>
       <div className="sidebar-header">
         <span>PreeceMeet</span>
+        <button className="icon-btn" onClick={onAddChannel} title="Add channel" style={{ width: 28, height: 28, fontSize: 20 }}>
+          +
+        </button>
       </div>
 
       <div className="sidebar-section-label">Channels</div>
@@ -42,7 +63,7 @@ export default function Sidebar({ channels, rooms, activeRoom, email, onJoin, on
       <div className="channel-list">
         {channels.length === 0 && (
           <div style={{ padding: '12px 10px', color: 'var(--text-muted)', fontSize: 13 }}>
-            No channels — open Settings to add some.
+            No channels — click + to add one.
           </div>
         )}
         {channels.map(ch => {
@@ -56,6 +77,7 @@ export default function Sidebar({ channels, rooms, activeRoom, email, onJoin, on
               key={ch.name}
               className={`channel-row${active ? ' active' : ''}`}
               onClick={() => onJoin(ch)}
+              onContextMenu={e => handleChannelContextMenu(e, ch.name)}
             >
               <div className="channel-emoji-wrap">{ch.emoji || '💬'}</div>
               <div className="channel-info">
@@ -67,6 +89,28 @@ export default function Sidebar({ channels, rooms, activeRoom, email, onJoin, on
           );
         })}
       </div>
+
+      {/* Channel context menu */}
+      {channelMenu && (
+        <div
+          className="tile-context-menu"
+          style={{ left: channelMenu.x, top: channelMenu.y }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button onClick={() => { setChannelMenu(null); onSettings(); }}>
+            ✏️ Edit channel
+          </button>
+          <button
+            style={{ color: '#ef5350' }}
+            onClick={() => {
+              setChannelMenu(null);
+              if (confirm(`Delete channel "${channelMenu.name}"?`)) onDeleteChannel(channelMenu.name);
+            }}
+          >
+            🗑️ Delete channel
+          </button>
+        </div>
+      )}
 
       {/* Footer popup menu */}
       {footerMenuOpen && (
