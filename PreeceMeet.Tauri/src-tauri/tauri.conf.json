@@ -24,6 +24,15 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "RWRO38zXcBNhe/hAACh6cfA+apYLXav/yBTsGYVzl2k4nRbziImiE4Aw",
+      "endpoints": [
+        "https://raw.githubusercontent.com/sp1z/PreeceMeet/main/PreeceMeet.Tauri/latest.json"
+      ],
+      "dialog": false
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

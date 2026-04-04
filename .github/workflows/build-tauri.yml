@@ -82,7 +82,9 @@ jobs:
       - name: Build and release with Tauri
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN:                    ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY:       ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         with:
           projectPath: PreeceMeet.Tauri
           tagName: tauri-v__VERSION__
@@ -95,5 +97,101 @@ jobs:
             - Linux: `.AppImage` or `.deb`
             - macOS: `.dmg`
           releaseDraft: true
-          prerelease: true
+          prerelease: false
           args: ${{ matrix.args }}
+
+  # After all platforms built, generate latest.json for the auto-updater
+  # and commit it to main so the endpoint URL always returns the newest version.
+  generate-updater-json:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get version
+        id: ver
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('PreeceMeet.Tauri/src-tauri/tauri.conf.json'))['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download .sig files from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/sigs
+          VERSION=${{ steps.ver.outputs.version }}
+          TAG="tauri-v${VERSION}"
+          # Download all .sig assets — gh will skip ones that don't exist
+          gh release download "$TAG" --repo ${{ github.repository }} \
+            --pattern "*.sig" --dir /tmp/sigs || true
+          ls /tmp/sigs/
+
+      - name: Generate latest.json
+        run: |
+          python3 - << 'EOF'
+          import json, os, glob
+          from datetime import datetime, timezone
+
+          version = "${{ steps.ver.outputs.version }}"
+          tag     = f"tauri-v{version}"
+          base    = f"https://github.com/${{ github.repository }}/releases/download/{tag}"
+
+          def sig(name):
+              path = f"/tmp/sigs/{name}.sig"
+              return open(path).read().strip() if os.path.exists(path) else None
+
+          platforms = {}
+
+          # Windows — prefer NSIS updater zip
+          nsis = f"PreeceMeet_{version}_x64-setup.nsis.zip"
+          s = sig(nsis)
+          if s:
+              platforms["windows-x86_64"] = {"url": f"{base}/{nsis}", "signature": s}
+          else:
+              msi = f"PreeceMeet_{version}_x64_en-US.msi.zip"
+              s = sig(msi)
+              if s:
+                  platforms["windows-x86_64"] = {"url": f"{base}/{msi}", "signature": s}
+
+          # Linux — AppImage
+          ai = f"PreeceMeet_{version}_amd64.AppImage.tar.gz"
+          s = sig(ai)
+          if s:
+              platforms["linux-x86_64"] = {"url": f"{base}/{ai}", "signature": s}
+
+          # macOS
+          for arch, key in [("aarch64", "darwin-aarch64"), ("x64", "darwin-x86_64")]:
+              name = f"PreeceMeet_{arch}.app.tar.gz"
+              s = sig(name)
+              if s:
+                  platforms[key] = {"url": f"{base}/{name}", "signature": s}
+
+          manifest = {
+              "version":  version,
+              "notes":    f"PreeceMeet (cross-platform) v{version}",
+              "pub_date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "platforms": platforms,
+          }
+
+          out = json.dumps(manifest, indent=2)
+          print(out)
+          with open("PreeceMeet.Tauri/latest.json", "w") as f:
+              f.write(out + "\n")
+
+          print(f"\nPlatforms included: {list(platforms.keys())}")
+          EOF
+
+      - name: Commit latest.json to main
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add PreeceMeet.Tauri/latest.json
+          if git diff --cached --quiet; then
+            echo "latest.json unchanged, nothing to commit"
+          else
+            git commit -m "chore: update Tauri auto-updater manifest to v${{ steps.ver.outputs.version }}"
+            git push
+          fi

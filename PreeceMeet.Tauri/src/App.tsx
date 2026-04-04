@@ -5,16 +5,29 @@ import LoginPage from './pages/LoginPage';
 import TotpPage from './pages/TotpPage';
 import MainPage from './pages/MainPage';
 
-export default function App() {
-  const [page, setPage]           = useState<AppPage>('login');
-  const [totpState, setTotpState] = useState<TotpState | null>(null);
-  const [session, setSession]     = useState<Session | null>(null);
-  const [settings, setSettings]   = useState<Settings>(loadSettings);
+// Tauri updater — only available in the native app build, not web.
+async function checkForUpdates(setUpdateAvailable: (v: string) => void) {
+  try {
+    const { check } = await import('@tauri-apps/plugin-updater');
+    const update = await check();
+    if (update?.available && update.version) {
+      setUpdateAvailable(update.version);
+    }
+  } catch { /* not in Tauri context, or network error — ignore */ }
+}
 
-  // Restore session on mount
+export default function App() {
+  const [page, setPage]                   = useState<AppPage>('login');
+  const [totpState, setTotpState]         = useState<TotpState | null>(null);
+  const [session, setSession]             = useState<Session | null>(null);
+  const [settings, setSettings]           = useState<Settings>(loadSettings);
+  const [updateVersion, setUpdateVersion] = useState('');
+
+  // Restore session on mount; check for updates after a short delay.
   useEffect(() => {
     const s = loadSession();
     if (s) { setSession(s); setPage('main'); }
+    setTimeout(() => void checkForUpdates(setUpdateVersion), 5000);
   }, []);
 
   function handleLoginDone(totp: TotpState) {
@@ -61,6 +74,7 @@ export default function App() {
         settings={settings}
         onSettingsChange={setSettings}
         onSignOut={handleSignOut}
+        updateVersion={updateVersion}
       />
     );
   }

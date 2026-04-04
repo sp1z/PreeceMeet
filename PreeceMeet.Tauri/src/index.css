@@ -436,6 +436,21 @@ input::placeholder { color: var(--text-muted); }
 .control-btn.muted { background: var(--danger); }
 .control-btn.hangup { background: var(--danger); }
 
+/* ── Update available pill ──────────────────────────────────────────────── */
+.update-pill {
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.update-pill:hover { opacity: 0.85; }
+.update-pill:disabled { opacity: 0.6; cursor: default; }
+
 /* ── Game Mode ──────────────────────────────────────────────────────────── */
 .app-layout.game-mode .top-bar    { display: none; }
 .app-layout.game-mode .call-controls { display: none; }

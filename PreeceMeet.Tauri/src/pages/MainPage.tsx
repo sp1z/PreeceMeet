@@ -13,11 +13,12 @@ interface Props {
   settings:         Settings;
   onSettingsChange: (s: Settings) => void;
   onSignOut:        () => void;
+  updateVersion?:   string;
 }
 
 type ConnectState = 'idle' | 'connecting' | 'connected';
 
-export default function MainPage({ session, settings, onSettingsChange, onSignOut }: Props) {
+export default function MainPage({ session, settings, onSettingsChange, onSignOut, updateVersion }: Props) {
   const [sidebarVisible, setSidebarVisible] = useState(settings.sidebarVisible);
   const [rooms,          setRooms]          = useState<RoomInfo[]>([]);
   const [connection,     setConnection]     = useState<RoomConnection | null>(null);
@@ -27,6 +28,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [error,          setError]          = useState('');
   const [settingsOpen,   setSettingsOpen]   = useState(false);
   const [gameMode,       setGameMode]       = useState(false);
+  const [installing,     setInstalling]     = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval>>();
 
   // Poll room list every 5 seconds
@@ -79,6 +81,20 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     saveSettings(updated);
   }
 
+  async function installUpdate() {
+    if (installing) return;
+    setInstalling(true);
+    try {
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const { relaunch } = await import('@tauri-apps/plugin-process');
+      const update = await check();
+      if (update?.available) {
+        await update.downloadAndInstall();
+        await relaunch();
+      }
+    } catch { setInstalling(false); }
+  }
+
   function handleSaveSettings(s: Settings) {
     onSettingsChange(s);
     saveSettings(s);
@@ -100,6 +116,16 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           {activeRoomName ? `#${activeRoomName}` : 'No active call'}
         </span>
         {error && <span style={{ fontSize: 12, color: '#ef5350', flex: 1 }}>{error}</span>}
+        {updateVersion && !error && (
+          <button
+            className="update-pill"
+            onClick={installUpdate}
+            disabled={installing}
+            title={`Update to v${updateVersion}`}
+          >
+            {installing ? 'Installing…' : `↑ v${updateVersion} available`}
+          </button>
+        )}
         <button
           className={`icon-btn${gameMode ? ' active' : ''}`}
           onClick={() => setGameMode(g => !g)}
