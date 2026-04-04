@@ -184,12 +184,21 @@ jobs:
               sign_upload_sig_only(f"{base}/PreeceMeet_{version}_amd64.AppImage",
                                    f"PreeceMeet_{version}_amd64.AppImage.sig")
           else:  # Windows
-              # tauri-action deletes .nsis.zip.sig; re-sign and upload zip + sig
-              nsis = f"{tgt}/release/bundle/nsis"
-              msi  = f"{tgt}/release/bundle/msi"
-              sign_and_upload(f"{nsis}/PreeceMeet_{version}_x64-setup.nsis.zip",
-                              f"PreeceMeet_{version}_x64-setup.nsis.zip",
-                              f"PreeceMeet_{version}_x64-setup.nsis.zip.sig")
+              # tauri-action deletes .nsis.zip (and .sig). Recreate the zip from the
+              # .exe installer, then sign and upload it.
+              import zipfile
+              nsis_dir = f"{tgt}/release/bundle/nsis"
+              exe      = f"{nsis_dir}/PreeceMeet_{version}_x64-setup.exe"
+              zip_path = f"{nsis_dir}/PreeceMeet_{version}_x64-setup.nsis.zip"
+              if os.path.exists(exe):
+                  print(f"Creating {zip_path} ...")
+                  with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                      zf.write(exe, os.path.basename(exe))
+                  sign_and_upload(zip_path,
+                                  f"PreeceMeet_{version}_x64-setup.nsis.zip",
+                                  f"PreeceMeet_{version}_x64-setup.nsis.zip.sig")
+              else:
+                  print(f"NSIS exe not found: {exe}")
 
   # After all platforms built, generate latest.json for the auto-updater
   # and commit it to main so the endpoint URL always returns the newest version.
