@@ -500,21 +500,31 @@ input::placeholder { color: var(--text-muted); }
   height: 100%;
 }
 .game-mode-grid {
+  flex: 1 !important;           /* fill LiveKitRoom flex container */
   display: flex !important;
   flex-direction: row !important;
   flex-wrap: nowrap !important;
-  height: 100% !important;
   overflow-x: auto !important;
   overflow-y: hidden !important;
   gap: 4px !important;
   padding: 4px !important;
   align-items: stretch !important;
 }
+/* Each tile wrapper (our div + local-camera-tile) */
 .game-mode-grid > * {
   flex: 0 0 auto !important;
   height: 100% !important;
   aspect-ratio: 16 / 9 !important;
-  min-width: 120px !important;
+  min-width: 100px !important;
+}
+/* LiveKit tile inside the wrapper fills it completely */
+.game-mode-grid > * > .lk-participant-tile {
+  height: 100% !important;
+  width: 100% !important;
+}
+/* Contain (don't crop) video in game mode */
+.game-mode-grid video {
+  object-fit: contain !important;
 }
 
 /* ── Settings modal ─────────────────────────────────────────────────────── */

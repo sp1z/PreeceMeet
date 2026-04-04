@@ -13,6 +13,7 @@ const defaults: Settings = {
   sidebarVisible: true,
   preferredMicDeviceId: '',
   preferredCamDeviceId: '',
+  preferredSpeakerDeviceId: '',
 };
 
 export function loadSettings(): Settings {

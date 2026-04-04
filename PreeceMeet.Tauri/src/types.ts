@@ -14,6 +14,7 @@ export interface Settings {
   sidebarVisible: boolean;
   preferredMicDeviceId: string;
   preferredCamDeviceId: string;
+  preferredSpeakerDeviceId: string;
 }
 
 export interface Session {

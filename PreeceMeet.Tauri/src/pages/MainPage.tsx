@@ -108,7 +108,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       };
       await win.setDecorations(false);
       await win.setAlwaysOnTop(true);
-      await win.setResizable(false);
       await win.setSize(new LogicalSize(1280, 252));
     } catch { /* not in Tauri — ignore */ }
   }
@@ -120,7 +119,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       const win = getCurrentWindow();
       await win.setDecorations(true);
       await win.setAlwaysOnTop(false);
-      await win.setResizable(true);
       if (savedSizeRef.current) {
         const { width, height } = savedSizeRef.current;
         await win.setSize(new LogicalSize(width, height));
@@ -138,8 +136,13 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       if (update?.available) {
         await update.downloadAndInstall();
         await relaunch();
+      } else {
+        setInstalling(false); // no update found (version already current)
       }
-    } catch { setInstalling(false); }
+    } catch (e) {
+      setInstalling(false);
+      setError(e instanceof Error ? e.message : 'Update failed.');
+    }
   }
 
   function handleSaveSettings(s: Settings) {
@@ -193,6 +196,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 camMuted={camMuted}
                 preferredMicDeviceId={settings.preferredMicDeviceId}
                 preferredCamDeviceId={settings.preferredCamDeviceId}
+                preferredSpeakerDeviceId={settings.preferredSpeakerDeviceId}
               />
               <RoomAudioRenderer />
               <VideoGrid gameMode />
@@ -299,6 +303,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 camMuted={camMuted}
                 preferredMicDeviceId={settings.preferredMicDeviceId}
                 preferredCamDeviceId={settings.preferredCamDeviceId}
+                preferredSpeakerDeviceId={settings.preferredSpeakerDeviceId}
               />
               <RoomAudioRenderer />
               <VideoGrid />
@@ -343,31 +348,35 @@ interface MediaControllerProps {
   camMuted: boolean;
   preferredMicDeviceId: string;
   preferredCamDeviceId: string;
+  preferredSpeakerDeviceId: string;
 }
 
-function MediaController({ micMuted, camMuted, preferredMicDeviceId, preferredCamDeviceId }: MediaControllerProps) {
+function MediaController({ micMuted, camMuted, preferredMicDeviceId, preferredCamDeviceId, preferredSpeakerDeviceId }: MediaControllerProps) {
   const { localParticipant } = useLocalParticipant();
   const room    = useRoomContext();
   const mounted = useRef(false);
 
-  // Apply preferred devices once on connect
+  // Re-apply preferred devices whenever prefs change (e.g. settings saved mid-call)
   useEffect(() => {
     async function applyPreferredDevices() {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         if (preferredMicDeviceId) {
-          const available = devices.some(d => d.kind === 'audioinput' && d.deviceId === preferredMicDeviceId);
-          if (available) await room.switchActiveDevice('audioinput', preferredMicDeviceId);
+          const ok = devices.some(d => d.kind === 'audioinput' && d.deviceId === preferredMicDeviceId);
+          if (ok) await room.switchActiveDevice('audioinput', preferredMicDeviceId);
         }
         if (preferredCamDeviceId) {
-          const available = devices.some(d => d.kind === 'videoinput' && d.deviceId === preferredCamDeviceId);
-          if (available) await room.switchActiveDevice('videoinput', preferredCamDeviceId);
+          const ok = devices.some(d => d.kind === 'videoinput' && d.deviceId === preferredCamDeviceId);
+          if (ok) await room.switchActiveDevice('videoinput', preferredCamDeviceId);
+        }
+        if (preferredSpeakerDeviceId) {
+          const ok = devices.some(d => d.kind === 'audiooutput' && d.deviceId === preferredSpeakerDeviceId);
+          if (ok) await room.switchActiveDevice('audiooutput', preferredSpeakerDeviceId);
         }
       } catch { /* falls back to default */ }
     }
     void applyPreferredDevices();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [preferredMicDeviceId, preferredCamDeviceId, preferredSpeakerDeviceId, room]);
 
   useEffect(() => {
     if (!mounted.current) { mounted.current = true; return; }

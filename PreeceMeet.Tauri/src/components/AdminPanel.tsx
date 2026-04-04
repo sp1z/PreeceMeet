@@ -120,6 +120,30 @@ export default function AdminPanel({ session, onClose, onSignOut }: Props) {
           {error && <p style={{ color: '#ef5350', fontSize: 13 }}>{error}</p>}
           {actionMsg && <p style={{ color: '#23d18b', fontSize: 13 }}>{actionMsg}</p>}
 
+          {/* ── Change password form (shown at top when active) ── */}
+          {pwEmail && (
+            <div style={{ background: 'rgba(91,155,213,0.1)', border: '1px solid var(--accent)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Change password for <strong style={{ color: 'var(--text-primary)' }}>{pwEmail}</strong></div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="password"
+                  placeholder="New password"
+                  value={pwValue}
+                  onChange={e => setPwValue(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && void changePassword()}
+                  style={{ flex: 1 }}
+                  autoFocus
+                />
+                <button className="btn-primary" style={{ width: 'auto', margin: 0, padding: '8px 16px' }} onClick={() => void changePassword()}>
+                  Set
+                </button>
+                <button className="btn-secondary" onClick={() => { setPwEmail(''); setPwValue(''); }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ── User list ─────────────────────────────── */}
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 8 }}>
@@ -171,29 +195,6 @@ export default function AdminPanel({ session, onClose, onSignOut }: Props) {
               </div>
             )}
           </div>
-
-          {/* ── Change password inline form ───────────── */}
-          {pwEmail && (
-            <div style={{ background: 'var(--bg-main)', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Change password for <strong style={{ color: 'var(--text-primary)' }}>{pwEmail}</strong></div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="password"
-                  placeholder="New password"
-                  value={pwValue}
-                  onChange={e => setPwValue(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && void changePassword()}
-                  style={{ flex: 1 }}
-                />
-                <button className="btn-primary" style={{ width: 'auto', margin: 0, padding: '8px 16px' }} onClick={() => void changePassword()}>
-                  Set
-                </button>
-                <button className="btn-secondary" onClick={() => { setPwEmail(''); setPwValue(''); }}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* ── Create user ───────────────────────────── */}
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>

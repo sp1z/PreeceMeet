@@ -22,10 +22,12 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
   const [micState,      setMicState]      = useState<PermState>('unknown');
   const [camState,      setCamState]      = useState<PermState>('unknown');
   const [permMsg,       setPermMsg]       = useState('');
-  const [micDevices,    setMicDevices]    = useState<MediaDeviceInfo[]>([]);
-  const [camDevices,    setCamDevices]    = useState<MediaDeviceInfo[]>([]);
-  const [prefMic,       setPrefMic]       = useState(settings.preferredMicDeviceId);
-  const [prefCam,       setPrefCam]       = useState(settings.preferredCamDeviceId);
+  const [micDevices,     setMicDevices]     = useState<MediaDeviceInfo[]>([]);
+  const [camDevices,     setCamDevices]     = useState<MediaDeviceInfo[]>([]);
+  const [speakerDevices, setSpeakerDevices] = useState<MediaDeviceInfo[]>([]);
+  const [prefMic,        setPrefMic]        = useState(settings.preferredMicDeviceId);
+  const [prefCam,        setPrefCam]        = useState(settings.preferredCamDeviceId);
+  const [prefSpeaker,    setPrefSpeaker]    = useState(settings.preferredSpeakerDeviceId);
 
   useEffect(() => { void checkPerms(); }, []);
 
@@ -59,6 +61,7 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
       }
       setMicDevices(devices.filter(d => d.kind === 'audioinput'));
       setCamDevices(devices.filter(d => d.kind === 'videoinput'));
+      setSpeakerDevices(devices.filter(d => d.kind === 'audiooutput'));
     } catch { /* ignore */ }
   }
 
@@ -89,7 +92,7 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
   }
 
   function save() {
-    onSave({ ...settings, displayName: displayName.trim(), serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin, preferredMicDeviceId: prefMic, preferredCamDeviceId: prefCam });
+    onSave({ ...settings, displayName: displayName.trim(), serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin, preferredMicDeviceId: prefMic, preferredCamDeviceId: prefCam, preferredSpeakerDeviceId: prefSpeaker });
     onClose();
   }
 
@@ -228,6 +231,20 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
                   >
                     <option value="">System default</option>
                     {camDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Camera ${d.deviceId.slice(0, 8)}`}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {speakerDevices.length > 0 && (
+                <div className="form-field" style={{ marginTop: 4 }}>
+                  <label>Preferred speaker / headphones</label>
+                  <select
+                    value={prefSpeaker}
+                    onChange={e => setPrefSpeaker(e.target.value)}
+                    style={{ background: 'var(--bg-main)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 12px', width: '100%', fontSize: 13 }}
+                  >
+                    <option value="">System default</option>
+                    {speakerDevices.map(d => <option key={d.deviceId} value={d.deviceId}>{d.label || `Speaker ${d.deviceId.slice(0, 8)}`}</option>)}
                   </select>
                 </div>
               )}
