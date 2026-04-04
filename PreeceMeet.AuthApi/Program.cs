@@ -33,7 +33,19 @@ builder.Services.AddSingleton(new SessionTokenService(livekitSecret));
 var livekitHttpUrl = livekitUrl.Replace("wss://", "https://").Replace("ws://", "http://");
 var roomService    = new RoomServiceClient(livekitHttpUrl, livekitApiKey, livekitSecret);
 
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("https://tauri.localhost")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
+
+app.UseCors();
 
 // ── Ensure DB exists ──────────────────────────────────────────────────────────
 
