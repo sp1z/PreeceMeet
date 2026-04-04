@@ -410,6 +410,11 @@ input::placeholder { color: var(--text-muted); }
   font-size: 13px !important;
 }
 
+/* Mirror only the video for the local camera tile; leave overlays unmirrored */
+.local-camera-tile video {
+  transform: scaleX(-1);
+}
+
 /* ── Call controls ──────────────────────────────────────────────────────── */
 .call-controls {
   background: var(--bg-bar);

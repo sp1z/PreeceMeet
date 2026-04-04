@@ -15,12 +15,17 @@ export default function VideoGrid() {
 
   return (
     <div className={`video-grid ${gridClass}`}>
-      {tracks.map(track => (
-        <ParticipantTile
-          key={`${track.participant.sid}-${track.source}`}
-          trackRef={track}
-        />
-      ))}
+      {tracks.map(track => {
+        const isLocalCamera = track.participant.isLocal && track.source === Track.Source.Camera;
+        return (
+          <div
+            key={`${track.participant.sid}-${track.source}`}
+            className={isLocalCamera ? 'local-camera-tile' : undefined}
+          >
+            <ParticipantTile trackRef={track} />
+          </div>
+        );
+      })}
     </div>
   );
 }
