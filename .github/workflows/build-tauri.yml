@@ -100,7 +100,7 @@ jobs:
             - Windows: `.msi` or `.exe` setup
             - Linux: `.AppImage` or `.deb`
             - macOS: `.dmg`
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
 
@@ -302,3 +302,11 @@ jobs:
             git commit -m "chore: update Tauri auto-updater manifest to v${{ steps.ver.outputs.version }}"
             git push
           fi
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "tauri-v${{ steps.ver.outputs.version }}" \
+            --repo ${{ github.repository }} \
+            --draft=false
