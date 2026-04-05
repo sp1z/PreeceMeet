@@ -394,14 +394,14 @@ input::placeholder { color: var(--text-muted); }
   min-width: 0;
 }
 
-/* Tile wrapper */
+/* Tile wrapper — fills its grid cell via grid's default align-self:stretch.
+   Do NOT set height/width: 100% here; % heights inside fr-unit grid rows
+   don't resolve in most browsers. Let the grid sizing handle it. */
 .tile-wrapper {
   position: relative;
   border-radius: 8px;
   overflow: hidden;
   cursor: grab;
-  width: 100%;
-  height: 100%;
   min-height: 0;
   min-width: 0;
 }
@@ -514,9 +514,15 @@ input::placeholder { color: var(--text-muted); }
   padding: 1px 0;
 }
 
-/* Override livekit tile styles — tile must fill its wrapper */
+/* Override livekit tile styles.
+   Use position:absolute + inset:0 instead of height:100% — percentage heights
+   inside CSS Grid fr-unit rows do not resolve in Blink/WebKit. Absolute
+   positioning gets definite bounds from the positioned .tile-wrapper ancestor. */
 .lk-participant-tile {
-  height: 100% !important;
+  position: absolute !important;
+  inset: 0 !important;
+  height: auto !important;
+  width: auto !important;
   background: #12121e !important;
   border-radius: 8px !important;
 }
@@ -532,6 +538,13 @@ input::placeholder { color: var(--text-muted); }
 /* Contain video (don't crop) — matches WPF Stretch="Uniform" */
 .lk-participant-tile video {
   object-fit: contain !important;
+}
+
+/* Audio visualizer placeholder — prevent it from dictating tile height */
+.lk-participant-tile .lk-audio-visualizer {
+  min-height: 0 !important;
+  height: 100% !important;
+  aspect-ratio: unset !important;
 }
 
 /* Mirror only the video for the local camera tile; leave overlays unmirrored */
@@ -638,12 +651,14 @@ input::placeholder { color: var(--text-muted); }
   align-items: stretch !important;
   height: 100% !important;
 }
-/* In game mode each tile is a vertical-fill column with a 16:9 width */
+/* In game mode each tile is a vertical-fill column with a 16:9 width.
+   The wrapper has a definite size; the absolute lk-participant-tile fills it. */
 .game-mode-grid .tile-wrapper {
-  width: auto !important;
-  height: 100% !important;
-  aspect-ratio: 16 / 9 !important;
+  position: relative !important;
   flex-shrink: 0 !important;
+  height: 100% !important;
+  width: auto !important;
+  aspect-ratio: 16 / 9 !important;
 }
 /* Each tile wrapper (our div + local-camera-tile) */
 .game-mode-grid > * {

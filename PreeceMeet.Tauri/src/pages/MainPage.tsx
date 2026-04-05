@@ -305,6 +305,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 preferredMicDeviceId={settings.preferredMicDeviceId}
                 preferredCamDeviceId={settings.preferredCamDeviceId}
                 preferredSpeakerDeviceId={settings.preferredSpeakerDeviceId}
+                displayName={settings.displayName}
               />
               <RoomAudioRenderer />
               <VideoGrid gameMode statsVisible={statsVisible} />
@@ -451,6 +452,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 preferredMicDeviceId={settings.preferredMicDeviceId}
                 preferredCamDeviceId={settings.preferredCamDeviceId}
                 preferredSpeakerDeviceId={settings.preferredSpeakerDeviceId}
+                displayName={settings.displayName}
               />
               <RoomAudioRenderer />
               <VideoGrid statsVisible={statsVisible} />
@@ -503,9 +505,10 @@ interface MediaControllerProps {
   preferredMicDeviceId: string;
   preferredCamDeviceId: string;
   preferredSpeakerDeviceId: string;
+  displayName: string;
 }
 
-function MediaController({ micMuted, camMuted, preferredMicDeviceId, preferredCamDeviceId, preferredSpeakerDeviceId }: MediaControllerProps) {
+function MediaController({ micMuted, camMuted, preferredMicDeviceId, preferredCamDeviceId, preferredSpeakerDeviceId, displayName }: MediaControllerProps) {
   const { localParticipant } = useLocalParticipant();
   const room    = useRoomContext();
   const mounted = useRef(false);
@@ -531,6 +534,11 @@ function MediaController({ micMuted, camMuted, preferredMicDeviceId, preferredCa
     }
     void applyPreferredDevices();
   }, [preferredMicDeviceId, preferredCamDeviceId, preferredSpeakerDeviceId, room]);
+
+  // Push display name to LiveKit so tiles show the friendly name, not the email identity
+  useEffect(() => {
+    if (displayName) room.localParticipant.setName(displayName).catch(() => {});
+  }, [displayName, room]);
 
   useEffect(() => {
     if (!mounted.current) { mounted.current = true; return; }
