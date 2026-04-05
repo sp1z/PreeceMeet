@@ -121,6 +121,7 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
 
   const count = sortedTracks.length + (statsVisible ? 1 : 0);
   const cols = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
+  const rows = Math.ceil(count / cols);
 
   function handleDragStart(sid: string) {
     setDragSid(sid);
@@ -213,7 +214,10 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
     <>
       <div
         className={`video-grid${gameMode ? ' game-mode-grid' : ''}`}
-        style={!gameMode ? { gridTemplateColumns: `repeat(${cols}, 1fr)` } : undefined}
+        style={!gameMode ? {
+          gridTemplateColumns: `repeat(${cols}, 1fr)`,
+          gridTemplateRows:    `repeat(${rows}, 1fr)`,
+        } : undefined}
       >
         {sortedTracks.map(track => {
           const tileSid = `${track.participant.sid}-${track.source}`;

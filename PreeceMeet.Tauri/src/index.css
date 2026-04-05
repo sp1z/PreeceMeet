@@ -333,6 +333,8 @@ input::placeholder { color: var(--text-muted); }
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  min-height: 0;
+  height: 100%;
 }
 .empty-state {
   display: flex;
@@ -398,6 +400,10 @@ input::placeholder { color: var(--text-muted); }
   border-radius: 8px;
   overflow: hidden;
   cursor: grab;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
 }
 .tile-wrapper:active { cursor: grabbing; }
 .tile-wrapper.drag-over { outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -630,6 +636,14 @@ input::placeholder { color: var(--text-muted); }
   gap: 4px !important;
   padding: 4px !important;
   align-items: stretch !important;
+  height: 100% !important;
+}
+/* In game mode each tile is a vertical-fill column with a 16:9 width */
+.game-mode-grid .tile-wrapper {
+  width: auto !important;
+  height: 100% !important;
+  aspect-ratio: 16 / 9 !important;
+  flex-shrink: 0 !important;
 }
 /* Each tile wrapper (our div + local-camera-tile) */
 .game-mode-grid > * {
