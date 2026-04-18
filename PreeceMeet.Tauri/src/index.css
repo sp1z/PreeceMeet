@@ -535,9 +535,16 @@ input::placeholder { color: var(--text-muted); }
   box-shadow: inset 0 0 0 2px #00C853 !important;
 }
 
-/* Contain video (don't crop) — matches WPF Stretch="Uniform" */
-.lk-participant-tile video {
+/* Contain video (don't crop) — matches WPF Stretch="Uniform".
+   Set explicit width/height so object-fit has a defined box to work against;
+   without this the <video> defaults to its intrinsic size and overflows on
+   tiles that aren't the same aspect ratio (e.g. game-mode 16:9 vs camera). */
+.lk-participant-tile video,
+.lk-participant-tile .lk-participant-media-video {
+  width: 100% !important;
+  height: 100% !important;
   object-fit: contain !important;
+  display: block !important;
 }
 
 /* Audio visualizer placeholder — prevent it from dictating tile height */
@@ -672,9 +679,13 @@ input::placeholder { color: var(--text-muted); }
   height: 100% !important;
   width: 100% !important;
 }
-/* Contain (don't crop) video in game mode */
-.game-mode-grid video {
+/* Contain (don't crop) video in game mode — same explicit sizing as normal mode. */
+.game-mode-grid video,
+.game-mode-grid .lk-participant-media-video {
+  width: 100% !important;
+  height: 100% !important;
   object-fit: contain !important;
+  display: block !important;
 }
 
 /* ── Settings modal ─────────────────────────────────────────────────────── */

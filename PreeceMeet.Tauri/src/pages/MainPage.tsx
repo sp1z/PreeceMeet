@@ -274,14 +274,22 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       const { relaunch } = await import('@tauri-apps/plugin-process');
       const update = await check();
       if (update?.available) {
-        await update.downloadAndInstall();
+        try {
+          await update.downloadAndInstall();
+        } catch (downloadErr) {
+          console.error('[updater] downloadAndInstall failed:', downloadErr);
+          throw downloadErr;
+        }
         await relaunch();
       } else {
         setInstalling(false); // no update found (version already current)
       }
     } catch (e) {
+      console.error('[updater] failed:', e);
       setInstalling(false);
-      setError(e instanceof Error ? e.message : 'Update failed.');
+      const name = e instanceof Error ? e.name : 'Error';
+      const msg  = e instanceof Error ? e.message : String(e);
+      setError(`Update failed (${name}): ${msg}`);
     }
   }
 
@@ -613,30 +621,39 @@ function MediaController({
   const room    = useRoomContext();
   const mounted = useRef(false);
 
-  // Watch all screen-share tracks (local + remote) to drive parent state.
+  // Watch *remote* screen-share tracks only (used to soft-lock the share button).
   const screenTracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: false });
   const remoteSharing = screenTracks.some(t => !t.participant.isLocal);
-  const localShareTrackPresent = screenTracks.some(t => t.participant.isLocal);
 
   useEffect(() => { onRemoteShareChange(remoteSharing); }, [remoteSharing, onRemoteShareChange]);
 
-  // If we asked to share but the local track has gone away (user clicked the
-  // OS "Stop sharing" bar), tell the parent so it can flip the button back.
+  // Detect OS-driven stop (Windows "stop sharing" bar, Chrome's overlay etc.) by
+  // listening for the local screen-share track being unpublished. Using a plain
+  // useTracks-based check would fire spuriously between "we requested share" and
+  // "track has finished publishing", causing the share to flicker on then off.
   useEffect(() => {
-    if (screenSharing && !localShareTrackPresent && mounted.current) {
-      onLocalShareEnded();
-    }
-  }, [screenSharing, localShareTrackPresent, onLocalShareEnded]);
+    const handler = (publication: { source?: Track.Source } | undefined) => {
+      if (publication?.source === Track.Source.ScreenShare) onLocalShareEnded();
+    };
+    room.on(RoomEvent.LocalTrackUnpublished, handler);
+    return () => { room.off(RoomEvent.LocalTrackUnpublished, handler); };
+  }, [room, onLocalShareEnded]);
 
-  // Drive the actual LiveKit screen-share toggle.
+  // Drive the actual LiveKit screen-share toggle. Track the latest desired state
+  // in a ref so a quick toggle off→on (or re-render) doesn't issue duplicate calls.
+  const desiredShareRef = useRef(false);
   useEffect(() => {
     if (!localParticipant) return;
+    if (desiredShareRef.current === screenSharing) return;
+    desiredShareRef.current = screenSharing;
     localParticipant.setScreenShareEnabled(screenSharing).catch(err => {
-      // User cancelled the OS picker → revert silently. Other errors → surface.
       const msg = err instanceof Error ? err.message : String(err);
-      if (/Permission denied|aborted|cancel/i.test(msg)) {
+      // User cancelled the OS picker → revert quietly.
+      if (/Permission denied|aborted|cancel|NotAllowedError/i.test(msg)) {
+        desiredShareRef.current = false;
         onLocalShareEnded();
       } else {
+        desiredShareRef.current = false;
         onShareError(msg);
       }
     });
