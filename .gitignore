@@ -51,3 +51,7 @@ flatpak/build/
 flatpak/repo/
 flatpak/preecemeet.deb
 flatpak/*.flatpak
+
+## Electron build outputs
+PreeceMeet.Electron/renderer/
+PreeceMeet.Electron/dist-electron/

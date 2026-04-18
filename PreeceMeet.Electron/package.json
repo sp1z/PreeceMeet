@@ -1,0 +1,44 @@
+{
+  "name": "preecemeet-electron",
+  "version": "0.0.0",
+  "description": "PreeceMeet — Electron shell (Linux only; Windows/macOS ship via Tauri).",
+  "author": "Russell Preece <russell@russellpreece.com>",
+  "main": "main.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist:linux": "electron-builder --linux AppImage deb"
+  },
+  "devDependencies": {
+    "electron": "^32.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.russellpreece.preecemeet",
+    "productName": "PreeceMeet",
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.png",
+      "renderer/**/*"
+    ],
+    "directories": {
+      "output": "dist-electron"
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ],
+      "category": "Network",
+      "icon": "icon.png",
+      "desktop": {
+        "Name": "PreeceMeet",
+        "Comment": "Jitsi/LiveKit desktop client for meet.russellpreece.com",
+        "StartupWMClass": "PreeceMeet"
+      }
+    },
+    "artifactName": "PreeceMeet-Electron_${version}_${arch}.${ext}",
+    "publish": null
+  }
+}
