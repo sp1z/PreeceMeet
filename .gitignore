@@ -44,3 +44,10 @@ desktop.ini
 .env
 appsettings.Local.json
 node_modules
+
+## Flatpak build outputs
+flatpak/.flatpak-builder/
+flatpak/build/
+flatpak/repo/
+flatpak/preecemeet.deb
+flatpak/*.flatpak

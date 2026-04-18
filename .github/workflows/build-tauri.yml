@@ -198,6 +198,33 @@ jobs:
               else:
                   print(f"NSIS exe not found: {exe}")
 
+      # Build a Flatpak from the .deb so Linux users on distros without
+      # gstreamer1.0-plugins-bad / libnice get a working app via the
+      # GNOME 47 runtime (which bundles libwebkit2gtk-4.1 + WebRTC).
+      - name: Build Flatpak (Linux only)
+        if: matrix.os == 'linux'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          VERSION=$(python3 -c "import json; print(json.load(open('PreeceMeet.Tauri/src-tauri/tauri.conf.json'))['version'])")
+          DEB="PreeceMeet.Tauri/src-tauri/target/release/bundle/deb/PreeceMeet_${VERSION}_amd64.deb"
+          [ -f "$DEB" ] || { echo "::error::deb not found at $DEB"; ls PreeceMeet.Tauri/src-tauri/target/release/bundle/deb/; exit 1; }
+
+          cp "$DEB" flatpak/preecemeet.deb
+          cd flatpak
+          rm -rf .flatpak-builder build repo
+          flatpak-builder --force-clean --user --install-deps-from=flathub \
+            --repo=repo build com.russellpreece.PreeceMeet.yaml
+
+          BUNDLE="PreeceMeet_${VERSION}_amd64.flatpak"
+          flatpak build-bundle repo "$BUNDLE" com.russellpreece.PreeceMeet
+          ls -lh "$BUNDLE"
+
+          cd ..
+          gh release upload "tauri-v${VERSION}" "flatpak/${BUNDLE}" --clobber --repo "${{ github.repository }}"
+
   # After all platforms built, generate latest.json for the auto-updater
   # and commit it to main so the endpoint URL always returns the newest version.
   generate-updater-json:
