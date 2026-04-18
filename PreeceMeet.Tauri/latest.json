@@ -1,23 +1,23 @@
 {
-  "version": "0.6.6",
-  "notes": "PreeceMeet (cross-platform) v0.6.6",
-  "pub_date": "2026-04-18T11:56:14Z",
+  "version": "0.6.7",
+  "notes": "PreeceMeet (cross-platform) v0.6.7",
+  "pub_date": "2026-04-18T12:01:37Z",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/sp1z/PreeceMeet/releases/download/tauri-v0.6.6/PreeceMeet_0.6.6_x64-setup.nsis.zip",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZTNKNVhjbUVEOWRBVzhOb1B0Y2g0M05lR21OTFFWallhRlpESVBYcExFdGZsYldCOVZrU0U0WTVRaXJWZGo2SFk4ZlorU0tra09LY3dtc2V1eE1XZWcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2NTEzMzM2CWZpbGU6UHJlZWNlTWVldF8wLjYuNl94NjQtc2V0dXAubnNpcy56aXAKczJhUk1NVjloWXpVcDVGTXR2eUJwNzBNa25SMVovUTJRYVdJcWtSbDE5cENPeUlzOTdaVG9OS3BmT242M0NtY0Y3R29Ya2RESStUSzI1MkhUWHdvQXc9PQo="
+      "url": "https://github.com/sp1z/PreeceMeet/releases/download/tauri-v0.6.7/PreeceMeet_0.6.7_x64-setup.nsis.zip",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZTNNTTdrUU5DenVrZVJ1SWtMZ3FEakdqTEs4UDVpck9GVmZ3M0hPMVNzN3drWXVGVnZHaE9QcHNyU3k2ejEva3Nzc29TRmJUbnNlU21uVUo2THZ2amdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2NTEzNjQ2CWZpbGU6UHJlZWNlTWVldF8wLjYuN194NjQtc2V0dXAubnNpcy56aXAKOFd5a2g1UTRqa1hZbEgxeTNhZVA0aDNaK2FOZ2NkSWRMaEJNdTZvOS9mUDBNWWxFOWZWM3I3SEpaK1RpY1FiU0ZlMitrR2VYMDJHRmtDN1RYekhrRHc9PQo="
     },
     "linux-x86_64": {
-      "url": "https://github.com/sp1z/PreeceMeet/releases/download/tauri-v0.6.6/PreeceMeet_0.6.6_amd64.AppImage",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZTVRRURiNCtWY0RXcGh5UnJFVFRlWVRWbVlyZ0wxTmJnQ0NoeWdNam9ieXpsa1FBRnowd2dpUDJKRysraW8xQWdsVWVoMHNDN0kyK1BUbThQRlZSNlEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2NTEzMzY1CWZpbGU6UHJlZWNlTWVldF8wLjYuNl9hbWQ2NC5BcHBJbWFnZQpIWWo3Q3E5WWVqbEdOcWEvOXpMb2J4RGQxN3lFUzF1Uy8yZ1FiNzNWZWR4Vk1WWmNoRWNNTVpKT1JVRDF4Wk1WYWNRb2F5YVdGOG5ZKzBBSUpNSEJDdz09Cg=="
+      "url": "https://github.com/sp1z/PreeceMeet/releases/download/tauri-v0.6.7/PreeceMeet_0.6.7_amd64.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZTJGR2hjMStMdFlpdDNEVXBSSFk1aS95UDFzWWZ6aUZMbHBUMDc1YXEyMityVFVKVmRjeGNFczErdWdITG45VkV3d3lrN2Z5SnUyN1YyREczeVo4RHcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2NTEzNjgxCWZpbGU6UHJlZWNlTWVldF8wLjYuN19hbWQ2NC5BcHBJbWFnZQpGVTVnOFlqWGg1bDQ5dGxMR3Nza2lnRFhHVWtEazAvUzZsNzF4dFVkVjFpK2RrTHNJSFBoS2pvS3ZFYTN2ZERScjRXeXU1N09hMkF0Z1MxR2M2MFNBUT09Cg=="
     },
     "darwin-aarch64": {
-      "url": "https://github.com/sp1z/PreeceMeet/releases/download/tauri-v0.6.6/PreeceMeet_aarch64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZTgvdHBFdVdWQ0ZHNG1pdWVYRWNXVjhZajBxWXAwQ24yd09CakpSeXMramFLVU45dWdxcHNNRlVRVlV5em9HcHg4UFZrWTAzM3d0dDJIYXQ4a2dpZHcwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2NTEzMzYzCWZpbGU6UHJlZWNlTWVldC5hcHAudGFyLmd6CldZM0FjbkptRmFiREJ0YUNVUGFGTTd4ZUh4OGcxVnVDQStLMlhGZjFYczRmUHFVZEUwSmloK2UrdDNrREE2NEtVakt0WGc1czF3TmNUb3JTeDhwSUN3PT0K"
+      "url": "https://github.com/sp1z/PreeceMeet/releases/download/tauri-v0.6.7/PreeceMeet_aarch64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZTBtWnJEQmI2bHkwd05ybS92TkRNZnlRSmp1bW5IeVRwWGtwR3J4ZUkvZVFnTEpMUnNCd3lKOG1pY1h2a1QzUnd6UVBtejNFZjdpNnVQcWY2OFEvTEFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2NTEzNTI2CWZpbGU6UHJlZWNlTWVldC5hcHAudGFyLmd6CnMxcC9lMjE1dWpLUjE4dUdCd0JXd0RFRlhnRTlrWTNRbUNvQS9WeDNRQzY5M0RlU0x6RzVUNUw1ejUwQVVRTUhtQnVIdFVkMXozNGJLbEloaWlockFRPT0K"
     },
     "darwin-x86_64": {
-      "url": "https://github.com/sp1z/PreeceMeet/releases/download/tauri-v0.6.6/PreeceMeet_x64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZTAzWjFkUVpnMDF5ZXZsck5BeTlIcmdlN0REaFBVTTJEVmg5U2IwSEQ1V0ZXQlBjbkJzcU0yYnlBZXNFYkNrb1NRYTdkb0Z3ay9KdWNxODFBaTJLQVE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2NTEzMjEzCWZpbGU6UHJlZWNlTWVldC5hcHAudGFyLmd6Cm1haUV1MzJXZVNiU2hQWGllazY0WU9BNmxQKzA0dWF0RGdxcnVIWmRLQ0d4NmZBT0NjK1NaeFRxLzVVRFBLTVRBbnJBcVJZRERFSmRobjJ4YXFxSURRPT0K"
+      "url": "https://github.com/sp1z/PreeceMeet/releases/download/tauri-v0.6.7/PreeceMeet_x64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSTzM4elhjQk5oZXhCSS92aWY3cG5jQkhZSGFpUDRrcGh2TUlaME1CSGxoUytjdEcvV3dKOFV0aExjRXJlWm9YV3U5ck1ldjdYS2VPQmwvaVh1ZUJlQXFza1ZnQjkwSVFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2NTEzNjcyCWZpbGU6UHJlZWNlTWVldC5hcHAudGFyLmd6CkRrRXA3OWN0VG92ZlNMOGZJd0FST1pQWndUSDFQMFlBQTdIQktmQjRneVNTQ2ZWN3J1N0ZpRVJUb1JlQmYxa2NYSDFwZXpZWGNsUGRlNThqblQrV0J3PT0K"
     }
   }
 }
