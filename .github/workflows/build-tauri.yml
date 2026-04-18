@@ -17,16 +17,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: ubuntu-22.04
+          - os: linux
+            runner: [self-hosted, Linux, tauri]
             args: ''
-          - platform: windows-latest
+          - os: windows
+            runner: [self-hosted, Windows, tauri]
             args: ''
-          - platform: macos-latest
+          - os: macos
+            runner: [self-hosted, macOS, tauri]
             args: '--target aarch64-apple-darwin'
-          - platform: macos-latest
+          - os: macos
+            runner: [self-hosted, macOS, tauri]
             args: '--target x86_64-apple-darwin'
 
-    runs-on: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
@@ -39,17 +43,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
+          targets: ${{ matrix.os == 'macos' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Generate app icon
         shell: python3 {0}
@@ -88,7 +82,7 @@ jobs:
           # Ad-hoc signing prevents macOS from reporting the app as "damaged".
           # Users will still see an "unidentified developer" Gatekeeper prompt
           # on first launch; right-click → Open bypasses it.
-          APPLE_SIGNING_IDENTITY:          ${{ matrix.platform == 'macos-latest' && '-' || '' }}
+          APPLE_SIGNING_IDENTITY:          ${{ matrix.os == 'macos' && '-' || '' }}
         with:
           projectPath: PreeceMeet.Tauri
           tagName: tauri-v__VERSION__
