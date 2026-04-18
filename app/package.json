@@ -1,0 +1,95 @@
+{
+  "name": "preecemeet",
+  "version": "1.0.0",
+  "description": "PreeceMeet — desktop video conferencing client for meet.russellpreece.com.",
+  "author": {
+    "name": "Russell Preece",
+    "email": "russell@russellpreece.com"
+  },
+  "license": "MIT",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "electron": "electron .",
+    "dist": "npm run build && electron-builder",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:win":   "npm run build && electron-builder --win",
+    "dist:mac":   "npm run build && electron-builder --mac"
+  },
+  "dependencies": {
+    "@livekit/components-react":   "^2.6.0",
+    "@livekit/components-styles":  "^1.1.0",
+    "electron-updater":            "^6.3.9",
+    "livekit-client":              "^2.5.0",
+    "qrcode.react":                "^4.0.0",
+    "react":                       "^18.3.1",
+    "react-dom":                   "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react":              "^18.3.1",
+    "@types/react-dom":          "^18.3.1",
+    "@vitejs/plugin-react":      "^4.3.1",
+    "electron":                  "^32.2.0",
+    "electron-builder":          "^25.1.8",
+    "typescript":                "^5.5.4",
+    "vite":                      "^5.4.0"
+  },
+  "build": {
+    "appId": "com.russellpreece.preecemeet",
+    "productName": "PreeceMeet",
+    "asar": true,
+    "directories": {
+      "output":         "dist-electron",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner":    "sp1z",
+      "repo":     "PreeceMeet",
+      "releaseType": "release"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ],
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick":              false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine":            false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName":          "PreeceMeet"
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb",      "arch": ["x64"] }
+      ],
+      "category": "Network",
+      "maintainer": "Russell Preece <russell@russellpreece.com>",
+      "desktop": {
+        "Name":           "PreeceMeet",
+        "Comment":        "Video conferencing for meet.russellpreece.com",
+        "StartupWMClass": "PreeceMeet"
+      },
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    }
+  }
+}

@@ -1,57 +1,30 @@
-## .NET / MSBuild
+# Node / Electron
+node_modules/
+app/dist/
+app/dist-electron/
+
+# .NET (AuthApi)
 bin/
 obj/
 *.user
 *.suo
 .vs/
-*.vsidx
 
-## Publish output
-publish/
-releases/
-
-## NuGet
-*.nupkg
-*.snupkg
-packages/
-.nuget/
-
-## Rider
-.idea/
-
-## OS
-.DS_Store
-Thumbs.db
-desktop.ini
-
-## Velopack
-*.nupkg
-
-## Secrets
-*.dat
-*.pfx
-*.p12
-
-## Log files
+# Logs / DBs
 *.log
-
-## SQLite databases (dev)
 *.db
 *.db-shm
 *.db-wal
 
-## Environment / local overrides
+# Local env
 .env
 appsettings.Local.json
-node_modules
 
-## Flatpak build outputs
-flatpak/.flatpak-builder/
-flatpak/build/
-flatpak/repo/
-flatpak/preecemeet.deb
-flatpak/*.flatpak
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
 
-## Electron build outputs
-PreeceMeet.Electron/renderer/
-PreeceMeet.Electron/dist-electron/
+# Editor
+.idea/
+.vscode/

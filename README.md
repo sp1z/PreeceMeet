@@ -1,61 +1,56 @@
 # PreeceMeet
 
-Native WPF video conferencing client for [meet.russellpreece.com](https://meet.russellpreece.com), built on the [LiveKit](https://livekit.io) real-time platform.
+Cross-platform desktop video conferencing for [meet.russellpreece.com](https://meet.russellpreece.com), built on [LiveKit](https://livekit.io) and packaged with Electron.
 
 ## Features
 
-- Native LiveKit video/audio (no WebView2 / browser embedding)
+- LiveKit-powered audio + video calls (WebRTC)
 - Two-factor authentication (email + password + TOTP)
-- Encrypted session persistence via Windows DPAPI
-- Custom URL scheme: `preecemeet://RoomName`
-- Single-instance enforcement with named-pipe IPC
-- Self-installing and auto-updating via [Velopack](https://velopack.io)
-- Configurable camera, microphone, server URL
-- Dark-themed, responsive video grid (UniformGrid layout)
+- Encrypted session persistence
+- One-presenter screen / window share
+- In-call group chat with optional auto-open of pasted URLs
+- Auto-updating across all platforms (electron-updater + GitHub releases)
+- Dark UI, responsive video grid, drag-to-reorder tiles, "Game Mode" overlay strip for streaming
 
-## Requirements
+## Install
 
-- Windows 10 or later
-- .NET 8 Desktop Runtime
+| Platform | Download | Notes |
+|---|---|---|
+| **Windows** | `PreeceMeet-Setup-X.Y.Z.exe` | Per-user NSIS installer |
+| **macOS (Apple Silicon)** | `PreeceMeet-X.Y.Z-arm64.dmg` | Right-click → Open on first launch |
+| **macOS (Intel)** | `PreeceMeet-X.Y.Z-x64.dmg` | Right-click → Open on first launch |
+| **Linux (any distro)** | `PreeceMeet-X.Y.Z-x64.AppImage` | `chmod +x` then run |
+| **Linux (Debian / Ubuntu)** | `PreeceMeet-X.Y.Z-x64.deb` | `sudo apt install ./...deb` |
 
-## Building
+Latest release: <https://github.com/sp1z/PreeceMeet/releases/latest>
 
-```powershell
-dotnet restore
-dotnet build
-```
-
-## Publishing
-
-```powershell
-dotnet publish PreeceMeet/PreeceMeet.csproj -c Release -r win-x64 --self-contained -o publish/
-vpk pack --packId PreeceMeet --packVersion 1.0.0 --packDir publish/ --mainExe PreeceMeet.exe --outputDir releases/
-```
-
-## Custom URL Scheme
-
-After first launch the app registers `preecemeet://` in `HKCU\Software\Classes\preecemeet`.
-Opening `preecemeet://my-room` from any browser or shortcut will join the room `my-room`.
-
-## Architecture
+## Repository layout
 
 ```
-App.xaml.cs          Single-instance mutex, Velopack init, URL scheme, service wiring
-Views/
-  LoginWindow        Email + password login
-  TotpWindow         6-digit TOTP entry
-  MainWindow         Toolbar, video grid, media controls
-  SettingsWindow     Preferences, device selection, sign out
-Controls/
-  VideoGridControl   UniformGrid layout of participant tiles
-  VideoTileControl   Single tile: LiveKit VideoTrack → WriteableBitmap
-Services/
-  AuthService        HTTP calls to /api/auth/login, /verify-totp, /refresh
-  SessionService     DPAPI-encrypted session persistence
-  SettingsService    JSON settings in %APPDATA%\PreeceMeet\settings.json
-  LiveKitService     LiveKit Room wrapper with observable participant collection
-  UrlSchemeService   Registry registration + named-pipe IPC server
-Models/
-  AppSettings        Settings DTO
-  AuthModels         Request/response DTOs for auth API
+app/                  # Electron desktop client (React + Vite + electron-builder)
+├── src/              #   React renderer (UI, LiveKit, chat, settings)
+├── electron/         #   main + preload (BrowserWindow, IPC, autoUpdater)
+└── build/            #   Icons + electron-builder resources
+PreeceMeet.AuthApi/   # ASP.NET Core auth + LiveKit token-issuing service
+.github/workflows/
+├── build-app.yml     # Build + publish desktop client across Win/Mac/Linux
+└── build-api.yml     # Build + push AuthApi container
 ```
+
+## Building locally
+
+```bash
+cd app
+npm install
+npm run dev          # Vite dev server (renderer only)
+npm run electron     # Run Electron pointing at the built dist
+npm run dist         # Build a release artifact for your current platform
+```
+
+The `dist` script invokes electron-builder, which writes to `dist-electron/`.
+
+## Server
+
+- LiveKit + AuthApi run as Docker containers on `hosting-1` under `/opt/preecemeet/`.
+- Apache vhost at `meet.russellpreece.com` proxies `/api` → AuthApi (5050) and `/` → LiveKit (7880); `/rtc` is the WebSocket signalling path.
+- AuthApi treats any `@russellpreece.com` email as admin automatically.

@@ -1,0 +1,64 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/build-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            runner: [self-hosted, Linux, tauri]
+            args:  '--linux AppImage deb'
+          - os: windows
+            runner: [self-hosted, Windows, tauri]
+            args:  '--win nsis'
+          - os: macos
+            runner: [self-hosted, macOS, tauri]
+            args:  '--mac --arm64 --x64'
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Read version
+        id: ver
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./app/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building PreeceMeet v$VERSION on ${{ matrix.os }}"
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm install --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: app
+        run: npm run build
+
+      - name: Package + publish
+        working-directory: app
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Ad-hoc macOS signing only (avoids "damaged" warning); no Apple ID
+          # cert means a one-time right-click → Open is needed by users.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder ${{ matrix.args }} --publish always
