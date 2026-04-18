@@ -1,10 +1,13 @@
 interface Props {
-  connected:   boolean;
-  micMuted:    boolean;
-  camMuted:    boolean;
-  onToggleMic: () => void;
-  onToggleCam: () => void;
-  onHangup:    () => void;
+  connected:           boolean;
+  micMuted:            boolean;
+  camMuted:            boolean;
+  screenSharing:       boolean;
+  screenShareDisabled: boolean;
+  onToggleMic:         () => void;
+  onToggleCam:         () => void;
+  onToggleScreenShare: () => void;
+  onHangup:            () => void;
 }
 
 function MicIcon() {
@@ -50,6 +53,29 @@ function CamOffIcon() {
   );
 }
 
+function ShareIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+      <line x1="8" y1="21" x2="16" y2="21"/>
+      <line x1="12" y1="17" x2="12" y2="21"/>
+      <polyline points="9 9 12 6 15 9"/>
+      <line x1="12" y1="6" x2="12" y2="14"/>
+    </svg>
+  );
+}
+
+function ShareStopIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+      <line x1="8" y1="21" x2="16" y2="21"/>
+      <line x1="12" y1="17" x2="12" y2="21"/>
+      <line x1="2" y1="2" x2="22" y2="22"/>
+    </svg>
+  );
+}
+
 function HangupIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -59,7 +85,24 @@ function HangupIcon() {
   );
 }
 
-export default function CallControls({ connected, micMuted, camMuted, onToggleMic, onToggleCam, onHangup }: Props) {
+export default function CallControls({
+  connected,
+  micMuted,
+  camMuted,
+  screenSharing,
+  screenShareDisabled,
+  onToggleMic,
+  onToggleCam,
+  onToggleScreenShare,
+  onHangup,
+}: Props) {
+  const shareDisabled = !connected || (screenShareDisabled && !screenSharing);
+  const shareTitle = screenSharing
+    ? 'Stop sharing'
+    : screenShareDisabled
+      ? 'Someone else is sharing'
+      : 'Share screen or window';
+
   return (
     <div className="call-controls">
       <button
@@ -77,6 +120,14 @@ export default function CallControls({ connected, micMuted, camMuted, onToggleMi
         title={camMuted ? 'Start camera' : 'Stop camera'}
       >
         {camMuted ? <CamOffIcon /> : <CamIcon />}
+      </button>
+      <button
+        className={`control-btn${screenSharing ? ' active' : ''}`}
+        onClick={onToggleScreenShare}
+        disabled={shareDisabled}
+        title={shareTitle}
+      >
+        {screenSharing ? <ShareStopIcon /> : <ShareIcon />}
       </button>
       <button
         className="control-btn hangup"

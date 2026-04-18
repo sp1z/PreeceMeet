@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useRoomContext } from '@livekit/components-react';
+import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useRoomContext, useTracks } from '@livekit/components-react';
+import { Track } from 'livekit-client';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel } from '../types';
 import { saveSettings, clearSession, saveSession } from '../settings';
 import pkg from '../../package.json';
@@ -28,6 +29,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [connectState,   setConnectState]   = useState<ConnectState>('idle');
   const [micMuted,       setMicMuted]       = useState(false);
   const [camMuted,       setCamMuted]       = useState(false);
+  const [screenSharing,  setScreenSharing]  = useState(false);
+  const [remoteSharing,  setRemoteSharing]  = useState(false);
   const [error,          setError]          = useState('');
   const [settingsOpen,      setSettingsOpen]      = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'profile' | 'channels' | 'permissions'>('profile');
@@ -167,6 +170,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       setConnectState('connected');
       setMicMuted(false);
       setCamMuted(false);
+      setScreenSharing(false);
+      setRemoteSharing(false);
     } catch (err) {
       if (err instanceof UnauthorizedError) { clearSession(); onSignOut(); return; }
       setConnectState('idle');
@@ -174,8 +179,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     }
   }
 
-  function handleHangup() { setConnection(null); setConnectState('idle'); }
-  function handleDisconnected() { setConnection(null); setConnectState('idle'); }
+  function handleHangup() { setConnection(null); setConnectState('idle'); setScreenSharing(false); setRemoteSharing(false); }
+  function handleDisconnected() { setConnection(null); setConnectState('idle'); setScreenSharing(false); setRemoteSharing(false); }
 
   function toggleSidebar() {
     const next = !sidebarVisible;
@@ -302,10 +307,14 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               <MediaController
                 micMuted={micMuted}
                 camMuted={camMuted}
+                screenSharing={screenSharing}
                 preferredMicDeviceId={settings.preferredMicDeviceId}
                 preferredCamDeviceId={settings.preferredCamDeviceId}
                 preferredSpeakerDeviceId={settings.preferredSpeakerDeviceId}
                 displayName={settings.displayName}
+                onLocalShareEnded={() => setScreenSharing(false)}
+                onRemoteShareChange={setRemoteSharing}
+                onShareError={msg => { setError(msg); setScreenSharing(false); }}
               />
               <RoomAudioRenderer />
               <VideoGrid gameMode statsVisible={statsVisible} />
@@ -449,10 +458,14 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               <MediaController
                 micMuted={micMuted}
                 camMuted={camMuted}
+                screenSharing={screenSharing}
                 preferredMicDeviceId={settings.preferredMicDeviceId}
                 preferredCamDeviceId={settings.preferredCamDeviceId}
                 preferredSpeakerDeviceId={settings.preferredSpeakerDeviceId}
                 displayName={settings.displayName}
+                onLocalShareEnded={() => setScreenSharing(false)}
+                onRemoteShareChange={setRemoteSharing}
+                onShareError={msg => { setError(msg); setScreenSharing(false); }}
               />
               <RoomAudioRenderer />
               <VideoGrid statsVisible={statsVisible} />
@@ -471,8 +484,11 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           connected={!!connection}
           micMuted={micMuted}
           camMuted={camMuted}
+          screenSharing={screenSharing}
+          screenShareDisabled={remoteSharing}
           onToggleMic={() => setMicMuted(m => !m)}
           onToggleCam={() => setCamMuted(c => !c)}
+          onToggleScreenShare={() => setScreenSharing(s => !s)}
           onHangup={handleHangup}
         />
       )}
@@ -502,16 +518,60 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
 interface MediaControllerProps {
   micMuted: boolean;
   camMuted: boolean;
+  screenSharing: boolean;
   preferredMicDeviceId: string;
   preferredCamDeviceId: string;
   preferredSpeakerDeviceId: string;
   displayName: string;
+  onLocalShareEnded:   () => void;
+  onRemoteShareChange: (sharing: boolean) => void;
+  onShareError:        (msg: string) => void;
 }
 
-function MediaController({ micMuted, camMuted, preferredMicDeviceId, preferredCamDeviceId, preferredSpeakerDeviceId, displayName }: MediaControllerProps) {
+function MediaController({
+  micMuted,
+  camMuted,
+  screenSharing,
+  preferredMicDeviceId,
+  preferredCamDeviceId,
+  preferredSpeakerDeviceId,
+  displayName,
+  onLocalShareEnded,
+  onRemoteShareChange,
+  onShareError,
+}: MediaControllerProps) {
   const { localParticipant } = useLocalParticipant();
   const room    = useRoomContext();
   const mounted = useRef(false);
+
+  // Watch all screen-share tracks (local + remote) to drive parent state.
+  const screenTracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: false });
+  const remoteSharing = screenTracks.some(t => !t.participant.isLocal);
+  const localShareTrackPresent = screenTracks.some(t => t.participant.isLocal);
+
+  useEffect(() => { onRemoteShareChange(remoteSharing); }, [remoteSharing, onRemoteShareChange]);
+
+  // If we asked to share but the local track has gone away (user clicked the
+  // OS "Stop sharing" bar), tell the parent so it can flip the button back.
+  useEffect(() => {
+    if (screenSharing && !localShareTrackPresent && mounted.current) {
+      onLocalShareEnded();
+    }
+  }, [screenSharing, localShareTrackPresent, onLocalShareEnded]);
+
+  // Drive the actual LiveKit screen-share toggle.
+  useEffect(() => {
+    if (!localParticipant) return;
+    localParticipant.setScreenShareEnabled(screenSharing).catch(err => {
+      // User cancelled the OS picker → revert silently. Other errors → surface.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/Permission denied|aborted|cancel/i.test(msg)) {
+        onLocalShareEnded();
+      } else {
+        onShareError(msg);
+      }
+    });
+  }, [screenSharing, localParticipant, onLocalShareEnded, onShareError]);
 
   // Re-apply preferred devices whenever prefs change (e.g. settings saved mid-call)
   useEffect(() => {
