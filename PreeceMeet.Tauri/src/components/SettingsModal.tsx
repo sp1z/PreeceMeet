@@ -29,6 +29,7 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
   const [prefMic,        setPrefMic]        = useState(settings.preferredMicDeviceId);
   const [prefCam,        setPrefCam]        = useState(settings.preferredCamDeviceId);
   const [prefSpeaker,    setPrefSpeaker]    = useState(settings.preferredSpeakerDeviceId);
+  const [autoOpenUrls,   setAutoOpenUrls]   = useState(settings.autoOpenChatUrls);
 
   useEffect(() => { void checkPerms(); }, []);
 
@@ -93,7 +94,7 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
   }
 
   function save() {
-    onSave({ ...settings, displayName: displayName.trim(), serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin, preferredMicDeviceId: prefMic, preferredCamDeviceId: prefCam, preferredSpeakerDeviceId: prefSpeaker });
+    onSave({ ...settings, displayName: displayName.trim(), serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin, preferredMicDeviceId: prefMic, preferredCamDeviceId: prefCam, preferredSpeakerDeviceId: prefSpeaker, autoOpenChatUrls: autoOpenUrls });
     onClose();
   }
 
@@ -131,6 +132,15 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
                 <input value={serverUrl} onChange={e => setServerUrl(e.target.value)}
                   placeholder="https://meet.russellpreece.com" />
               </div>
+              <label className="checkbox-row" style={{ marginTop: 4 }}>
+                <input type="checkbox" checked={autoOpenUrls} onChange={e => setAutoOpenUrls(e.target.checked)} />
+                <span>
+                  Auto-open links from chat
+                  <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    When another participant pastes a URL, open it in your default browser. Your own messages are never auto-opened.
+                  </span>
+                </span>
+              </label>
             </>
           )}
 

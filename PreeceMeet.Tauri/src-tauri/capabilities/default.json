@@ -12,6 +12,8 @@
     "core:window:allow-outer-size",
     "core:window:allow-scale-factor",
     "updater:default",
-    "process:default"
+    "process:default",
+    "opener:default",
+    "opener:allow-open-url"
   ]
 }

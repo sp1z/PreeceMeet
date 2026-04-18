@@ -16,6 +16,16 @@ export interface Settings {
   preferredCamDeviceId: string;
   preferredSpeakerDeviceId: string;
   sidebarWidth?: number;
+  autoOpenChatUrls: boolean;
+}
+
+export interface ChatMessage {
+  id:        string;
+  from:      string;       // participant identity (email)
+  fromName:  string;       // friendly display name
+  text:      string;
+  timestamp: number;
+  isLocal:   boolean;
 }
 
 export interface Session {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useRoomContext, useTracks } from '@livekit/components-react';
-import { Track } from 'livekit-client';
-import type { Session, Settings, RoomConnection, RoomInfo, Channel } from '../types';
+import { Track, RoomEvent } from 'livekit-client';
+import type { Session, Settings, RoomConnection, RoomInfo, Channel, ChatMessage } from '../types';
 import { saveSettings, clearSession, saveSession } from '../settings';
 import pkg from '../../package.json';
 import { getRooms, getRoomToken, UnauthorizedError } from '../api';
@@ -10,6 +10,10 @@ import VideoGrid from '../components/VideoGrid';
 import CallControls from '../components/CallControls';
 import SettingsModal from '../components/SettingsModal';
 import AdminPanel from '../components/AdminPanel';
+import ChatPanel from '../components/ChatPanel';
+
+const CHAT_URL_RE = /\bhttps?:\/\/[^\s<>"]+/gi;
+const CHAT_TOPIC = 'chat';
 
 interface Props {
   session:          Session;
@@ -31,6 +35,9 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [camMuted,       setCamMuted]       = useState(false);
   const [screenSharing,  setScreenSharing]  = useState(false);
   const [remoteSharing,  setRemoteSharing]  = useState(false);
+  const [chatVisible,    setChatVisible]    = useState(false);
+  const [chatMessages,   setChatMessages]   = useState<ChatMessage[]>([]);
+  const [chatUnread,     setChatUnread]     = useState(0);
   const [error,          setError]          = useState('');
   const [settingsOpen,      setSettingsOpen]      = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'profile' | 'channels' | 'permissions'>('profile');
@@ -172,6 +179,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       setCamMuted(false);
       setScreenSharing(false);
       setRemoteSharing(false);
+      setChatMessages([]);
+      setChatUnread(0);
     } catch (err) {
       if (err instanceof UnauthorizedError) { clearSession(); onSignOut(); return; }
       setConnectState('idle');
@@ -179,8 +188,42 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     }
   }
 
-  function handleHangup() { setConnection(null); setConnectState('idle'); setScreenSharing(false); setRemoteSharing(false); }
-  function handleDisconnected() { setConnection(null); setConnectState('idle'); setScreenSharing(false); setRemoteSharing(false); }
+  function handleHangup() { setConnection(null); setConnectState('idle'); setScreenSharing(false); setRemoteSharing(false); setChatMessages([]); setChatUnread(0); setChatVisible(false); }
+  function handleDisconnected() { setConnection(null); setConnectState('idle'); setScreenSharing(false); setRemoteSharing(false); setChatMessages([]); setChatUnread(0); setChatVisible(false); }
+
+  // Toggle chat panel — clears unread when opening.
+  function toggleChat() {
+    setChatVisible(v => {
+      if (!v) setChatUnread(0);
+      return !v;
+    });
+  }
+
+  // Append an incoming/outgoing chat message and (for incoming) maybe auto-open URLs.
+  const handleIncomingChat = useCallback((msg: ChatMessage) => {
+    setChatMessages(prev => [...prev, msg]);
+    if (!msg.isLocal) {
+      if (!chatVisible) setChatUnread(u => u + 1);
+      if (settingsRef.current.autoOpenChatUrls) {
+        const urls = msg.text.match(CHAT_URL_RE);
+        if (urls) {
+          urls.forEach(async url => {
+            try {
+              const { openUrl } = await import('@tauri-apps/plugin-opener');
+              await openUrl(url);
+            } catch { /* best effort */ }
+          });
+        }
+      }
+    }
+  }, [chatVisible]);
+
+  // Ref for the ChatBridge to access send fn — set by the bridge once mounted.
+  const chatSendRef = useRef<((text: string) => void) | null>(null);
+
+  function handleSendChat(text: string) {
+    chatSendRef.current?.(text);
+  }
 
   function toggleSidebar() {
     const next = !sidebarVisible;
@@ -327,9 +370,9 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
 
   // ── Normal layout ─────────────────────────────────────────────────────────
 
-  const contentColumns = sidebarVisible
-    ? `${sidebarWidth}px 6px 1fr`
-    : '1fr';
+  const showChat = chatVisible && !!connection;
+  const contentColumns = (sidebarVisible ? `${sidebarWidth}px 6px 1fr` : '1fr')
+    + (showChat ? ' 320px' : '');
 
   return (
     <div className={`app-layout${uiHidden ? ' ui-hidden' : ''}`}>
@@ -385,6 +428,19 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           {session.isAdmin && (
             <button className="icon-btn" onClick={() => setAdminOpen(true)} title="Admin Panel">
               <AdminIcon />
+            </button>
+          )}
+          {connection && (
+            <button
+              className={`icon-btn${chatVisible ? ' active' : ''}`}
+              onClick={toggleChat}
+              title="Chat"
+              style={{ position: 'relative' }}
+            >
+              <ChatIcon />
+              {chatUnread > 0 && !chatVisible && (
+                <span className="chat-unread-badge">{chatUnread > 9 ? '9+' : chatUnread}</span>
+              )}
             </button>
           )}
           <button className="icon-btn" onClick={() => setSettingsOpen(true)} title="Settings">
@@ -467,11 +523,24 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 onRemoteShareChange={setRemoteSharing}
                 onShareError={msg => { setError(msg); setScreenSharing(false); }}
               />
+              <ChatBridge
+                displayName={settings.displayName}
+                onMessage={handleIncomingChat}
+                sendRef={chatSendRef}
+              />
               <RoomAudioRenderer />
               <VideoGrid statsVisible={statsVisible} />
             </LiveKitRoom>
           )}
         </div>
+
+        {showChat && (
+          <ChatPanel
+            messages={chatMessages}
+            onSend={handleSendChat}
+            onClose={() => setChatVisible(false)}
+          />
+        )}
       </div>
 
       {/* ── Call controls / reveal bar ────────────────────────────── */}
@@ -613,6 +682,66 @@ function MediaController({
   return null;
 }
 
+// ── ChatBridge ────────────────────────────────────────────────────────────────
+
+interface ChatBridgeProps {
+  displayName: string;
+  onMessage:   (msg: ChatMessage) => void;
+  sendRef:     React.MutableRefObject<((text: string) => void) | null>;
+}
+
+function ChatBridge({ displayName, onMessage, sendRef }: ChatBridgeProps) {
+  const room = useRoomContext();
+  const onMessageRef   = useRef(onMessage);
+  const displayNameRef = useRef(displayName);
+
+  useEffect(() => { onMessageRef.current   = onMessage; },   [onMessage]);
+  useEffect(() => { displayNameRef.current = displayName; }, [displayName]);
+
+  // Wire the send fn up to the ref so the parent can call it.
+  useEffect(() => {
+    sendRef.current = (text: string) => {
+      const msg = {
+        id:        crypto.randomUUID(),
+        text,
+        timestamp: Date.now(),
+        fromName:  displayNameRef.current,
+      };
+      const bytes = new TextEncoder().encode(JSON.stringify(msg));
+      void room.localParticipant.publishData(bytes, { reliable: true, topic: CHAT_TOPIC });
+      onMessageRef.current({
+        ...msg,
+        from:    room.localParticipant.identity,
+        isLocal: true,
+      });
+    };
+    return () => { sendRef.current = null; };
+  }, [room, sendRef]);
+
+  // Subscribe to incoming data messages on the chat topic.
+  useEffect(() => {
+    const handler = (payload: Uint8Array, participant: { identity: string; name?: string } | undefined, _kind: unknown, topic?: string) => {
+      if (topic !== CHAT_TOPIC) return;
+      try {
+        const decoded = JSON.parse(new TextDecoder().decode(payload));
+        if (typeof decoded?.text !== 'string') return;
+        onMessageRef.current({
+          id:        decoded.id || crypto.randomUUID(),
+          from:      participant?.identity ?? 'unknown',
+          fromName:  decoded.fromName || participant?.name || participant?.identity || 'unknown',
+          text:      decoded.text,
+          timestamp: typeof decoded.timestamp === 'number' ? decoded.timestamp : Date.now(),
+          isLocal:   false,
+        });
+      } catch { /* malformed — ignore */ }
+    };
+    room.on(RoomEvent.DataReceived, handler);
+    return () => { room.off(RoomEvent.DataReceived, handler); };
+  }, [room]);
+
+  return null;
+}
+
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
 function FullscreenIcon({ exit }: { exit: boolean }) {
@@ -654,6 +783,14 @@ function AdminIcon() {
       <circle cx="9" cy="7" r="4"/>
       <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
       <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
     </svg>
   );
 }

@@ -1,6 +1,6 @@
 {
   "name": "preecemeet-tauri",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,7 @@
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-updater": "^2.0.0",
     "@tauri-apps/plugin-process": "^2.0.0",
+    "@tauri-apps/plugin-opener": "^2.0.0",
     "livekit-client": "^2.5.0",
     "qrcode.react": "^4.0.0",
     "react": "^18.3.1",

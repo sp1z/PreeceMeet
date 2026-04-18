@@ -15,6 +15,7 @@ const defaults: Settings = {
   preferredCamDeviceId: '',
   preferredSpeakerDeviceId: '',
   sidebarWidth: 220,
+  autoOpenChatUrls: false,
 };
 
 export function loadSettings(): Settings {
