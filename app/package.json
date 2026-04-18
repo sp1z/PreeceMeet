@@ -2,12 +2,17 @@
   "name": "preecemeet",
   "version": "1.0.0",
   "description": "PreeceMeet — desktop video conferencing client for meet.russellpreece.com.",
+  "homepage": "https://github.com/sp1z/PreeceMeet",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sp1z/PreeceMeet.git"
+  },
   "author": {
-    "name": "Russell Preece",
+    "name":  "Russell Preece",
     "email": "russell@russellpreece.com"
   },
   "license": "MIT",
-  "main": "electron/main.cjs",
+  "main":    "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
