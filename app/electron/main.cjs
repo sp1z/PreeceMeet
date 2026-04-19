@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, desktopCapturer, session } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
@@ -39,6 +39,19 @@ function createWindow() {
     const allowed = new Set(['media', 'display-capture', 'mediaKeySystem', 'notifications', 'clipboard-read']);
     cb(allowed.has(permission));
   });
+
+  // getDisplayMedia in Electron ≥30 requires this handler — without it
+  // navigator.mediaDevices.getDisplayMedia() rejects silently and the OS
+  // sharing toolbar flickers in/out.
+  mainWindow.webContents.session.setDisplayMediaRequestHandler(async (_req, cb) => {
+    try {
+      const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
+      const screen  = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+      cb({ video: screen, audio: 'loopback' });
+    } catch {
+      cb({});
+    }
+  }, { useSystemPicker: true });
 }
 
 // ── IPC ─────────────────────────────────────────────────────────────────────
