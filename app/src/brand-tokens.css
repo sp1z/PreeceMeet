@@ -1,0 +1,76 @@
+/* PreeceMeet design tokens — CSS custom properties
+   Drop this into your app's global stylesheet, or map into Tailwind config / your framework's token system. */
+
+:root {
+  /* Brand */
+  --pm-primary:        #2563EB;
+  --pm-primary-dark:   #1E3A8A;
+  --pm-primary-light:  #60A5FA;
+  --pm-primary-deep:   #0F2463;
+
+  --pm-ink:            #0B1220;
+  --pm-paper:          #F0EEE9;
+  --pm-signal:         #22C55E;
+
+  /* Surfaces */
+  --pm-surface-white:  #FFFFFF;
+  --pm-surface-subtle: #FAFBFC;
+  --pm-tile-top:       #F5F7FB;
+  --pm-tile-bot:       #DFE4EE;
+
+  /* Text */
+  --pm-text-primary:   #1A1815;
+  --pm-text-secondary: rgba(60, 50, 40, 0.70);
+  --pm-text-muted:     rgba(60, 50, 40, 0.55);
+  --pm-text-faint:     rgba(60, 50, 40, 0.50);
+
+  /* Gradients */
+  --pm-grad-stem: linear-gradient(180deg, #1E3A8A 0%, #0F2463 100%);
+  --pm-grad-bowl: linear-gradient(135deg, #60A5FA 0%, #2563EB 100%);
+  --pm-grad-tile: linear-gradient(135deg, #F5F7FB 0%, #DFE4EE 100%);
+
+  /* Type */
+  --pm-font-display: "Space Grotesk", system-ui, sans-serif;
+  --pm-font-body:    "Space Grotesk", system-ui, sans-serif;
+  --pm-font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Radii */
+  --pm-radius-sm:   6px;
+  --pm-radius-md:   8px;
+  --pm-radius-lg:   10px;
+  --pm-radius-xl:   12px;
+  --pm-radius-2xl:  14px;
+  --pm-radius-pill: 999px;
+
+  /* Shadows */
+  --pm-shadow-card:    0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06);
+  --pm-shadow-float:   0 2px 6px rgba(0,0,0,0.08), 0 24px 60px rgba(0,0,0,0.08);
+  --pm-shadow-toolbar: 0 8px 30px rgba(0,0,0,0.18);
+
+  /* Spacing (4px base) */
+  --pm-space-1:  4px;
+  --pm-space-2:  8px;
+  --pm-space-3:  12px;
+  --pm-space-4:  16px;
+  --pm-space-5:  20px;
+  --pm-space-6:  24px;
+  --pm-space-8:  32px;
+  --pm-space-12: 48px;
+
+  /* Motion */
+  --pm-ease-med: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --pm-ease-pop: cubic-bezier(0.5, 1.5, 0.5, 1);
+}
+
+/* Dark mode overrides */
+[data-theme="dark"], .dark {
+  --pm-text-primary:   #FFFFFF;
+  --pm-text-secondary: rgba(255, 255, 255, 0.70);
+  --pm-text-muted:     rgba(255, 255, 255, 0.55);
+  --pm-surface-white:  #0B1220;
+  --pm-surface-subtle: #111827;
+}
+
+/* Google Fonts — add to <head>:
+   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+*/

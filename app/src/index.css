@@ -1,34 +1,40 @@
-/* Noto Color Emoji — ensures emojis render in color on Linux/Mint where the
-   system may not ship a color emoji font. Loaded from Google Fonts; cached
-   after first run. Falls back to the OS emoji stack if offline. */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
+/* Space Grotesk + JetBrains Mono + Noto Color Emoji are loaded via <link>
+   tags in index.html so the CSP can allowlist them explicitly. */
+
+@import './brand-tokens.css';
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg-main:           #1a1b2e;
-  --bg-bar:            #12121e;
-  --bg-video:          #0d0d1a;
-  --bg-sidebar:        #1e1f31;
-  --bg-sidebar-hover:  #2a2b3d;
-  --bg-sidebar-active: rgba(91,155,213,0.18);
-  --bg-card:           #252638;
-  --text-primary:      #e3e5e8;
-  --text-muted:        #72748c;
-  --accent:            #5b9bd5;
-  --danger:            #e53935;
-  --border:            #2a2b3d;
-  --online-dot:        #23d18b;
+  /* Dark-theme surfaces mapped onto the brand ink + primary palette.
+     Brand tokens themselves live in brand-tokens.css — these app-level
+     variables consume them so per-OS + per-component styling stays terse. */
+  --bg-main:           #0B1220;              /* brand --pm-ink */
+  --bg-bar:            #070B14;              /* slightly darker than ink for chrome */
+  --bg-video:          #05080F;
+  --bg-sidebar:        #111827;              /* brand dark-mode surface-subtle */
+  --bg-sidebar-hover:  #1A2238;
+  --bg-sidebar-active: rgba(96,165,250,0.15); /* brand pm-primary-light @ 15% */
+  --bg-card:           #141C2E;
+  --text-primary:      #FFFFFF;
+  --text-muted:        rgba(255,255,255,0.55);
+  --accent:            #60A5FA;              /* brand pm-primary-light (on-dark) */
+  --accent-strong:     #2563EB;              /* brand pm-primary (for CTAs) */
+  --danger:            #EF4444;
+  --border:            rgba(255,255,255,0.10);
+  --online-dot:        #22C55E;              /* brand pm-signal */
+
+  /* Typography — Space Grotesk UI + JetBrains Mono for metadata. Always
+     end the stack with the color-emoji families so emoji render in color. */
+  --font-ui:    'Space Grotesk', 'Segoe UI', system-ui, -apple-system, sans-serif,
+                'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+                'Noto Color Emoji', 'Twemoji Mozilla';
+  --font-mono:  'JetBrains Mono', ui-monospace, SFMono-Regular, 'Menlo', 'Consolas', monospace;
 }
 
 html, body, #root {
   height: 100%;
-  /* Trailing emoji families pick up color emoji on every OS without forcing
-     it for plain text. Order: macOS native, Windows native, Linux Noto
-     (system package), Noto via Google Fonts (bundled), Twemoji fallback. */
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif,
-               'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-               'Noto Color Emoji', 'Twemoji Mozilla';
+  font-family: var(--font-ui);
   background: var(--bg-main);
   color: var(--text-primary);
   font-size: 14px;
@@ -45,6 +51,169 @@ html, body, #root {
   line-height: 1;
 }
 
+/* Utility: metadata / timecodes / room IDs / LIVE pills in brand mono. */
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+/* ── Splash ────────────────────────────────────────────────────────────────
+   React port of splash.html. Used on app cold boot. Quick variant skips the
+   long intro and just shows the wordmark + loader. */
+.pm-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: radial-gradient(ellipse at 50% 40%, #1a2a5a 0%, #0b1220 70%);
+  font-family: var(--font-ui);
+  color: #fff;
+  transition: opacity 0.45s ease, visibility 0.45s ease;
+}
+.pm-splash-fading {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.pm-splash-mark svg { display: block; }
+
+.pm-splash .pm-sp-stem {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: pmSpStemIn 0.5s 0.1s ease-out forwards;
+}
+.pm-splash .pm-sp-bowl {
+  opacity: 0;
+  transform-origin: 66px 128px;
+  transform: scaleX(0);
+  animation: pmSpBowlIn 0.5s 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.pm-splash .pm-sp-bubble {
+  opacity: 0;
+  transform-origin: 120px 110px;
+  transform: scale(0.4);
+  animation: pmSpBubblePop 0.4s 0.75s cubic-bezier(0.5, 1.5, 0.5, 1) forwards;
+}
+.pm-splash .pm-sp-dot {
+  opacity: 0;
+  transform-origin: 138px 100px;
+  transform: scale(0);
+  animation: pmSpDotPop 0.35s 0.95s cubic-bezier(0.4, 1.8, 0.5, 1) forwards;
+}
+.pm-splash .pm-sp-halo {
+  opacity: 0;
+  transform-origin: 138px 100px;
+  animation: pmSpHalo 1.5s 1.1s ease-out infinite;
+}
+
+@keyframes pmSpStemIn    { to { opacity: 1; transform: translateY(0); } }
+@keyframes pmSpBowlIn    { to { opacity: 1; transform: scaleX(1); } }
+@keyframes pmSpBubblePop {
+  0%   { opacity: 0; transform: scale(0.4); }
+  60%  { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes pmSpDotPop    { to { opacity: 1; transform: scale(1); } }
+@keyframes pmSpHalo {
+  0%   { opacity: 0.5; transform: scale(0.6); }
+  100% { opacity: 0;   transform: scale(2.2); }
+}
+
+.pm-splash-wordmark {
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.8px;
+  color: #fff;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: pmSpWordIn 0.5s 1.15s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+.pm-splash-blue { color: #60A5FA; }
+@keyframes pmSpWordIn { to { opacity: 1; transform: translateY(0); } }
+
+.pm-splash-tagline {
+  font-size: 14px;
+  color: rgba(255,255,255,0.55);
+  font-style: italic;
+  font-weight: 500;
+  opacity: 0;
+  animation: pmSpFadeIn 0.5s 1.55s ease-out forwards;
+}
+@keyframes pmSpFadeIn { to { opacity: 1; } }
+
+.pm-splash-loader {
+  width: 160px;
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  opacity: 0;
+  animation: pmSpFadeIn 0.4s 1.8s ease-out forwards;
+}
+.pm-splash-loader::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, #60A5FA, #2563EB);
+  border-radius: 999px;
+  animation: pmSpSlide 1.5s 1.9s ease-in-out infinite;
+}
+@keyframes pmSpSlide {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(350%); }
+}
+
+/* Quick-launch variant: shorter intro, no bubble/dot drama. */
+.pm-splash-quick .pm-sp-stem,
+.pm-splash-quick .pm-sp-bowl,
+.pm-splash-quick .pm-sp-bubble,
+.pm-splash-quick .pm-sp-dot { animation-duration: 0.25s; animation-delay: 0s; }
+.pm-splash-quick .pm-splash-wordmark,
+.pm-splash-quick .pm-splash-tagline,
+.pm-splash-quick .pm-splash-loader { animation-delay: 0.2s; }
+
+/* ── Live indicator halo pulse (reusable) ─────────────────────────────────
+   Used next to channels currently in a call, and anywhere a live signal
+   needs to be broadcast. Stacks a filled dot over an expanding halo. */
+.live-indicator {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.live-indicator::before,
+.live-indicator::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: var(--online-dot);
+}
+.live-indicator::before {
+  width: 100%;
+  height: 100%;
+}
+.live-indicator::after {
+  width: 100%;
+  height: 100%;
+  opacity: 0.5;
+  animation: pmLiveHalo 1.6s ease-out infinite;
+}
+@keyframes pmLiveHalo {
+  0%   { opacity: 0.55; transform: scale(0.6); }
+  100% { opacity: 0;    transform: scale(2.4); }
+}
+
 button {
   font-family: inherit;
   cursor: pointer;
@@ -57,7 +226,7 @@ input {
   font-family: inherit;
   font-size: 14px;
   color: var(--text-primary);
-  background: #1e1f31;
+  background: var(--bg-sidebar);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 8px 12px;
@@ -81,13 +250,28 @@ input::placeholder { color: var(--text-muted); }
   background: var(--bg-card);
   border-radius: 16px;
   padding: 40px 44px;
-  width: 380px;
+  width: 400px;
   box-shadow: 0 8px 40px rgba(0,0,0,0.5);
 }
 
+.auth-lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+.auth-tagline {
+  font-size: 13px;
+  font-style: italic;
+  color: rgba(255,255,255,0.55);
+  letter-spacing: 0.01em;
+}
+
 .auth-card h1 {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
   margin-bottom: 6px;
 }
 
@@ -111,15 +295,19 @@ input::placeholder { color: var(--text-muted); }
 .btn-primary {
   width: 100%;
   padding: 10px;
-  background: var(--accent);
+  /* Brand CTA = pm-primary. On dark we use the solid brand blue instead of
+     primary-light so Buttons have the right "weight" against dark surfaces. */
+  background: var(--accent-strong);
   color: #fff;
   border-radius: 8px;
+  font-family: var(--font-ui);
   font-size: 14px;
   font-weight: 600;
+  letter-spacing: 0.01em;
   margin-top: 8px;
-  transition: opacity 0.15s;
+  transition: background 0.15s, opacity 0.15s;
 }
-.btn-primary:hover { opacity: 0.85; }
+.btn-primary:hover:not(:disabled) { background: #1D4FD6; }
 .btn-primary:disabled { opacity: 0.5; cursor: default; }
 
 .btn-link {
@@ -135,7 +323,7 @@ input::placeholder { color: var(--text-muted); }
 .btn-link:hover { text-decoration: underline; }
 
 .error-msg {
-  color: #ef5350;
+  color: var(--danger);
   font-size: 13px;
   margin-top: 10px;
   text-align: center;
@@ -185,8 +373,10 @@ input::placeholder { color: var(--text-muted); }
 .top-bar .room-name {
   flex: 1;
   font-size: 13px;
-  font-weight: 600;
-  color: #ccc;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.72);
   -webkit-app-region: drag;
   app-region: drag;
 }
@@ -199,7 +389,7 @@ input::placeholder { color: var(--text-muted); }
 .top-bar .top-error {
   flex: 1;
   font-size: 12px;
-  color: #ef5350;
+  color: var(--danger);
   -webkit-app-region: drag;
   app-region: drag;
 }
@@ -248,13 +438,20 @@ input::placeholder { color: var(--text-muted); }
   font-size: 15px;
   font-weight: 700;
 }
+.sidebar-lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
 .sidebar-section-label {
   padding: 12px 14px 4px;
+  font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
+  font-weight: 500;
+  color: rgba(255,255,255,0.55);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }
 .channel-list {
   overflow-y: auto;
@@ -288,6 +485,9 @@ input::placeholder { color: var(--text-muted); }
 }
 .channel-info { min-width: 0; }
 .channel-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
@@ -356,19 +556,22 @@ input::placeholder { color: var(--text-muted); }
   text-overflow: ellipsis;
 }
 .footer-sub {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .participant-badge {
-  background: #3a3a5c;
-  border-radius: 10px;
-  padding: 2px 7px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #c0c0e0;
+  background: rgba(96,165,250,0.15);
+  border: 1px solid rgba(96,165,250,0.35);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--accent);
   flex-shrink: 0;
 }
 .sidebar-footer {
@@ -425,7 +628,7 @@ input::placeholder { color: var(--text-muted); }
 }
 .footer-menu button:hover { background: var(--bg-sidebar-hover); }
 .footer-menu .separator { height: 1px; background: var(--border); margin: 4px 0; }
-.footer-menu .sign-out { color: #ef5350; }
+.footer-menu .sign-out { color: var(--danger); }
 
 /* ── Video area ─────────────────────────────────────────────────────────── */
 .video-area {
@@ -541,7 +744,7 @@ input::placeholder { color: var(--text-muted); }
   transform: translateX(-50%);
   background: rgba(0,0,0,0.72);
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 8px;
   border-radius: 4px;
   pointer-events: none;
@@ -675,16 +878,16 @@ input::placeholder { color: var(--text-muted); }
   inset: 0 !important;
   height: auto !important;
   width: auto !important;
-  background: #12121e !important;
+  background: #0B1220 !important;
   border-radius: 8px !important;
 }
 .lk-participant-name {
   font-size: 13px !important;
 }
 
-/* Speaking indicator: green ring matching WPF PART_SpeakingRing (#00C853) */
+/* Speaking indicator: green ring matching WPF PART_SpeakingRing (var(--online-dot)) */
 .lk-participant-tile[data-lk-speaking="true"] {
-  box-shadow: inset 0 0 0 2px #00C853 !important;
+  box-shadow: inset 0 0 0 2px var(--online-dot) !important;
 }
 
 /* Discord-style: camera tiles fill the whole space so the green speaking ring
@@ -803,7 +1006,7 @@ input::placeholder { color: var(--text-muted); }
   align-items: center;
   gap: 5px;
   padding: 3px 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   background: rgba(0,0,0,0.25);
@@ -823,7 +1026,7 @@ input::placeholder { color: var(--text-muted); }
 .game-size-btn {
   width: 24px;
   height: 22px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-muted);
   border-radius: 4px;
@@ -834,14 +1037,14 @@ input::placeholder { color: var(--text-muted); }
 .game-titlebar-title {
   flex: 1;
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.04em;
   pointer-events: none;
 }
 .game-exit-btn {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   padding: 4px 10px;
   background: var(--accent);
@@ -990,7 +1193,7 @@ input::placeholder { color: var(--text-muted); }
 }
 .emoji-picker-tab {
   padding: 4px 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   border-radius: 4px;
@@ -1209,7 +1412,7 @@ input::placeholder { color: var(--text-muted); }
 .form-field { margin-bottom: 14px; }
 .form-field label {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1281,7 +1484,7 @@ input::placeholder { color: var(--text-muted); }
   border-radius: 6px;
 }
 .admin-action-btn {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   padding: 3px 7px;
   border-radius: 4px;
@@ -1337,11 +1540,16 @@ input::placeholder { color: var(--text-muted); }
   display: flex;
   gap: 6px;
   align-items: baseline;
-  font-size: 11px;
+  font-size: 12px;
 }
 .chat-from { color: var(--text-primary); font-weight: 600; }
 .chat-message.is-local .chat-from { color: var(--accent); }
-.chat-time { color: var(--text-muted); font-size: 10px; }
+.chat-time {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
 .chat-body {
   font-size: 13px;
   color: var(--text-primary);
@@ -1440,7 +1648,7 @@ input::placeholder { color: var(--text-muted); }
   margin: 4px 0;
 }
 .tile-context-menu .context-section-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Settings, TotpState } from '../types';
 import { saveSettings } from '../settings';
 import { login } from '../api';
+import { PreeceMeetMark, PreeceMeetWordmark } from '../components/Mark';
 
 interface Props {
   settings: Settings;
@@ -44,6 +45,11 @@ export default function LoginPage({ settings, onDone, onSettingsChange }: Props)
   return (
     <div className="auth-page">
       <div className="auth-card">
+        <div className="auth-lockup">
+          <PreeceMeetMark size={72} />
+          <PreeceMeetWordmark size={32} onDark />
+          <span className="auth-tagline">You can't beat PreeceMeet.</span>
+        </div>
         <h1>Sign in</h1>
         <p className="subtitle">Enter your PreeceMeet credentials</p>
         <form onSubmit={handleSubmit}>

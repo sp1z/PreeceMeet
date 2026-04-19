@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Channel, RoomInfo } from '../types';
+import { PreeceMeetMark, PreeceMeetWordmark } from './Mark';
 
 interface Props {
   channels:        Channel[];
@@ -48,7 +49,10 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
   return (
     <aside className="sidebar" style={{ position: 'relative' }}>
       <div className="sidebar-header">
-        <span>PreeceMeet</span>
+        <div className="sidebar-lockup">
+          <PreeceMeetMark size={26} tileRadius={46} />
+          <PreeceMeetWordmark size={18} onDark />
+        </div>
         <button className="icon-btn" onClick={onAddChannel} title="Add channel" style={{ width: 28, height: 28, fontSize: 20 }}>
           +
         </button>
@@ -80,9 +84,12 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
               >
                 <div className="channel-emoji-wrap emoji">{ch.emoji || '💬'}</div>
                 <div className="channel-info">
-                  <div className="channel-name">{ch.displayName || ch.name}</div>
+                  <div className="channel-name">
+                    {ch.displayName || ch.name}
+                    {count > 0 && <span className="live-indicator" title="Call in progress" />}
+                  </div>
                 </div>
-                {count > 0 && <span className="participant-badge">{count}</span>}
+                {count > 0 && <span className="participant-badge mono">{count}</span>}
               </div>
               {people.length > 0 && (
                 <div className="participant-list">

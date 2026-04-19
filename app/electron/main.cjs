@@ -36,8 +36,12 @@ function createWindow() {
     height:           750,
     minWidth:         400,
     minHeight:        180,
+    // Hide the window until the renderer is ready so users see the brand
+    // splash as their first frame, not a white Electron default. show() is
+    // called from the did-finish-load handler below.
+    show:             false,
     autoHideMenuBar:  true,
-    backgroundColor:  '#12121e',
+    backgroundColor:  '#0B1220',
     title:            'PreeceMeet',
     icon:             path.join(__dirname, '..', 'build', 'icon.png'),
     // On Mac keep the native traffic lights but hide the title bar so we get a
@@ -57,6 +61,11 @@ function createWindow() {
 
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    mainWindow.show();
+    mainWindow.focus();
+  });
 
   mainWindow.on('maximize',   () => mainWindow.webContents.send('win:maximized-changed', true));
   mainWindow.on('unmaximize', () => mainWindow.webContents.send('win:maximized-changed', false));
