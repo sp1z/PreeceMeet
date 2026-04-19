@@ -12,6 +12,9 @@ import CallControls from '../components/CallControls';
 import SettingsModal from '../components/SettingsModal';
 import AdminPanel from '../components/AdminPanel';
 import ChatPanel from '../components/ChatPanel';
+import ContactsModal from '../components/ContactsModal';
+import { IncomingCallModal, OutgoingCallModal } from '../components/CallRingModals';
+import { useDirectCalling } from '../calling';
 
 const CHAT_URL_RE = /\bhttps?:\/\/[^\s<>"]+/gi;
 const CHAT_TOPIC = 'chat';
@@ -48,6 +51,9 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [uiHidden,       setUiHidden]       = useState(false);
   const [isFullscreen,   setIsFullscreen]   = useState(false);
   const [statsVisible,   setStatsVisible]   = useState(false);
+  const [contactsOpen,   setContactsOpen]   = useState(false);
+
+  const calling = useDirectCalling(session);
 
   const pollRef        = useRef<ReturnType<typeof setInterval>>();
   const resizingRef    = useRef(false);
@@ -188,6 +194,30 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
 
   function handleHangup() { setConnection(null); setConnectState('idle'); setScreenSharing(false); setRemoteSharing(false); setChatMessages([]); setChatUnread(0); setChatVisible(false); }
   function handleDisconnected() { setConnection(null); setConnectState('idle'); setScreenSharing(false); setRemoteSharing(false); setChatMessages([]); setChatUnread(0); setChatVisible(false); }
+
+  // When a direct call is accepted (either side), drop straight into the LiveKit
+  // room with the token the hub gave us — bypasses the per-channel token fetch.
+  useEffect(() => {
+    return calling.onAccepted(({ roomName, livekitToken, livekitUrl }) => {
+      setError('');
+      setConnection({ key: `${roomName}-${Date.now()}`, url: livekitUrl, token: livekitToken, roomName });
+      setConnectState('connected');
+      setMicMuted(false);
+      setCamMuted(false);
+      setScreenSharing(false);
+      setRemoteSharing(false);
+      setChatMessages([]);
+      setChatUnread(0);
+    });
+  }, [calling]);
+
+  useEffect(() => {
+    return calling.onDeclined(() => setError('Call declined'));
+  }, [calling]);
+
+  useEffect(() => {
+    return calling.onCancelled(() => { /* incoming dismissed by caller — nothing extra to do */ });
+  }, [calling]);
 
   // Toggle chat panel — clears unread when opening.
   function toggleChat() {
@@ -405,6 +435,13 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           >
             ↕
           </button>
+          <button
+            className="icon-btn"
+            onClick={() => setContactsOpen(true)}
+            title="Contacts — direct call other users"
+          >
+            <ContactsIcon />
+          </button>
           {session.isAdmin && (
             <button className="icon-btn" onClick={() => setAdminOpen(true)} title="Admin Panel">
               <AdminIcon />
@@ -556,6 +593,29 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           session={session}
           onClose={() => setAdminOpen(false)}
           onSignOut={handleSignOut}
+        />
+      )}
+      {contactsOpen && (
+        <ContactsModal
+          session={session}
+          online={calling.online}
+          inCall={!!connection}
+          onCall={calling.call}
+          onClose={() => setContactsOpen(false)}
+          onSignOut={handleSignOut}
+        />
+      )}
+      {calling.incoming && (
+        <IncomingCallModal
+          call={calling.incoming}
+          onAccept={() => void calling.accept()}
+          onDecline={() => void calling.decline()}
+        />
+      )}
+      {calling.outgoing && (
+        <OutgoingCallModal
+          call={calling.outgoing}
+          onCancel={() => void calling.cancel()}
         />
       )}
     </div>
@@ -772,6 +832,14 @@ function AdminIcon() {
       <circle cx="9" cy="7" r="4"/>
       <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
       <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  );
+}
+
+function ContactsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>
     </svg>
   );
 }

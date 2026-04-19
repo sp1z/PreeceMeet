@@ -102,6 +102,22 @@ export async function getRoomToken(
   return resp.json();
 }
 
+// ── Users (contact list for direct calls) ─────────────────────────────────────
+
+export interface ContactUser {
+  email:  string;
+  online: boolean;
+}
+
+export async function getUsers(serverUrl: string, sessionToken: string): Promise<ContactUser[]> {
+  const resp = await fetch(`${serverUrl}/api/users`, {
+    headers: { Authorization: `Bearer ${sessionToken}` },
+  });
+  if (resp.status === 401) throw new UnauthorizedError();
+  if (!resp.ok) throw new Error(`Failed to list users (${resp.status})`);
+  return resp.json();
+}
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 
 function adminHeaders(sessionToken: string) {
