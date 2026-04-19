@@ -199,9 +199,38 @@ app.MapGet("/api/rooms", async (HttpContext ctx, SessionTokenService session) =>
         {
             var partResp = await roomService.ListParticipants(
                 new ListParticipantsRequest { Room = room.Name });
-            var names = partResp.Participants.Select(p =>
-                string.IsNullOrWhiteSpace(p.Name) ? p.Identity : p.Name).ToList();
-            result.Add(new { name = room.Name, numParticipants = room.NumParticipants, participantNames = names });
+
+            var participants = partResp.Participants.Select(p =>
+            {
+                var label = string.IsNullOrWhiteSpace(p.Name) ? p.Identity : p.Name;
+                string? avatarEmoji = null;
+                // Metadata is a client-controlled JSON blob — never trust its
+                // shape; parse defensively and only pick out avatarEmoji.
+                if (!string.IsNullOrWhiteSpace(p.Metadata))
+                {
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(p.Metadata);
+                        if (doc.RootElement.TryGetProperty("avatarEmoji", out var ae) &&
+                            ae.ValueKind == System.Text.Json.JsonValueKind.String)
+                        {
+                            var s = ae.GetString();
+                            if (!string.IsNullOrEmpty(s) && s.Length <= 8) avatarEmoji = s;
+                        }
+                    }
+                    catch { /* malformed metadata — ignore */ }
+                }
+                return new { identity = p.Identity, name = label, avatarEmoji };
+            }).ToList();
+
+            // Keep the legacy participantNames field for any older clients.
+            result.Add(new
+            {
+                name             = room.Name,
+                numParticipants  = room.NumParticipants,
+                participantNames = participants.Select(p => p.name).ToList(),
+                participants,
+            });
         }
 
         return Results.Ok(result);

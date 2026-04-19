@@ -50,8 +50,8 @@ export default function ContactsModal({ session, online, inCall, onCall, onClose
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, width: '90vw' }}>
         <div className="modal-header">
-          <h2>Contacts</h2>
-          <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
+          <span>Contacts</span>
+          <button className="icon-btn" onClick={onClose} style={{ fontSize: 14 }} aria-label="Close">✕</button>
         </div>
         <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
           {loading && <p style={{ color: 'var(--text-muted)' }}>Loading…</p>}
@@ -59,36 +59,30 @@ export default function ContactsModal({ session, online, inCall, onCall, onClose
           {!loading && merged.length === 0 && (
             <p style={{ color: 'var(--text-muted)' }}>No other users registered yet.</p>
           )}
-          {!loading && merged.map(u => (
-            <div key={u.email} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 4px', borderBottom: '1px solid var(--border)',
-            }}>
-              <span style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: u.online ? '#34d399' : 'var(--border)',
-                flexShrink: 0,
-              }} />
-              <span style={{ flex: 1, fontSize: 14, display: 'flex', flexDirection: 'column' }}>
-                <span>{formatUser(u.email)}</span>
-                {formatUser(u.email) !== u.email && (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{u.email}</span>
-                )}
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 50 }}>
-                {u.online ? 'online' : 'offline'}
-              </span>
-              <button
-                className="btn btn-primary"
-                disabled={!u.online || inCall || callingEmail === u.email}
-                onClick={() => void handleCall(u.email)}
-                style={{ padding: '4px 12px', fontSize: 12 }}
-                title={!u.online ? 'User offline' : inCall ? 'Already in a call' : 'Start direct call'}
-              >
-                {callingEmail === u.email ? 'Calling…' : 'Call'}
-              </button>
-            </div>
-          ))}
+          {!loading && merged.map(u => {
+            const label  = formatUser(u.email);
+            const sub    = label !== u.email ? u.email : null;
+            return (
+              <div key={u.email} className="contact-row">
+                <span className={`contact-dot${u.online ? ' online' : ''}`} />
+                <div className="contact-identity">
+                  <span className="contact-name">{label}</span>
+                  {sub && <span className="contact-sub">{sub}</span>}
+                </div>
+                <span className={`contact-status${u.online ? ' online' : ''}`}>
+                  {u.online ? 'online' : 'offline'}
+                </span>
+                <button
+                  className="btn btn-primary contact-call-btn"
+                  disabled={!u.online || inCall || callingEmail === u.email}
+                  onClick={() => void handleCall(u.email)}
+                  title={!u.online ? 'User offline' : inCall ? 'Already in a call' : 'Start direct call'}
+                >
+                  {callingEmail === u.email ? 'Calling…' : 'Call'}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

@@ -42,10 +42,18 @@ export interface Session {
   isAdmin: boolean;
 }
 
+export interface ParticipantSummary {
+  identity:    string;
+  name:        string;
+  avatarEmoji: string | null;
+}
+
 export interface RoomInfo {
   name: string;
   numParticipants: number;
+  /** @deprecated kept for older clients; use `participants` when present. */
   participantNames: string[];
+  participants?: ParticipantSummary[];
 }
 
 export interface RoomConnection {

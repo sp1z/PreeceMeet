@@ -326,6 +326,16 @@ input::placeholder { color: var(--text-muted); }
   background: var(--online-dot);
   flex-shrink: 0;
 }
+.participant-avatar {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
 .participant-name {
   white-space: nowrap;
   overflow: hidden;
@@ -468,6 +478,27 @@ input::placeholder { color: var(--text-muted); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .overlay-card h3 { font-size: 18px; margin-bottom: 6px; }
 .overlay-card p  { font-size: 13px; color: var(--text-muted); }
+
+/* ── Device fallback banner ─────────────────────────────────────────────── */
+.device-fallback-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(229, 57, 53, 0.15);
+  border-bottom: 1px solid rgba(229, 57, 53, 0.35);
+  color: var(--text-primary);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.device-fallback-icon { font-size: 14px; flex-shrink: 0; }
+.device-fallback-text { flex: 1; }
+.device-fallback-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  width: auto;
+  margin: 0;
+}
 
 /* ── Video grid ─────────────────────────────────────────────────────────── */
 .video-grid {
@@ -634,36 +665,6 @@ input::placeholder { color: var(--text-muted); }
   letter-spacing: 0.04em;
 }
 .reveal-bar:hover { background: var(--bg-sidebar-hover); color: var(--text-primary); }
-
-/* Stats tile */
-.stats-tile {
-  background: var(--bg-main);
-  border-radius: 8px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  overflow: auto;
-  min-height: 0;
-}
-.stats-header {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 6px;
-}
-.stats-row { font-size: 12px; color: var(--text-muted); }
-.stats-ok  { color: #23d18b; }
-.stats-err { color: #ef5350; }
-.stats-divider { height: 1px; background: var(--border); margin: 6px 0; }
-.stats-participant {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--text-muted);
-  padding: 1px 0;
-}
 
 /* Override livekit tile styles.
    Use position:absolute + inset:0 instead of height:100% — percentage heights
@@ -905,6 +906,58 @@ input::placeholder { color: var(--text-muted); }
   display: block !important;
 }
 
+/* ── Contacts modal ─────────────────────────────────────────────────────── */
+.contact-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.contact-row:last-child { border-bottom: none; }
+.contact-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.contact-dot.online { background: var(--online-dot); }
+.contact-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+.contact-name {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.contact-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.contact-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  width: 60px;
+  text-align: right;
+}
+.contact-status.online { color: var(--online-dot); }
+.contact-call-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  min-width: 80px;
+  width: auto;
+  margin: 0;
+}
+
 /* ── Emoji picker ───────────────────────────────────────────────────────── */
 .emoji-picker-trigger {
   display: inline-flex;
@@ -919,10 +972,8 @@ input::placeholder { color: var(--text-muted); }
 .emoji-picker-sm { width: 32px; height: 32px; font-size: 18px; }
 .emoji-picker-md { width: 44px; height: 44px; font-size: 22px; }
 .emoji-picker-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 500;
+  position: fixed;
+  z-index: 5000;
   width: 260px;
   background: var(--bg-card);
   border: 1px solid var(--border);

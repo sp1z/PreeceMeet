@@ -9,6 +9,7 @@ import { createLogger } from '../logger';
 import { startLogUploader, stopLogUploader } from '../logUploader';
 import Sidebar from '../components/Sidebar';
 import VideoGrid, { GAME_SIZES, type GameSize } from '../components/VideoGrid';
+import DeviceFallbackBanner from '../components/DeviceFallbackBanner';
 import CallControls from '../components/CallControls';
 import SettingsModal from '../components/SettingsModal';
 import AdminPanel from '../components/AdminPanel';
@@ -62,10 +63,11 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [installing,     setInstalling]     = useState(false);
   const [uiHidden,       setUiHidden]       = useState(false);
   const [isFullscreen,   setIsFullscreen]   = useState(false);
-  const [statsVisible,   setStatsVisible]   = useState(false);
   const [contactsOpen,   setContactsOpen]   = useState(false);
   const [shareSources,   setShareSources]   = useState<DisplayShareSource[] | null>(null);
   const [platform,       setPlatform]       = useState<Platform>('browser');
+  const [deviceFallbacks, setDeviceFallbacks] = useState<DeviceKind[]>([]);
+  const [deviceRetryNonce, setDeviceRetryNonce] = useState(0);
 
   const calling = useDirectCalling(session);
 
@@ -96,7 +98,9 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   }, [session.serverUrl, session.sessionToken, session.email, session.isAdmin]);
 
   // Log + refresh on device change so hot-plugged cameras/mics appear without
-  // a restart. Fires inside VirtualBox passthrough scenarios too.
+  // a restart. Fires inside VirtualBox passthrough scenarios too. Also bumps
+  // the device-retry nonce so MediaController reruns applyPreferredDevices —
+  // the preferred device may have just reappeared.
   useEffect(() => {
     async function enumerate(reason: string) {
       try {
@@ -110,7 +114,10 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       }
     }
     void enumerate('startup');
-    const handler = () => { void enumerate('devicechange'); };
+    const handler = () => {
+      void enumerate('devicechange');
+      setDeviceRetryNonce(n => n + 1);
+    };
     navigator.mediaDevices?.addEventListener?.('devicechange', handler);
     return () => { navigator.mediaDevices?.removeEventListener?.('devicechange', handler); };
   }, []);
@@ -465,9 +472,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           <button className="icon-btn nodrag" onClick={() => void enterGameMode()} title="Game Mode — overlay strip for streaming">
             <GameModeIcon />
           </button>
-          <button className={`icon-btn nodrag${statsVisible ? ' active' : ''}`} onClick={() => setStatsVisible(v => !v)} title="Toggle stats panel">
-            📊
-          </button>
           <button className={`icon-btn nodrag${isFullscreen ? ' active' : ''}`} onClick={() => void toggleFullscreen()} title={isFullscreen ? 'Exit fullscreen (F11)' : 'Fullscreen (F11)'}>
             <FullscreenIcon exit={isFullscreen} />
           </button>
@@ -542,6 +546,13 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
         )}
 
         <div className={`video-area${gameMode ? ' game-video-area' : ''}`}>
+          {!gameMode && connection && deviceFallbacks.length > 0 && (
+            <DeviceFallbackBanner
+              failures={deviceFallbacks}
+              onRetry={() => setDeviceRetryNonce(n => n + 1)}
+              onOpenSettings={() => openSettingsAt('permissions')}
+            />
+          )}
           {!gameMode && connectState === 'idle' && !connection && (
             <div className="empty-state">
               <div className="big-icon">
@@ -597,9 +608,12 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 preferredCamDeviceId={settings.preferredCamDeviceId}
                 preferredSpeakerDeviceId={settings.preferredSpeakerDeviceId}
                 displayName={settings.displayName}
+                avatarEmoji={settings.avatarEmoji || '🙂'}
+                retryNonce={deviceRetryNonce}
                 onLocalShareEnded={() => setScreenSharing(false)}
                 onRemoteShareChange={setRemoteSharing}
                 onShareError={msg => { setError(msg); setScreenSharing(false); }}
+                onDeviceFallback={setDeviceFallbacks}
               />
               <ChatBridge
                 displayName={settings.displayName}
@@ -612,7 +626,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 gameMode={gameMode}
                 gameSize={gameSize}
                 showSelf={showSelf}
-                statsVisible={statsVisible}
               />
             </LiveKitRoom>
           )}
@@ -820,6 +833,8 @@ function RoomEventLogger() {
 
 // ── MediaController ───────────────────────────────────────────────────────────
 
+export type DeviceKind = 'mic' | 'cam' | 'speaker';
+
 interface MediaControllerProps {
   micMuted: boolean;
   camMuted: boolean;
@@ -828,9 +843,13 @@ interface MediaControllerProps {
   preferredCamDeviceId: string;
   preferredSpeakerDeviceId: string;
   displayName: string;
+  avatarEmoji: string;
+  /** Bumped by parent to request a re-application of the preferred devices. */
+  retryNonce: number;
   onLocalShareEnded:   () => void;
   onRemoteShareChange: (sharing: boolean) => void;
   onShareError:        (msg: string) => void;
+  onDeviceFallback:    (failures: DeviceKind[]) => void;
 }
 
 function MediaController({
@@ -841,9 +860,12 @@ function MediaController({
   preferredCamDeviceId,
   preferredSpeakerDeviceId,
   displayName,
+  avatarEmoji,
+  retryNonce,
   onLocalShareEnded,
   onRemoteShareChange,
   onShareError,
+  onDeviceFallback,
 }: MediaControllerProps) {
   const { localParticipant } = useLocalParticipant();
   const room    = useRoomContext();
@@ -884,45 +906,49 @@ function MediaController({
 
   useEffect(() => {
     async function applyPreferredDevices() {
+      const failures: DeviceKind[] = [];
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
-        if (preferredMicDeviceId) {
-          const ok = devices.some(d => d.kind === 'audioinput' && d.deviceId === preferredMicDeviceId);
-          if (ok) {
-            await room.switchActiveDevice('audioinput', preferredMicDeviceId);
-            deviceLog.info('switched microphone', { deviceId: preferredMicDeviceId });
-          } else {
-            deviceLog.warn('preferred microphone not available', { deviceId: preferredMicDeviceId });
+
+        async function trySwitch(kind: DeviceKind, mediaKind: 'audioinput' | 'videoinput' | 'audiooutput', preferredId: string) {
+          if (!preferredId) return;
+          const ok = devices.some(d => d.kind === mediaKind && d.deviceId === preferredId);
+          if (!ok) {
+            deviceLog.warn(`preferred ${kind} not available`, { deviceId: preferredId });
+            failures.push(kind);
+            return;
+          }
+          try {
+            await room.switchActiveDevice(mediaKind, preferredId);
+            deviceLog.info(`switched ${kind}`, { deviceId: preferredId });
+          } catch (err) {
+            deviceLog.error(`switch ${kind} failed`, err);
+            failures.push(kind);
           }
         }
-        if (preferredCamDeviceId) {
-          const ok = devices.some(d => d.kind === 'videoinput' && d.deviceId === preferredCamDeviceId);
-          if (ok) {
-            await room.switchActiveDevice('videoinput', preferredCamDeviceId);
-            deviceLog.info('switched camera', { deviceId: preferredCamDeviceId });
-          } else {
-            deviceLog.warn('preferred camera not available', { deviceId: preferredCamDeviceId });
-          }
-        }
-        if (preferredSpeakerDeviceId) {
-          const ok = devices.some(d => d.kind === 'audiooutput' && d.deviceId === preferredSpeakerDeviceId);
-          if (ok) {
-            await room.switchActiveDevice('audiooutput', preferredSpeakerDeviceId);
-            deviceLog.info('switched speaker', { deviceId: preferredSpeakerDeviceId });
-          } else {
-            deviceLog.warn('preferred speaker not available', { deviceId: preferredSpeakerDeviceId });
-          }
-        }
+
+        await trySwitch('mic',     'audioinput',  preferredMicDeviceId);
+        await trySwitch('cam',     'videoinput',  preferredCamDeviceId);
+        await trySwitch('speaker', 'audiooutput', preferredSpeakerDeviceId);
       } catch (err) {
         deviceLog.error('applyPreferredDevices failed', err);
+      } finally {
+        onDeviceFallback(failures);
       }
     }
     void applyPreferredDevices();
-  }, [preferredMicDeviceId, preferredCamDeviceId, preferredSpeakerDeviceId, room]);
+  }, [preferredMicDeviceId, preferredCamDeviceId, preferredSpeakerDeviceId, retryNonce, room, onDeviceFallback]);
 
   useEffect(() => {
     if (displayName) room.localParticipant.setName(displayName).catch(() => {});
   }, [displayName, room]);
+
+  // Publish avatar emoji as participant metadata so remote clients + the
+  // rooms-list endpoint can render it next to the user's name.
+  useEffect(() => {
+    const meta = JSON.stringify({ avatarEmoji: avatarEmoji || '' });
+    room.localParticipant.setMetadata(meta).catch(err => deviceLog.warn('setMetadata failed', err));
+  }, [avatarEmoji, room]);
 
   useEffect(() => {
     if (!mounted.current) { mounted.current = true; return; }

@@ -65,7 +65,10 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
         {channels.map(ch => {
           const room   = getRoomInfo(ch.name);
           const count  = room?.numParticipants ?? 0;
-          const names  = room?.participantNames ?? [];
+          // Prefer the structured participants list (has avatarEmoji); fall
+          // back to the legacy participantNames[] for older server replies.
+          const people = room?.participants
+            ?? (room?.participantNames ?? []).map(n => ({ identity: n, name: n, avatarEmoji: null as string | null }));
           const active = ch.name === activeRoom;
 
           return (
@@ -81,12 +84,14 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
                 </div>
                 {count > 0 && <span className="participant-badge">{count}</span>}
               </div>
-              {names.length > 0 && (
+              {people.length > 0 && (
                 <div className="participant-list">
-                  {names.map(n => (
-                    <div key={n} className="participant-row" title={n}>
-                      <span className="participant-dot" />
-                      <span className="participant-name">{n}</span>
+                  {people.map(p => (
+                    <div key={p.identity} className="participant-row" title={p.name}>
+                      {p.avatarEmoji
+                        ? <span className="participant-avatar emoji">{p.avatarEmoji}</span>
+                        : <span className="participant-dot" />}
+                      <span className="participant-name">{p.name}</span>
                     </div>
                   ))}
                 </div>

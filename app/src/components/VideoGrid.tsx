@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useTracks, ParticipantTile, useRoomContext } from '@livekit/components-react';
 import { Track, RemoteTrackPublication, RoomEvent } from 'livekit-client';
 import { createLogger } from '../logger';
@@ -22,69 +22,9 @@ interface Props {
   gameMode?:     boolean;
   gameSize?:     GameSize;
   showSelf?:     boolean;
-  statsVisible?: boolean;
 }
 
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
-}
-
-function StatsTile() {
-  const room = useRoomContext();
-  const startRef = useRef(Date.now());
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 2000);
-    return () => clearInterval(id);
-  }, []);
-
-  void tick;
-
-  const duration = Date.now() - startRef.current;
-  const remoteParticipants = Array.from(room.remoteParticipants.values());
-  const totalParticipants = remoteParticipants.length + 1;
-
-  const isConnected = room.state === 'connected';
-
-  return (
-    <div className="stats-tile">
-      <div className="stats-header">📊 Session Stats</div>
-      <div className="stats-row">
-        Status:{' '}
-        <span className={isConnected ? 'stats-ok' : 'stats-err'}>
-          {room.state}
-        </span>
-      </div>
-      <div className="stats-row">Duration: {formatDuration(duration)}</div>
-      <div className="stats-row">Participants: {totalParticipants}</div>
-      <div className="stats-divider" />
-      <div className="stats-row" style={{ fontWeight: 600, marginBottom: 4 }}>
-        You ({room.localParticipant.identity})
-      </div>
-      {remoteParticipants.map(p => {
-        const audioMuted = !p.isMicrophoneEnabled;
-        const videoMuted = !p.isCameraEnabled;
-        return (
-          <div key={p.sid} className="stats-participant">
-            <span>{p.identity || p.name || p.sid}</span>
-            <span>
-              {audioMuted ? '🔇' : '🎤'} {videoMuted ? '📵' : '📹'}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = false, statsVisible }: Props) {
+export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = false }: Props) {
   const room = useRoomContext();
 
   const tracks = useTracks(
@@ -184,7 +124,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   }
 
   const renderedCount = visibleTracks.filter(t => !isHiddenInGame(t)).length;
-  const count = renderedCount + (statsVisible && !gameMode ? 1 : 0);
+  const count = renderedCount;
   const cols = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
   const rows = Math.ceil(count / cols);
 
@@ -371,8 +311,6 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
         } : { ['--game-tile-h' as never]: `${tileH}px`, ['--game-tile-w' as never]: `${tileW}px` }}
       >
         {visibleTracks.map(track => renderTile(track, 'grid'))}
-
-        {statsVisible && !gameMode && <StatsTile />}
       </div>
       )}
 
