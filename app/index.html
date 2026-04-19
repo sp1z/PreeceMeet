@@ -5,15 +5,129 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src 'self' https: wss:; media-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'"
+      content="default-src 'self'; connect-src 'self' https: wss:; media-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'"
     />
     <title>PreeceMeet</title>
-    <!-- Paint the initial frame dark immediately so there's no white flash
-         between HTML load and external CSS parse. Matches --bg-main. -->
+
+    <!-- Splash CSS + dark body bg lives inline so the very first paint is
+         already on-brand. CSP allows 'unsafe-inline' style which we already
+         use throughout the app. -->
     <style>
       html, body { margin: 0; background: #0B1220; color: #fff; }
       #root { height: 100vh; }
+
+      /* ── Boot splash (inline so it paints with the HTML) ───────────────── */
+      #pm-boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background: radial-gradient(ellipse at 50% 40%, #1a2a5a 0%, #0b1220 70%);
+        font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+        color: #fff;
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.45s ease, visibility 0.45s ease;
+      }
+      #pm-boot-splash.fade {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      #pm-boot-splash svg { display: block; }
+
+      .pm-bs-stem {
+        opacity: 0;
+        transform: translateY(8px);
+        animation: pmBsStemIn 0.5s 0.1s ease-out forwards;
+      }
+      .pm-bs-bowl {
+        opacity: 0;
+        transform-origin: 66px 128px;
+        transform: scaleX(0);
+        animation: pmBsBowlIn 0.5s 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      }
+      .pm-bs-bubble {
+        opacity: 0;
+        transform-origin: 120px 110px;
+        transform: scale(0.4);
+        animation: pmBsBubblePop 0.4s 0.75s cubic-bezier(0.5, 1.5, 0.5, 1) forwards;
+      }
+      .pm-bs-dot {
+        opacity: 0;
+        transform-origin: 138px 100px;
+        transform: scale(0);
+        animation: pmBsDotPop 0.35s 0.95s cubic-bezier(0.4, 1.8, 0.5, 1) forwards;
+      }
+      .pm-bs-halo {
+        opacity: 0;
+        transform-origin: 138px 100px;
+        animation: pmBsHalo 1.5s 1.1s ease-out infinite;
+      }
+      @keyframes pmBsStemIn    { to { opacity: 1; transform: translateY(0); } }
+      @keyframes pmBsBowlIn    { to { opacity: 1; transform: scaleX(1); } }
+      @keyframes pmBsBubblePop {
+        0%   { opacity: 0; transform: scale(0.4); }
+        60%  { opacity: 1; transform: scale(1.05); }
+        100% { opacity: 1; transform: scale(1); }
+      }
+      @keyframes pmBsDotPop    { to { opacity: 1; transform: scale(1); } }
+      @keyframes pmBsHalo {
+        0%   { opacity: 0.5; transform: scale(0.6); }
+        100% { opacity: 0;   transform: scale(2.2); }
+      }
+
+      .pm-bs-wordmark {
+        font-size: 36px;
+        font-weight: 600;
+        letter-spacing: -0.8px;
+        line-height: 1;
+        opacity: 0;
+        transform: translateY(8px);
+        animation: pmBsWordIn 0.5s 1.15s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      }
+      .pm-bs-blue { color: #60A5FA; }
+      @keyframes pmBsWordIn { to { opacity: 1; transform: translateY(0); } }
+
+      .pm-bs-tagline {
+        font-size: 14px;
+        color: rgba(255,255,255,0.55);
+        font-style: italic;
+        font-weight: 500;
+        opacity: 0;
+        animation: pmBsFadeIn 0.5s 1.55s ease-out forwards;
+      }
+      .pm-bs-loader {
+        width: 160px;
+        height: 3px;
+        background: rgba(255,255,255,0.08);
+        border-radius: 999px;
+        overflow: hidden;
+        position: relative;
+        opacity: 0;
+        animation: pmBsFadeIn 0.4s 1.8s ease-out forwards;
+      }
+      .pm-bs-loader span {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 40%;
+        background: linear-gradient(90deg, #60A5FA, #2563EB);
+        border-radius: 999px;
+        animation: pmBsSlide 1.5s 1.9s ease-in-out infinite;
+      }
+      @keyframes pmBsFadeIn { to { opacity: 1; } }
+      @keyframes pmBsSlide {
+        0%   { transform: translateX(-120%); }
+        100% { transform: translateX(350%); }
+      }
     </style>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -22,7 +136,68 @@
     />
   </head>
   <body>
+    <!-- Splash sits ABOVE #root so React mounts and runs underneath it.
+         Ensures the user can't see the React app until we explicitly fade
+         the splash out. -->
+    <div id="pm-boot-splash" aria-label="PreeceMeet">
+      <svg width="180" height="180" viewBox="0 0 256 256" aria-hidden="true">
+        <defs>
+          <linearGradient id="pmBsStemGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#1E3A8A" />
+            <stop offset="100%" stop-color="#0F2463" />
+          </linearGradient>
+          <linearGradient id="pmBsBowlGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#60A5FA" />
+            <stop offset="100%" stop-color="#2563EB" />
+          </linearGradient>
+          <linearGradient id="pmBsTileGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#F5F7FB" />
+            <stop offset="100%" stop-color="#DFE4EE" />
+          </linearGradient>
+          <clipPath id="pmBsClip"><rect width="256" height="256" rx="56" /></clipPath>
+        </defs>
+        <g clip-path="url(#pmBsClip)">
+          <rect width="256" height="256" fill="url(#pmBsTileGrad)" />
+        </g>
+        <path class="pm-bs-stem"
+          d="M 66 52 H 100 V 202 a 6 6 0 0 1 -6 6 H 72 a 6 6 0 0 1 -6 -6 Z"
+          fill="url(#pmBsStemGrad)" />
+        <path class="pm-bs-bowl"
+          d="M 66 52 H 140 a 48 48 0 0 1 48 48 v 8 a 48 48 0 0 1 -48 48 H 100 V 52 Z"
+          fill="url(#pmBsBowlGrad)" />
+        <path class="pm-bs-bubble"
+          d="M 100 76 H 138 a 24 24 0 0 1 24 24 v 2 a 24 24 0 0 1 -24 24 H 134 L 114 150 L 120 124 H 100 Z"
+          fill="#ffffff" />
+        <circle class="pm-bs-halo" cx="138" cy="100" r="9" fill="#60A5FA" />
+        <circle class="pm-bs-dot"  cx="138" cy="100" r="9" fill="#2563EB" />
+      </svg>
+      <div class="pm-bs-wordmark">Preece<span class="pm-bs-blue">Meet</span></div>
+      <div class="pm-bs-tagline">You can't beat PreeceMeet.</div>
+      <div class="pm-bs-loader"><span></span></div>
+    </div>
+
     <div id="root"></div>
+
+    <script>
+      // Reveal the (currently hidden) Electron window now that the splash
+      // is in the DOM and the body background is dark. Two rAFs ensure the
+      // first frame is committed before we ask main to show().
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          try { window.preecemeet && window.preecemeet.appReady && window.preecemeet.appReady(); } catch (e) {}
+        });
+      });
+
+      // Hold the splash for at least 4 seconds, then fade and remove.
+      // Independent of React — guarantees a consistent boot experience.
+      setTimeout(function () {
+        var s = document.getElementById('pm-boot-splash');
+        if (!s) return;
+        s.classList.add('fade');
+        s.addEventListener('transitionend', function () { s.remove(); }, { once: true });
+      }, 4000);
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

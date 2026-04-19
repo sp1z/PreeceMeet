@@ -348,6 +348,26 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   // and the live participant count comes from GameModeAutoSize (inside the
   // LiveKitRoom). The LiveKitRoom itself stays mounted across mode toggles
   // so toggling Game Mode while sharing doesn't re-fire getDisplayMedia.
+  //
+  // Position memory: while in game mode we persist {x,y} to localStorage on
+  // every move. Re-entering game mode restores the last position via
+  // setPositionNormalized — which clamps to the active display's work area
+  // so the window can never end up off-screen (e.g. monitor unplugged).
+
+  const GAME_POS_KEY = 'preecemeet_game_pos';
+
+  // Save position only while in game mode (gameModeRef avoids stale closures
+  // inside the long-lived onMoved subscription).
+  const gameModeRef = useRef(gameMode);
+  useEffect(() => { gameModeRef.current = gameMode; }, [gameMode]);
+
+  useEffect(() => {
+    const off = windowCtl.onMoved(({ x, y }) => {
+      if (!gameModeRef.current) return;
+      try { localStorage.setItem(GAME_POS_KEY, JSON.stringify({ x, y })); } catch { /* ignore */ }
+    });
+    return off;
+  }, []);
 
   async function enterGameMode() {
     gameLog.info('enter game mode', { gameSize, showSelf });
@@ -356,6 +376,22 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     try { await windowCtl.setResizable(false); } catch (e) { gameLog.warn('setResizable failed', e); }
     try { await windowCtl.setWindowButtonVisibility(false); } catch { /* mac only */ }
     setGameMode(true);
+
+    // Restore last game-mode position. Wait one frame so GameModeAutoSize has
+    // applied the new content size before we move (ordering matters because
+    // setPositionNormalized clamps using the *current* width/height).
+    requestAnimationFrame(async () => {
+      try {
+        const raw = localStorage.getItem(GAME_POS_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (typeof saved?.x !== 'number' || typeof saved?.y !== 'number') return;
+        const applied = await windowCtl.setPositionNormalized(saved.x, saved.y);
+        gameLog.info('restored game-mode position', { saved, applied });
+      } catch (e) {
+        gameLog.warn('restore game-mode position failed', e);
+      }
+    });
   }
 
   async function exitGameMode() {

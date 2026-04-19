@@ -23,6 +23,8 @@ declare global {
       setBounds:      (b: { x?: number; y?: number; width?: number; height?: number }) => Promise<void>;
       setSize:        (w: number, h: number) => Promise<void>;
       setContentSize: (w: number, h: number) => Promise<void>;
+      setPositionNormalized: (x: number, y: number) => Promise<{ x: number; y: number } | null>;
+      onMoved:        (handler: (pos: { x: number; y: number }) => void) => () => void;
       setAlwaysOnTop: (v: boolean) => Promise<void>;
       setResizable:   (v: boolean) => Promise<void>;
       setFullscreen:  (v: boolean) => Promise<void>;
@@ -90,6 +92,14 @@ export const windowCtl = {
   },
   async setContentSize(w: number, h: number): Promise<void> {
     if (window.preecemeet) await window.preecemeet.setContentSize(w, h);
+  },
+  async setPositionNormalized(x: number, y: number): Promise<{ x: number; y: number } | null> {
+    if (!window.preecemeet) return null;
+    return window.preecemeet.setPositionNormalized(x, y);
+  },
+  onMoved(handler: (pos: { x: number; y: number }) => void): () => void {
+    if (!window.preecemeet) return () => {};
+    return window.preecemeet.onMoved(handler);
   },
   async setAlwaysOnTop(v: boolean): Promise<void> {
     if (window.preecemeet) await window.preecemeet.setAlwaysOnTop(v);

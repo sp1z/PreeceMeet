@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain, desktopCapturer } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, desktopCapturer, screen } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const log  = require('electron-log/main');
@@ -76,6 +76,20 @@ function createWindow() {
 
   mainWindow.on('maximize',   () => mainWindow.webContents.send('win:maximized-changed', true));
   mainWindow.on('unmaximize', () => mainWindow.webContents.send('win:maximized-changed', false));
+
+  // Throttle move events — the OS fires these very rapidly while dragging.
+  // We only need a sample every ~150ms to persist a "last good" position.
+  let moveTimer = null;
+  mainWindow.on('move', () => {
+    if (moveTimer) return;
+    moveTimer = setTimeout(() => {
+      moveTimer = null;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        const { x, y } = mainWindow.getBounds();
+        mainWindow.webContents.send('win:moved', { x, y });
+      }
+    }, 150);
+  });
 
   // DevTools hotkey: F12 or Ctrl/Cmd+Shift+I (undocked by default so it pops
   // into its own window and doesn't steal space from the call UI).
@@ -207,6 +221,22 @@ ipcMain.handle('devtools:toggle', () => {
 // Window controls (powers Game Mode + fullscreen toggles in the renderer)
 ipcMain.handle('win:get-bounds',       ()             => mainWindow?.getBounds());
 ipcMain.handle('win:set-bounds',       (_ev, bounds)  => mainWindow?.setBounds(bounds));
+
+// Move the window to {x, y}, clamped so the entire window stays inside the
+// nearest display's work area. Used by Game Mode when restoring its last
+// remembered position — the user might have moved a monitor or changed
+// resolution since they last used Game Mode, so a saved position can be
+// off-screen. We never want a saved position to make the window unreachable.
+ipcMain.handle('win:set-position-normalized', (_ev, { x, y }) => {
+  if (!mainWindow) return null;
+  const current = mainWindow.getBounds();
+  const display = screen.getDisplayMatching({ x, y, width: current.width, height: current.height });
+  const wa      = display.workArea;
+  const clampedX = Math.max(wa.x,            Math.min(x, wa.x + wa.width  - current.width));
+  const clampedY = Math.max(wa.y,            Math.min(y, wa.y + wa.height - current.height));
+  mainWindow.setBounds({ x: clampedX, y: clampedY, width: current.width, height: current.height });
+  return { x: clampedX, y: clampedY };
+});
 ipcMain.handle('win:set-size',         (_ev, { w, h }) => mainWindow?.setSize(w, h));
 ipcMain.handle('win:set-content-size', (_ev, { w, h }) => mainWindow?.setContentSize(Math.round(w), Math.round(h)));
 ipcMain.handle('win:set-always-on-top',(_ev, v)       => mainWindow?.setAlwaysOnTop(!!v));

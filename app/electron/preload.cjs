@@ -13,6 +13,12 @@ contextBridge.exposeInMainWorld('preecemeet', {
   setBounds:         (b) => ipcRenderer.invoke('win:set-bounds', b),
   setSize:           (w, h) => ipcRenderer.invoke('win:set-size', { w, h }),
   setContentSize:    (w, h) => ipcRenderer.invoke('win:set-content-size', { w, h }),
+  setPositionNormalized: (x, y) => ipcRenderer.invoke('win:set-position-normalized', { x, y }),
+  onMoved: (handler) => {
+    const listener = (_ev, pos) => handler(pos);
+    ipcRenderer.on('win:moved', listener);
+    return () => ipcRenderer.removeListener('win:moved', listener);
+  },
   setAlwaysOnTop:    (v) => ipcRenderer.invoke('win:set-always-on-top', v),
   setResizable:      (v) => ipcRenderer.invoke('win:set-resizable', v),
   setFullscreen:     (v) => ipcRenderer.invoke('win:set-fullscreen', v),
