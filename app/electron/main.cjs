@@ -264,6 +264,15 @@ ipcMain.handle('win:set-window-button-visibility', (_ev, v) => {
 // Screen-share picker resolution from the renderer. Uses the cached source
 // list from the initial getSources() call — calling getSources() a second
 // time would re-prompt the user through the XDG portal on Wayland.
+//
+// Audio policy: on Windows we use 'loopbackWithMute' which captures system
+// audio AND silences our own app's playback for the duration of the share —
+// so other participants' voices coming through our speakers don't leak back
+// into the screen-share track and create an echo. On other platforms only
+// 'loopback' exists; if that turns out to echo, the user can mute the
+// remote audio per-tile via right-click "Mute audio for me".
+const DISPLAY_AUDIO = process.platform === 'win32' ? 'loopbackWithMute' : 'loopback';
+
 ipcMain.handle('display-share:choose', (_ev, sourceId) => {
   if (!pendingDisplayCb) return false;
   const cb = pendingDisplayCb;
@@ -271,7 +280,7 @@ ipcMain.handle('display-share:choose', (_ev, sourceId) => {
   pendingDisplayCb = null;
   pendingSources   = null;
   const source = sources.find(s => s.id === sourceId);
-  if (source) cb({ video: source, audio: 'loopback' });
+  if (source) cb({ video: source, audio: DISPLAY_AUDIO });
   else        cb({});
   return !!source;
 });

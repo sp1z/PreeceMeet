@@ -1334,13 +1334,18 @@ input::placeholder { color: var(--text-muted); }
 .share-picker-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .share-picker-grid {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 14px 18px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  /* Fixed-width tracks so cards never squish — overflow scrolls vertically. */
+  grid-template-columns: repeat(auto-fill, 200px);
   gap: 12px;
   align-content: start;
+  justify-content: start;
 }
+.share-picker-grid::-webkit-scrollbar { width: 6px; }
+.share-picker-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 .share-picker-empty {
   grid-column: 1 / -1;
   text-align: center;

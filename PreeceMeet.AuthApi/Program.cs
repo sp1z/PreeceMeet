@@ -215,7 +215,9 @@ app.MapGet("/api/rooms", async (HttpContext ctx, SessionTokenService session) =>
                             ae.ValueKind == System.Text.Json.JsonValueKind.String)
                         {
                             var s = ae.GetString();
-                            if (!string.IsNullOrEmpty(s) && s.Length <= 8) avatarEmoji = s;
+                            // Cap at 32 UTF-16 code units — complex emoji
+                        // sequences (e.g. flags, ZWJ) can run 6-14 units.
+                        if (!string.IsNullOrEmpty(s) && s.Length <= 32) avatarEmoji = s;
                         }
                     }
                     catch { /* malformed metadata — ignore */ }

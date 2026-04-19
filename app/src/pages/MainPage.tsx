@@ -23,7 +23,7 @@ import { useDirectCalling } from '../calling';
 
 const CHAT_URL_RE = /\bhttps?:\/\/[^\s<>"]+/gi;
 const CHAT_TOPIC = 'chat';
-const ROOMS_POLL_MS = 2000;
+const ROOMS_POLL_MS = 1000;
 
 const uiLog     = createLogger('ui');
 const callLog   = createLogger('call');
@@ -74,6 +74,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const calling = useDirectCalling(session);
 
   const pollRef        = useRef<ReturnType<typeof setInterval>>();
+  const pollRoomsRef   = useRef<() => Promise<void>>();
   const resizingRef    = useRef(false);
   const settingsRef    = useRef(settings);
   const sidebarWidthRef = useRef(sidebarWidth);
@@ -132,6 +133,11 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   }, [settings.sidebarWidth]);
 
   const handleVideoReady = useCallback(() => setVideoReady(true), []);
+  const handleParticipantsChanged = useCallback(() => { void pollRoomsRef.current?.(); }, []);
+  const handleForceMicMute = useCallback((from: string) => {
+    callLog.info('forced mute by remote', { from });
+    setMicMuted(true);
+  }, []);
 
   const pollRooms = useCallback(async () => {
     try {
@@ -143,6 +149,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   }, [session, onSignOut]);
 
   useEffect(() => {
+    pollRoomsRef.current = pollRooms;
     void pollRooms();
     pollRef.current = setInterval(() => void pollRooms(), ROOMS_POLL_MS);
     return () => clearInterval(pollRef.current);
@@ -371,6 +378,20 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
 
   async function enterGameMode() {
     gameLog.info('enter game mode', { gameSize, showSelf });
+    // Exit OS-level fullscreen first — otherwise the auto-sized small bar
+    // gets pinned to the top-left of the fullscreen rect with the rest of
+    // the screen black. Browser fullscreen and Electron BrowserWindow
+    // fullscreen are separate; clear both.
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+    } catch { /* ignore */ }
+    try {
+      if (await windowCtl.isFullscreen()) {
+        await windowCtl.toggleFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch { /* ignore */ }
+
     try { await windowCtl.saveBounds(); } catch (e) { gameLog.warn('saveBounds failed', e); }
     try { await windowCtl.setAlwaysOnTop(true); } catch (e) { gameLog.warn('setAlwaysOnTop failed', e); }
     try { await windowCtl.setResizable(false); } catch (e) { gameLog.warn('setResizable failed', e); }
@@ -635,14 +656,18 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               serverUrl={connection.url}
               token={connection.token}
               connect={true}
-              audio={true}
-              video={true}
+              audio={settings.preferredMicDeviceId
+                ? { deviceId: settings.preferredMicDeviceId }
+                : true}
+              video={settings.preferredCamDeviceId
+                ? { deviceId: settings.preferredCamDeviceId }
+                : true}
               onConnected={() => callLog.info('livekit connected', { room: connection.roomName })}
               onDisconnected={handleDisconnected}
               onError={err => { callLog.error('livekit error', err); setError(err.message); }}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}
             >
-              <RoomEventLogger onVideoReady={handleVideoReady} />
+              <RoomEventLogger onVideoReady={handleVideoReady} onParticipantsChanged={handleParticipantsChanged} />
               <MediaController
                 micMuted={micMuted}
                 camMuted={camMuted}
@@ -669,6 +694,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 gameMode={gameMode}
                 gameSize={gameSize}
                 showSelf={showSelf}
+                onForceMicMute={handleForceMicMute}
               />
             </LiveKitRoom>
           )}
@@ -838,10 +864,11 @@ function GameModeAutoSize({ gameSize, showSelf }: { gameSize: GameSize; showSelf
 const VIDEO_READY_FALLBACK_MS = 4000;
 
 interface RoomEventLoggerProps {
-  onVideoReady: () => void;
+  onVideoReady:    () => void;
+  onParticipantsChanged: () => void;
 }
 
-function RoomEventLogger({ onVideoReady }: RoomEventLoggerProps) {
+function RoomEventLogger({ onVideoReady, onParticipantsChanged }: RoomEventLoggerProps) {
   const room = useRoomContext();
 
   useEffect(() => {
@@ -860,10 +887,14 @@ function RoomEventLogger({ onVideoReady }: RoomEventLoggerProps) {
         fallback = setTimeout(() => signalReady('fallback-timeout'), VIDEO_READY_FALLBACK_MS);
       }
     };
-    const onJoin  = (p: { identity: string; name?: string; sid: string }) =>
+    const onJoin  = (p: { identity: string; name?: string; sid: string }) => {
       callLog.info('participant connected', { identity: p.identity, name: p.name, sid: p.sid });
-    const onLeave = (p: { identity: string; sid: string }) =>
+      onParticipantsChanged();
+    };
+    const onLeave = (p: { identity: string; sid: string }) => {
       callLog.info('participant disconnected', { identity: p.identity, sid: p.sid });
+      onParticipantsChanged();
+    };
     const onLocalPub = (pub: { kind: string; source?: string }) => {
       callLog.info('local track published', { kind: pub.kind, source: pub.source });
       if (pub.source === Track.Source.Camera) signalReady('local-camera-published');
@@ -1021,9 +1052,32 @@ function MediaController({
 
   // Publish avatar emoji as participant metadata so remote clients + the
   // rooms-list endpoint can render it next to the user's name.
+  //
+  // setMetadata is a server-authenticated request and fails silently if
+  // called before the room reaches Connected — so we gate on state and
+  // re-publish on every connect (handles reconnections too). The log
+  // confirms success/failure so we can tell from server-side uploaded logs
+  // whether the metadata ever landed.
   useEffect(() => {
-    const meta = JSON.stringify({ avatarEmoji: avatarEmoji || '' });
-    room.localParticipant.setMetadata(meta).catch(err => deviceLog.warn('setMetadata failed', err));
+    function publish(why: string) {
+      const meta = JSON.stringify({ avatarEmoji: avatarEmoji || '' });
+      deviceLog.info('publishing participant metadata', { avatarEmoji, why });
+      room.localParticipant.setMetadata(meta).then(() => {
+        deviceLog.info('setMetadata succeeded');
+      }).catch(err => {
+        deviceLog.warn('setMetadata failed', err);
+      });
+    }
+
+    if (room.state === ConnectionState.Connected) {
+      publish('already-connected');
+    }
+
+    const onState = (state: ConnectionState) => {
+      if (state === ConnectionState.Connected) publish('state-changed');
+    };
+    room.on(RoomEvent.ConnectionStateChanged, onState);
+    return () => { room.off(RoomEvent.ConnectionStateChanged, onState); };
   }, [avatarEmoji, room]);
 
   useEffect(() => {

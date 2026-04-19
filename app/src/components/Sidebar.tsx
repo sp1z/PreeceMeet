@@ -71,8 +71,12 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
           const count  = room?.numParticipants ?? 0;
           // Prefer the structured participants list (has avatarEmoji); fall
           // back to the legacy participantNames[] for older server replies.
-          const people = room?.participants
-            ?? (room?.participantNames ?? []).map(n => ({ identity: n, name: n, avatarEmoji: null as string | null }));
+          // LiveKit returns participants in unstable order — sort by identity
+          // so the sidebar doesn't reshuffle on every poll.
+          const people = (room?.participants
+            ?? (room?.participantNames ?? []).map(n => ({ identity: n, name: n, avatarEmoji: null as string | null })))
+            .slice()
+            .sort((a, b) => (a.identity || '').localeCompare(b.identity || ''));
           const active = ch.name === activeRoom;
 
           return (

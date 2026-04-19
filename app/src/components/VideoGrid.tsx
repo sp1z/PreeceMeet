@@ -19,12 +19,16 @@ export const GAME_SIZES: Record<GameSize, number> = {
 };
 
 interface Props {
-  gameMode?:     boolean;
-  gameSize?:     GameSize;
-  showSelf?:     boolean;
+  gameMode?:        boolean;
+  gameSize?:        GameSize;
+  showSelf?:        boolean;
+  /** Called when a remote sends a "please-mute" data message. The host
+   *  should flip its micMuted state so the mic-button UI reflects reality
+   *  and the user can unmute with a single click. */
+  onForceMicMute?:  (sourceName: string) => void;
 }
 
-export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = false }: Props) {
+export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = false, onForceMicMute }: Props) {
   const room = useRoomContext();
 
   const tracks = useTracks(
@@ -42,9 +46,10 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
     } catch { return []; }
   });
 
-  // Per-tile scale override (cover|contain). Persisted by participant SID +
-  // source so it survives reconnects. Default falls through to CSS:
-  // camera = cover, screen_share = contain.
+  // Per-tile scale override (cover|contain). Persisted by participant
+  // *identity* + source so it survives reconnects (sid is regenerated on
+  // every reconnect). Default falls through to CSS: camera = cover,
+  // screen_share = contain.
   const [scaleOverrides, setScaleOverrides] = useState<Record<string, TileScale>>(() => {
     try {
       const raw = localStorage.getItem(TILE_SCALE_KEY);
@@ -53,7 +58,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   });
 
   const [locallyMuted, setLocallyMuted] = useState<Set<string>>(new Set());
-  const [contextMenu, setContextMenu] = useState<{ sid: string; tileKey: string; source: string; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ sid: string; tileKey: string; scaleKey: string; source: string; x: number; y: number } | null>(null);
   const [dragSid, setDragSid] = useState<string | null>(null);
   const [dragOverSid, setDragOverSid] = useState<string | null>(null);
   const [focusKey, setFocusKey] = useState<string | null>(null);
@@ -70,7 +75,15 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
         const msg = JSON.parse(new TextDecoder().decode(payload));
         if (msg?.type !== 'please-mute-mic') return;
         const asker = msg.fromName || participant?.name || participant?.identity || 'someone';
-        void room.localParticipant.setMicrophoneEnabled(false);
+        // Hand off to the host so it can flip its micMuted state — the host's
+        // existing useEffect will then call setMicrophoneEnabled(false). This
+        // keeps the mic-button UI in sync so the user can unmute in one click.
+        if (onForceMicMute) {
+          onForceMicMute(asker);
+        } else {
+          // Fallback if no host callback wired (shouldn't happen).
+          void room.localParticipant.setMicrophoneEnabled(false);
+        }
         vgLog.info('honoring remote mute request', { from: asker });
         setMuteRequestToast(`${asker} muted you.`);
         setTimeout(() => setMuteRequestToast(null), 4000);
@@ -168,10 +181,10 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
     setDragOverSid(null);
   }
 
-  function handleContextMenu(e: React.MouseEvent, sid: string, tileKey: string, source: string) {
+  function handleContextMenu(e: React.MouseEvent, sid: string, tileKey: string, scaleKey: string, source: string) {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenu({ sid, tileKey, source, x: e.clientX, y: e.clientY });
+    setContextMenu({ sid, tileKey, scaleKey, source, x: e.clientX, y: e.clientY });
   }
 
   function handleMuteLocally(sid: string) {
@@ -251,11 +264,12 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   // Reusable tile renderer — used in both grid and focus layouts, and for
   // thumbnails. `variant` distinguishes the focused-big tile from the strip.
   function renderTile(track: typeof visibleTracks[number], variant: 'grid' | 'focus-main' | 'focus-thumb') {
-    const tileSid = `${track.participant.sid}-${track.source}`;
+    const tileSid  = `${track.participant.sid}-${track.source}`;
+    const scaleKey = `${track.participant.identity}-${track.source}`;
     const isLocalCamera = track.participant.isLocal && track.source === Track.Source.Camera;
     const isMuted = locallyMuted.has(track.participant.sid);
     const isDragOver = dragOverSid === tileSid;
-    const scale = scaleOverrides[tileSid];
+    const scale = scaleOverrides[scaleKey];
     const hiddenInGame = isHiddenInGame(track);
 
     return (
@@ -275,7 +289,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
         onDragOver={e => handleDragOver(e, tileSid)}
         onDrop={() => handleDrop(tileSid)}
         onDragEnd={handleDragEnd}
-        onContextMenu={e => handleContextMenu(e, track.participant.sid, tileSid, String(track.source))}
+        onContextMenu={e => handleContextMenu(e, track.participant.sid, tileSid, scaleKey, String(track.source))}
         onDoubleClick={() => !gameMode && handleFocus(tileSid)}
       >
         <ParticipantTile trackRef={track} />
@@ -320,7 +334,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
 
       {contextMenu && (() => {
         const isScreen = contextMenu.source === Track.Source.ScreenShare;
-        const currentScale = scaleOverrides[contextMenu.tileKey];
+        const currentScale = scaleOverrides[contextMenu.scaleKey];
         return (
           <div
             className="tile-context-menu"
@@ -332,14 +346,16 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
                 {focusKey === contextMenu.tileKey ? '⊟ Exit focus' : '⊞ Focus this tile'}
               </button>
             )}
-            {contextMenuParticipant && !contextMenuParticipant.isLocal && !isScreen && (
+            {contextMenuParticipant && !contextMenuParticipant.isLocal && (
               <>
                 <button onClick={() => handleMuteLocally(contextMenu.sid)}>
-                  {locallyMuted.has(contextMenu.sid) ? '🔊 Unmute for me' : '🔇 Mute for me'}
+                  {locallyMuted.has(contextMenu.sid) ? '🔊 Unmute audio for me' : '🔇 Mute audio for me'}
                 </button>
-                <button onClick={() => handleMuteForAll(contextMenu.sid)}>
-                  🛑 Mute for all
-                </button>
+                {!isScreen && (
+                  <button onClick={() => handleMuteForAll(contextMenu.sid)}>
+                    🛑 Mute mic for all
+                  </button>
+                )}
               </>
             )}
             {!gameMode && (
@@ -351,18 +367,18 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
             <div className="context-section-label">Scale</div>
             <button
               className={currentScale === 'contain' || (!currentScale && isScreen) ? 'active' : ''}
-              onClick={() => setTileScale(contextMenu.tileKey, 'contain')}
+              onClick={() => setTileScale(contextMenu.scaleKey, 'contain')}
             >
               ⛶ Fit (no crop)
             </button>
             <button
               className={currentScale === 'cover' || (!currentScale && !isScreen) ? 'active' : ''}
-              onClick={() => setTileScale(contextMenu.tileKey, 'cover')}
+              onClick={() => setTileScale(contextMenu.scaleKey, 'cover')}
             >
               ▦ Fill (crop edges)
             </button>
             {currentScale && (
-              <button onClick={() => setTileScale(contextMenu.tileKey, null)}>
+              <button onClick={() => setTileScale(contextMenu.scaleKey, null)}>
                 ↺ Reset to default
               </button>
             )}
