@@ -49,7 +49,7 @@ public class CallHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
 
-    public async Task<object> Call(string toEmail)
+    public async Task<object> Call(string toEmail, string? fromDisplayName = null)
     {
         var from = (string?)Context.Items[EmailKey];
         if (from is null) return new { ok = false, error = "Not authenticated" };
@@ -62,10 +62,18 @@ public class CallHub : Hub
         var roomName = $"direct-{callId}";
         _presence.RegisterCall(callId, from, toEmail, roomName);
 
+        // Pass along the caller's display name so the incoming ring modal can
+        // show it instead of an email address. Server does not trust or store
+        // this string beyond the current ring.
+        var safeDisplayName = string.IsNullOrWhiteSpace(fromDisplayName)
+            ? null
+            : (fromDisplayName.Length > 80 ? fromDisplayName[..80] : fromDisplayName);
+
         await Clients.Clients(_presence.GetConnections(toEmail)).SendAsync("IncomingCall", new
         {
             callId,
             from,
+            fromDisplayName = safeDisplayName,
             roomName,
             at = DateTimeOffset.UtcNow,
         });

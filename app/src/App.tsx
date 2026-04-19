@@ -25,9 +25,10 @@ export default function App() {
       const restored: Session = { ...s, isAdmin: s.isAdmin ?? false };
       setSession(restored);
       setPage('main');
-      // Refresh isAdmin from server (grant/revoke takes effect without re-login).
+      // Refresh isAdmin + email from server so grant/revoke and identity stay
+      // in sync without forcing a re-login. Older saved sessions have no email.
       getMe(s.serverUrl, s.sessionToken)
-        .then(me => setSession(prev => prev ? { ...prev, isAdmin: me.isAdmin } : prev))
+        .then(me => setSession(prev => prev ? { ...prev, isAdmin: me.isAdmin, email: me.email || prev.email } : prev))
         .catch(() => { /* ignore — stored value stands */ });
     }
 

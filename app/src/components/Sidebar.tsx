@@ -6,6 +6,8 @@ interface Props {
   rooms:           RoomInfo[];
   activeRoom:      string | null;
   email:           string;
+  displayName:     string;
+  avatarEmoji:     string;
   onJoin:          (channel: Channel) => void;
   onSettings:      () => void;
   onSignOut:       () => void;
@@ -16,7 +18,7 @@ interface Props {
 
 interface ChannelMenu { name: string; x: number; y: number; }
 
-export default function Sidebar({ channels, rooms, activeRoom, email, onJoin, onSettings, onSignOut, onAddChannel, onDeleteChannel, visible }: Props) {
+export default function Sidebar({ channels, rooms, activeRoom, email, displayName, avatarEmoji, onJoin, onSettings, onSignOut, onAddChannel, onDeleteChannel, visible }: Props) {
   const [footerMenuOpen, setFooterMenuOpen] = useState(false);
   const [channelMenu,    setChannelMenu]    = useState<ChannelMenu | null>(null);
 
@@ -33,21 +35,15 @@ export default function Sidebar({ channels, rooms, activeRoom, email, onJoin, on
     return rooms.find(r => r.name.toLowerCase() === channelName.toLowerCase());
   }
 
-  function participantSummary(room: RoomInfo | undefined): string {
-    if (!room || room.numParticipants === 0) return '';
-    if (room.participantNames.length === 0) return `${room.numParticipants} participant${room.numParticipants !== 1 ? 's' : ''}`;
-    const names = room.participantNames.slice(0, 3).join(', ');
-    const extra = room.numParticipants > 3 ? ` +${room.numParticipants - 3}` : '';
-    return names + extra;
-  }
-
   function handleChannelContextMenu(e: React.MouseEvent, name: string) {
     e.preventDefault();
     e.stopPropagation();
     setChannelMenu({ name, x: e.clientX, y: e.clientY });
   }
 
-  const initial = email ? email[0].toUpperCase() : '?';
+  // Prefer display name; fall back to email; only show "?" if we truly have
+  // nothing (shouldn't happen once session.email is populated).
+  const footerLabel = displayName?.trim() || email || 'Account';
 
   return (
     <aside className="sidebar" style={{ position: 'relative' }}>
@@ -67,24 +63,34 @@ export default function Sidebar({ channels, rooms, activeRoom, email, onJoin, on
           </div>
         )}
         {channels.map(ch => {
-          const room    = getRoomInfo(ch.name);
-          const count   = room?.numParticipants ?? 0;
-          const summary = participantSummary(room);
-          const active  = ch.name === activeRoom;
+          const room   = getRoomInfo(ch.name);
+          const count  = room?.numParticipants ?? 0;
+          const names  = room?.participantNames ?? [];
+          const active = ch.name === activeRoom;
 
           return (
-            <div
-              key={ch.name}
-              className={`channel-row${active ? ' active' : ''}`}
-              onClick={() => onJoin(ch)}
-              onContextMenu={e => handleChannelContextMenu(e, ch.name)}
-            >
-              <div className="channel-emoji-wrap">{ch.emoji || '💬'}</div>
-              <div className="channel-info">
-                <div className="channel-name">{ch.displayName || ch.name}</div>
-                {summary && <div className="channel-participants">{summary}</div>}
+            <div key={ch.name} className="channel-block">
+              <div
+                className={`channel-row${active ? ' active' : ''}`}
+                onClick={() => onJoin(ch)}
+                onContextMenu={e => handleChannelContextMenu(e, ch.name)}
+              >
+                <div className="channel-emoji-wrap emoji">{ch.emoji || '💬'}</div>
+                <div className="channel-info">
+                  <div className="channel-name">{ch.displayName || ch.name}</div>
+                </div>
+                {count > 0 && <span className="participant-badge">{count}</span>}
               </div>
-              {count > 0 && <span className="participant-badge">{count}</span>}
+              {names.length > 0 && (
+                <div className="participant-list">
+                  {names.map(n => (
+                    <div key={n} className="participant-row" title={n}>
+                      <span className="participant-dot" />
+                      <span className="participant-name">{n}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -132,8 +138,13 @@ export default function Sidebar({ channels, rooms, activeRoom, email, onJoin, on
       )}
 
       <div className="sidebar-footer" onClick={() => setFooterMenuOpen(o => !o)}>
-        <div className="avatar">{initial}</div>
-        <span className="footer-email">{email || 'Account'}</span>
+        <div className="avatar emoji">{avatarEmoji || '🙂'}</div>
+        <div className="footer-identity">
+          <span className="footer-name">{footerLabel}</span>
+          {displayName && email && displayName !== email && (
+            <span className="footer-sub">{email}</span>
+          )}
+        </div>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ color: 'var(--text-muted)', flexShrink: 0 }}>
           <path d="M2 6.5L5 3.5L8 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>

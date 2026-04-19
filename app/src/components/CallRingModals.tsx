@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { IncomingCall, OutgoingCall } from '../calling';
+import { formatUser } from '../format';
 
 interface IncomingProps {
   call:    IncomingCall;
@@ -38,10 +39,14 @@ export function IncomingCallModal({ call, onAccept, onDecline }: IncomingProps) 
 
   return (
     <div className="modal-backdrop" style={{ zIndex: 9999 }}>
-      <div className="modal" style={{ maxWidth: 360, textAlign: 'center' }}>
-        <div className="modal-body" style={{ padding: '32px 24px' }}>
+      <div className="modal-box call-ring-modal">
+        <div className="modal-body" style={{ padding: '32px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>Incoming call</div>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 24 }}>{call.from}</div>
+          <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 4 }}>{formatUser(call.from, call.fromDisplayName)}</div>
+          {call.fromDisplayName && call.from !== call.fromDisplayName && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 24 }}>{call.from}</div>
+          )}
+          {!call.fromDisplayName && <div style={{ marginBottom: 20 }} />}
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
             <button
               className="btn"
@@ -72,10 +77,10 @@ interface OutgoingProps {
 export function OutgoingCallModal({ call, onCancel }: OutgoingProps) {
   return (
     <div className="modal-backdrop" style={{ zIndex: 9998 }}>
-      <div className="modal" style={{ maxWidth: 360, textAlign: 'center' }}>
-        <div className="modal-body" style={{ padding: '32px 24px' }}>
+      <div className="modal-box call-ring-modal">
+        <div className="modal-body" style={{ padding: '32px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>Calling…</div>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 24 }}>{call.to}</div>
+          <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 24 }}>{formatUser(call.to)}</div>
           <div className="spinner" style={{ margin: '0 auto 24px' }} />
           <button className="btn" onClick={onCancel} style={{ background: '#ef5350', color: '#fff', minWidth: 140 }}>
             Cancel

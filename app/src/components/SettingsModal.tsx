@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Settings, Channel } from '../types';
+import EmojiPicker from './EmojiPicker';
 import pkg from '../../package.json';
 
 interface Props {
@@ -15,9 +16,13 @@ type PermState = 'unknown' | 'granted' | 'denied' | 'prompt';
 export default function SettingsModal({ settings, onSave, onClose, initialTab }: Props) {
   const [tab,           setTab]           = useState<Tab>(initialTab ?? 'profile');
   const [displayName,   setDisplayName]   = useState(settings.displayName);
+  const [avatarEmoji,   setAvatarEmoji]   = useState(settings.avatarEmoji || '🙂');
   const [serverUrl,     setServerUrl]     = useState(settings.serverUrl);
   const [channels,      setChannels]      = useState<Channel[]>([...settings.channels]);
   const [autoJoin,      setAutoJoin]      = useState(settings.autoJoinChannel);
+  const [editingName,   setEditingName]   = useState<string | null>(null);
+  const [editLabel,     setEditLabel]     = useState('');
+  const [editEmoji,     setEditEmoji]     = useState('💬');
   const [newName,       setNewName]       = useState('');
   const [newLabel,      setNewLabel]      = useState('');
   const [newEmoji,      setNewEmoji]      = useState('💬');
@@ -94,8 +99,26 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
     if (autoJoin === name) setAutoJoin('');
   }
 
+  function startEditChannel(ch: Channel) {
+    setEditingName(ch.name);
+    setEditLabel(ch.displayName);
+    setEditEmoji(ch.emoji || '💬');
+  }
+
+  function saveEditChannel() {
+    if (!editingName) return;
+    setChannels(prev => prev.map(c =>
+      c.name === editingName
+        ? { ...c, displayName: editLabel.trim() || c.name, emoji: editEmoji || '💬' }
+        : c,
+    ));
+    setEditingName(null);
+  }
+
+  function cancelEditChannel() { setEditingName(null); }
+
   function save() {
-    onSave({ ...settings, displayName: displayName.trim(), serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin, preferredMicDeviceId: prefMic, preferredCamDeviceId: prefCam, preferredSpeakerDeviceId: prefSpeaker, autoOpenChatUrls: autoOpenUrls });
+    onSave({ ...settings, displayName: displayName.trim(), avatarEmoji, serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin, preferredMicDeviceId: prefMic, preferredCamDeviceId: prefCam, preferredSpeakerDeviceId: prefSpeaker, autoOpenChatUrls: autoOpenUrls });
     onClose();
   }
 
@@ -129,6 +152,15 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
                   placeholder="Your name shown to others in calls" />
               </div>
               <div className="form-field">
+                <label>Avatar emoji</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <EmojiPicker value={avatarEmoji} onChange={setAvatarEmoji} size="md" />
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    Shown next to your name in participant lists and call tiles.
+                  </span>
+                </div>
+              </div>
+              <div className="form-field">
                 <label>Server URL</label>
                 <input value={serverUrl} onChange={e => setServerUrl(e.target.value)}
                   placeholder="https://meet.russellpreece.com" />
@@ -151,16 +183,39 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
                 {channels.length === 0 && (
                   <p style={{ color: 'var(--text-muted)', fontSize: 13, padding: '8px 0' }}>No channels. Add one below.</p>
                 )}
-                {channels.map(ch => (
-                  <div key={ch.name} className="channel-settings-row">
-                    <span style={{ fontSize: 18, width: 28, textAlign: 'center', flexShrink: 0 }}>{ch.emoji}</span>
-                    <span style={{ flex: 1, fontSize: 13 }}>
-                      {ch.displayName}
-                      <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 6 }}>#{ch.name}</span>
-                    </span>
-                    <button className="ch-delete" onClick={() => removeChannel(ch.name)} title="Remove">✕</button>
-                  </div>
-                ))}
+                {channels.map(ch => {
+                  if (editingName === ch.name) {
+                    return (
+                      <div key={ch.name} className="channel-settings-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                        <EmojiPicker value={editEmoji} onChange={setEditEmoji} size="sm" />
+                        <input
+                          value={editLabel}
+                          onChange={e => setEditLabel(e.target.value)}
+                          placeholder={ch.name}
+                          style={{ flex: 1, minWidth: 120 }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') saveEditChannel();
+                            if (e.key === 'Escape') cancelEditChannel();
+                          }}
+                        />
+                        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>#{ch.name}</span>
+                        <button className="btn-secondary" onClick={saveEditChannel} style={{ padding: '4px 10px', fontSize: 12 }}>Save</button>
+                        <button className="btn-secondary" onClick={cancelEditChannel} style={{ padding: '4px 10px', fontSize: 12 }}>Cancel</button>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={ch.name} className="channel-settings-row">
+                      <span className="emoji" style={{ fontSize: 18, width: 28, textAlign: 'center', flexShrink: 0 }}>{ch.emoji}</span>
+                      <span style={{ flex: 1, fontSize: 13 }}>
+                        {ch.displayName}
+                        <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 6 }}>#{ch.name}</span>
+                      </span>
+                      <button className="ch-delete" onClick={() => startEditChannel(ch)} title="Edit" style={{ color: 'var(--text-muted)' }}>✏</button>
+                      <button className="ch-delete" onClick={() => removeChannel(ch.name)} title="Remove">✕</button>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="channel-add-form">
@@ -169,19 +224,18 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
                   <input value={newName} onChange={e => setNewName(e.target.value)}
                     placeholder="my-room" onKeyDown={e => e.key === 'Enter' && addChannel()} />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 64px', gap: 8 }}>
-                  <div className="form-field">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
+                  <div className="form-field" style={{ marginBottom: 0 }}>
                     <label>Display label</label>
                     <input value={newLabel} onChange={e => setNewLabel(e.target.value)}
                       placeholder="My Room" onKeyDown={e => e.key === 'Enter' && addChannel()} />
                   </div>
-                  <div className="form-field">
+                  <div className="form-field" style={{ marginBottom: 0 }}>
                     <label>Emoji</label>
-                    <input value={newEmoji} onChange={e => setNewEmoji(e.target.value)}
-                      style={{ textAlign: 'center', fontSize: 18, padding: '6px 4px' }} maxLength={2} />
+                    <EmojiPicker value={newEmoji} onChange={setNewEmoji} size="sm" />
                   </div>
                 </div>
-                <button className="btn-secondary" onClick={addChannel} disabled={!newName.trim()}>
+                <button className="btn-secondary" onClick={addChannel} disabled={!newName.trim()} style={{ marginTop: 12 }}>
                   + Add channel
                 </button>
               </div>

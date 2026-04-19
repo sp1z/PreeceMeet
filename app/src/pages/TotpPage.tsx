@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import type { TotpState, Session } from '../types';
 import { saveSession } from '../settings';
-import { verifyTotp } from '../api';
+import { getMe, verifyTotp } from '../api';
 
 interface Props {
   totpState: TotpState;
@@ -24,8 +24,15 @@ export default function TotpPage({ totpState, serverUrl, onDone, onBack }: Props
     setLoading(true);
     try {
       const result = await verifyTotp(serverUrl, totpState.tempToken, code.replace(/\s/g, ''));
+      // verifyTotp doesn't return the email; fetch it from /api/auth/me so the
+      // session carries the signed-in identity (used in sidebar, logs, etc.).
+      let email = '';
+      try {
+        const me = await getMe(serverUrl, result.sessionToken);
+        email = me.email;
+      } catch { /* fall back to empty — user can still call, just shows blank */ }
       const session: Session = {
-        email:        '',   // we don't get email back from the API directly
+        email,
         sessionToken: result.sessionToken,
         serverUrl,
         isAdmin:      result.isAdmin ?? false,

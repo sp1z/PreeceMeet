@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '../types';
 import { getUsers, ContactUser, UnauthorizedError } from '../api';
+import { formatUser } from '../format';
 
 interface Props {
   session:    Session;
@@ -47,7 +48,7 @@ export default function ContactsModal({ session, online, inCall, onCall, onClose
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, width: '90vw' }}>
+      <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 460, width: '90vw' }}>
         <div className="modal-header">
           <h2>Contacts</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
@@ -68,7 +69,12 @@ export default function ContactsModal({ session, online, inCall, onCall, onClose
                 background: u.online ? '#34d399' : 'var(--border)',
                 flexShrink: 0,
               }} />
-              <span style={{ flex: 1, fontSize: 14 }}>{u.email}</span>
+              <span style={{ flex: 1, fontSize: 14, display: 'flex', flexDirection: 'column' }}>
+                <span>{formatUser(u.email)}</span>
+                {formatUser(u.email) !== u.email && (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{u.email}</span>
+                )}
+              </span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 50 }}>
                 {u.online ? 'online' : 'offline'}
               </span>

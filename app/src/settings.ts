@@ -7,6 +7,7 @@ const defaults: Settings = {
   serverUrl: 'https://meet.russellpreece.com',
   savedEmail: '',
   displayName: '',
+  avatarEmoji: '🙂',
   rememberMe: false,
   channels: [{ name: 'preecemeet', displayName: 'General', emoji: '💬' }],
   autoJoinChannel: '',

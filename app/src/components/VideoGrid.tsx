@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTracks, ParticipantTile, useRoomContext } from '@livekit/components-react';
-import { Track, RemoteTrackPublication } from 'livekit-client';
+import { Track, RemoteTrackPublication, RoomEvent } from 'livekit-client';
+import { createLogger } from '../logger';
 
 const TILE_ORDER_KEY = 'preecemeet_tile_order';
 const TILE_SCALE_KEY = 'preecemeet_tile_scale';
+
+const MODERATION_TOPIC = 'moderation';
+const vgLog = createLogger('videogrid');
 
 export type GameSize = 'small' | 'medium' | 'large';
 export type TileScale = 'cover' | 'contain';
@@ -112,6 +116,36 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   const [contextMenu, setContextMenu] = useState<{ sid: string; tileKey: string; source: string; x: number; y: number } | null>(null);
   const [dragSid, setDragSid] = useState<string | null>(null);
   const [dragOverSid, setDragOverSid] = useState<string | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const [muteRequestToast, setMuteRequestToast] = useState<string | null>(null);
+
+  // Listen for "please mute" data messages from other clients. When one
+  // arrives, mute our microphone locally (honouring the soft moderation
+  // request) and surface a toast so the user knows who asked. The initiator
+  // gets their own echo filtered out by the participant.isLocal check.
+  useEffect(() => {
+    const handler = (payload: Uint8Array, participant: { identity?: string; name?: string; isLocal?: boolean } | undefined, _kind: unknown, topic?: string) => {
+      if (topic !== MODERATION_TOPIC || participant?.isLocal) return;
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(payload));
+        if (msg?.type !== 'please-mute-mic') return;
+        const asker = msg.fromName || participant?.name || participant?.identity || 'someone';
+        void room.localParticipant.setMicrophoneEnabled(false);
+        vgLog.info('honoring remote mute request', { from: asker });
+        setMuteRequestToast(`${asker} muted you.`);
+        setTimeout(() => setMuteRequestToast(null), 4000);
+      } catch { /* ignore */ }
+    };
+    room.on(RoomEvent.DataReceived, handler);
+    return () => { room.off(RoomEvent.DataReceived, handler); };
+  }, [room]);
+
+  // Clear the focus when the focused participant leaves / tile key changes.
+  useEffect(() => {
+    if (!focusKey) return;
+    const stillThere = tracks.some(t => `${t.participant.sid}-${t.source}` === focusKey);
+    if (!stillThere) setFocusKey(null);
+  }, [focusKey, tracks]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -153,6 +187,11 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   const count = renderedCount + (statsVisible && !gameMode ? 1 : 0);
   const cols = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
   const rows = Math.ceil(count / cols);
+
+  // Focus mode is a separate layout, not a grid variant: one big primary tile
+  // on top, everything else as a horizontal thumbnail strip underneath. Game
+  // mode overrides focus (game-mode is a mutually-exclusive layout).
+  const focusActive = !gameMode && !!focusKey && visibleTracks.some(t => `${t.participant.sid}-${t.source}` === focusKey);
 
   function handleDragStart(sid: string) { setDragSid(sid); }
 
@@ -223,6 +262,33 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
     setContextMenu(null);
   }
 
+  function handleFocus(tileKey: string) {
+    setFocusKey(prev => prev === tileKey ? null : tileKey);
+    vgLog.info('focus toggled', { tileKey });
+    setContextMenu(null);
+  }
+
+  // Send a "please-mute" data message to a specific participant. Receivers
+  // mute themselves (soft moderation — not enforced by LiveKit, but works
+  // fine for a trusted group meeting app).
+  function handleMuteForAll(sid: string) {
+    const target = [...room.remoteParticipants.values()].find(p => p.sid === sid);
+    if (!target) { setContextMenu(null); return; }
+    const msg = {
+      type:     'please-mute-mic',
+      fromName: room.localParticipant.name || room.localParticipant.identity,
+      targetSid: sid,
+    };
+    const bytes = new TextEncoder().encode(JSON.stringify(msg));
+    void room.localParticipant.publishData(bytes, {
+      reliable:          true,
+      topic:             MODERATION_TOPIC,
+      destinationIdentities: [target.identity],
+    });
+    vgLog.info('sent mute-for-all', { target: target.identity });
+    setContextMenu(null);
+  }
+
   function setTileScale(tileKey: string, scale: TileScale | null) {
     setScaleOverrides(prev => {
       const next = { ...prev };
@@ -242,8 +308,61 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   const tileH = GAME_SIZES[gameSize];
   const tileW = Math.round((tileH * 16) / 9);
 
+  // Reusable tile renderer — used in both grid and focus layouts, and for
+  // thumbnails. `variant` distinguishes the focused-big tile from the strip.
+  function renderTile(track: typeof visibleTracks[number], variant: 'grid' | 'focus-main' | 'focus-thumb') {
+    const tileSid = `${track.participant.sid}-${track.source}`;
+    const isLocalCamera = track.participant.isLocal && track.source === Track.Source.Camera;
+    const isMuted = locallyMuted.has(track.participant.sid);
+    const isDragOver = dragOverSid === tileSid;
+    const scale = scaleOverrides[tileSid];
+    const hiddenInGame = isHiddenInGame(track);
+
+    return (
+      <div
+        key={tileSid}
+        className={[
+          'tile-wrapper',
+          variant === 'focus-main'  ? 'focus-main-tile' : '',
+          variant === 'focus-thumb' ? 'focus-thumb-tile' : '',
+          isLocalCamera ? 'local-camera-tile' : '',
+          isDragOver ? 'drag-over' : '',
+          scale ? `scale-${scale}` : '',
+          hiddenInGame ? 'game-hidden' : '',
+        ].filter(Boolean).join(' ')}
+        draggable={variant !== 'focus-main'}
+        onDragStart={() => handleDragStart(tileSid)}
+        onDragOver={e => handleDragOver(e, tileSid)}
+        onDrop={() => handleDrop(tileSid)}
+        onDragEnd={handleDragEnd}
+        onContextMenu={e => handleContextMenu(e, track.participant.sid, tileSid, String(track.source))}
+        onDoubleClick={() => !gameMode && handleFocus(tileSid)}
+      >
+        <ParticipantTile trackRef={track} />
+        {isMuted && (
+          <div className="tile-muted-badge">🔇 muted locally</div>
+        )}
+      </div>
+    );
+  }
+
+  const focusedTrack = focusActive ? visibleTracks.find(t => `${t.participant.sid}-${t.source}` === focusKey) : null;
+  const thumbTracks  = focusActive ? visibleTracks.filter(t => `${t.participant.sid}-${t.source}` !== focusKey) : [];
+
   return (
     <>
+      {focusActive && focusedTrack ? (
+        <div className="video-focus-layout">
+          <div className="focus-main">
+            {renderTile(focusedTrack, 'focus-main')}
+          </div>
+          {thumbTracks.length > 0 && (
+            <div className="focus-strip">
+              {thumbTracks.map(t => renderTile(t, 'focus-thumb'))}
+            </div>
+          )}
+        </div>
+      ) : (
       <div
         className={`video-grid${gameMode ? ' game-mode-grid' : ''}`}
         style={!gameMode ? {
@@ -251,41 +370,15 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
           gridTemplateRows:    `repeat(${rows}, 1fr)`,
         } : { ['--game-tile-h' as never]: `${tileH}px`, ['--game-tile-w' as never]: `${tileW}px` }}
       >
-        {visibleTracks.map(track => {
-          const tileSid = `${track.participant.sid}-${track.source}`;
-          const isLocalCamera = track.participant.isLocal && track.source === Track.Source.Camera;
-          const isMuted = locallyMuted.has(track.participant.sid);
-          const isDragOver = dragOverSid === tileSid;
-          const scale = scaleOverrides[tileSid];
-          const hiddenInGame = isHiddenInGame(track);
-
-          return (
-            <div
-              key={tileSid}
-              className={[
-                'tile-wrapper',
-                isLocalCamera ? 'local-camera-tile' : '',
-                isDragOver ? 'drag-over' : '',
-                scale ? `scale-${scale}` : '',
-                hiddenInGame ? 'game-hidden' : '',
-              ].filter(Boolean).join(' ')}
-              draggable
-              onDragStart={() => handleDragStart(tileSid)}
-              onDragOver={e => handleDragOver(e, tileSid)}
-              onDrop={() => handleDrop(tileSid)}
-              onDragEnd={handleDragEnd}
-              onContextMenu={e => handleContextMenu(e, track.participant.sid, tileSid, String(track.source))}
-            >
-              <ParticipantTile trackRef={track} />
-              {isMuted && (
-                <div className="tile-muted-badge">🔇 muted locally</div>
-              )}
-            </div>
-          );
-        })}
+        {visibleTracks.map(track => renderTile(track, 'grid'))}
 
         {statsVisible && !gameMode && <StatsTile />}
       </div>
+      )}
+
+      {muteRequestToast && (
+        <div className="toast-notice">{muteRequestToast}</div>
+      )}
 
       {contextMenu && (() => {
         const isScreen = contextMenu.source === Track.Source.ScreenShare;
@@ -296,10 +389,20 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
             style={{ left: contextMenu.x, top: contextMenu.y }}
             onClick={e => e.stopPropagation()}
           >
-            {contextMenuParticipant && !contextMenuParticipant.isLocal && !isScreen && (
-              <button onClick={() => handleMuteLocally(contextMenu.sid)}>
-                {locallyMuted.has(contextMenu.sid) ? '🔊 Unmute for me' : '🔇 Mute for me'}
+            {!gameMode && (
+              <button onClick={() => handleFocus(contextMenu.tileKey)}>
+                {focusKey === contextMenu.tileKey ? '⊟ Exit focus' : '⊞ Focus this tile'}
               </button>
+            )}
+            {contextMenuParticipant && !contextMenuParticipant.isLocal && !isScreen && (
+              <>
+                <button onClick={() => handleMuteLocally(contextMenu.sid)}>
+                  {locallyMuted.has(contextMenu.sid) ? '🔊 Unmute for me' : '🔇 Mute for me'}
+                </button>
+                <button onClick={() => handleMuteForAll(contextMenu.sid)}>
+                  🛑 Mute for all
+                </button>
+              </>
             )}
             {!gameMode && (
               <button onClick={() => handlePinToTop(contextMenu.sid)}>

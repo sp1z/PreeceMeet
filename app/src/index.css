@@ -1,3 +1,8 @@
+/* Noto Color Emoji — ensures emojis render in color on Linux/Mint where the
+   system may not ship a color emoji font. Loaded from Google Fonts; cached
+   after first run. Falls back to the OS emoji stack if offline. */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -18,12 +23,26 @@
 
 html, body, #root {
   height: 100%;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /* Trailing emoji families pick up color emoji on every OS without forcing
+     it for plain text. Order: macOS native, Windows native, Linux Noto
+     (system package), Noto via Google Fonts (bundled), Twemoji fallback. */
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif,
+               'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+               'Noto Color Emoji', 'Twemoji Mozilla';
   background: var(--bg-main);
   color: var(--text-primary);
   font-size: 14px;
   user-select: none;
   overflow: hidden;
+}
+
+/* Utility: anywhere we render an emoji that must be color on every platform. */
+.emoji {
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+               'Noto Color Emoji', 'Twemoji Mozilla', sans-serif;
+  font-style: normal;
+  font-weight: normal;
+  line-height: 1;
 }
 
 button {
@@ -283,6 +302,56 @@ input::placeholder { color: var(--text-muted); }
   text-overflow: ellipsis;
   margin-top: 2px;
 }
+.channel-block { display: flex; flex-direction: column; }
+.participant-list {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 8px 4px 44px;  /* indent under the channel emoji */
+}
+.participant-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  min-height: 22px;
+}
+.participant-row:hover { background: var(--bg-sidebar-hover); }
+.participant-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--online-dot);
+  flex-shrink: 0;
+}
+.participant-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.footer-identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.footer-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.footer-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .participant-badge {
   background: #3a3a5c;
   border-radius: 10px;
@@ -449,6 +518,63 @@ input::placeholder { color: var(--text-muted); }
   z-index: 5;
 }
 
+/* Focus mode: one big primary tile + a horizontal thumbnail strip. */
+.video-focus-layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 4px;
+  padding: 4px;
+}
+.focus-main {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.focus-main-tile {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.focus-strip {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  height: 120px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.focus-strip::-webkit-scrollbar { height: 4px; }
+.focus-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.focus-thumb-tile {
+  flex: 0 0 auto;
+  width: calc(120px * 16 / 9);
+  height: 100%;
+  border-radius: 8px;
+  position: relative;
+  cursor: pointer;
+}
+
+/* Transient toast — e.g. "X muted you." */
+.toast-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 90px;
+  transform: translateX(-50%);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 5000;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  pointer-events: none;
+}
+
 /* Context menu */
 .tile-context-menu {
   position: fixed;
@@ -607,6 +733,8 @@ input::placeholder { color: var(--text-muted); }
   align-items: center;
   justify-content: center;
   gap: 16px;
+  /* Vertical padding so hover-scale (1.05) doesn't clip against bar edges. */
+  padding: 6px 0;
   border-top: 1px solid var(--border);
 }
 .control-btn {
@@ -777,6 +905,69 @@ input::placeholder { color: var(--text-muted); }
   display: block !important;
 }
 
+/* ── Emoji picker ───────────────────────────────────────────────────────── */
+.emoji-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.15s;
+}
+.emoji-picker-trigger:hover { border-color: var(--accent); }
+.emoji-picker-sm { width: 32px; height: 32px; font-size: 18px; }
+.emoji-picker-md { width: 44px; height: 44px; font-size: 22px; }
+.emoji-picker-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 500;
+  width: 260px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  overflow: hidden;
+}
+.emoji-picker-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.emoji-picker-tab {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.emoji-picker-tab:hover { background: var(--bg-sidebar-hover); color: var(--text-primary); }
+.emoji-picker-tab.active { background: var(--accent); color: #fff; }
+.emoji-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+  padding: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.emoji-picker-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+.emoji-picker-cell:hover { background: var(--bg-sidebar-hover); }
+.emoji-picker-cell.active { background: var(--accent); }
+
 /* ── Screen-share picker ─────────────────────────────────────────────────── */
 .share-picker {
   background: var(--bg-card);
@@ -915,6 +1106,10 @@ input::placeholder { color: var(--text-muted); }
   flex-direction: column;
   box-shadow: 0 12px 48px rgba(0,0,0,0.6);
   overflow: hidden;
+}
+/* Ring modal is a narrower variant reusing modal-box background/border. */
+.call-ring-modal {
+  width: 360px;
 }
 .modal-header {
   display: flex;

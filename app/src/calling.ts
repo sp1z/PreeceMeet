@@ -9,9 +9,10 @@ import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } fro
 import type { Session } from './types';
 
 export interface IncomingCall {
-  callId:   string;
-  from:     string;
-  roomName: string;
+  callId:          string;
+  from:            string;
+  fromDisplayName?: string;
+  roomName:        string;
 }
 
 export interface OutgoingCall {
@@ -35,7 +36,7 @@ interface DirectCalling {
   online:    Set<string>;
   incoming:  IncomingCall  | null;
   outgoing:  OutgoingCall  | null;
-  call:      (toEmail: string) => Promise<{ ok: boolean; error?: string }>;
+  call:      (toEmail: string, fromDisplayName?: string) => Promise<{ ok: boolean; error?: string }>;
   accept:    () => Promise<void>;
   decline:   () => Promise<void>;
   cancel:    () => Promise<void>;
@@ -104,13 +105,15 @@ export function useDirectCalling(session: Session): DirectCalling {
     };
   }, [session.serverUrl, session.sessionToken]);
 
-  const call = useCallback(async (toEmail: string) => {
+  const call = useCallback(async (toEmail: string, fromDisplayName?: string) => {
     const conn = connRef.current;
     if (!conn || conn.state !== HubConnectionState.Connected) {
       return { ok: false, error: 'Not connected to call server' };
     }
     try {
-      const result = await conn.invoke<{ ok: boolean; callId?: string; roomName?: string; error?: string }>('Call', toEmail);
+      const result = await conn.invoke<{ ok: boolean; callId?: string; roomName?: string; error?: string }>(
+        'Call', toEmail, fromDisplayName ?? null,
+      );
       if (result.ok && result.callId && result.roomName) {
         setOutgoing({ callId: result.callId, to: toEmail, roomName: result.roomName });
         return { ok: true };

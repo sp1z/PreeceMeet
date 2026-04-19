@@ -189,17 +189,30 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   }, [onSettingsChange]);
 
   async function toggleFullscreen() {
-    try {
-      if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
-      } else {
-        await document.exitFullscreen();
-      }
-    } catch {
+    // Prefer the Electron BrowserWindow fullscreen path: document.requestFullscreen
+    // doesn't play well with frameless + always-on-top windows (what Game Mode
+    // leaves behind) and silently no-ops on some Linux WMs. setFullScreen on
+    // the BrowserWindow always works.
+    if (platform !== 'browser') {
       try {
         const now = await windowCtl.toggleFullscreen();
         setIsFullscreen(now);
-      } catch { /* ignore */ }
+        uiLog.info('fullscreen toggled (window)', { fullscreen: now });
+        return;
+      } catch (err) {
+        uiLog.warn('windowCtl.toggleFullscreen failed, falling back to document API', err);
+      }
+    }
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        uiLog.info('fullscreen toggled (document) → on');
+      } else {
+        await document.exitFullscreen();
+        uiLog.info('fullscreen toggled (document) → off');
+      }
+    } catch (err) {
+      uiLog.error('fullscreen toggle failed', err);
     }
   }
 
@@ -514,6 +527,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
             rooms={rooms}
             activeRoom={activeRoomName}
             email={session.email || ''}
+            displayName={settings.displayName || ''}
+            avatarEmoji={settings.avatarEmoji || '🙂'}
             onJoin={joinChannel}
             onSettings={() => openSettingsAt('profile')}
             onSignOut={handleSignOut}
@@ -652,7 +667,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           session={session}
           online={calling.online}
           inCall={!!connection}
-          onCall={calling.call}
+          onCall={email => calling.call(email, settings.displayName || undefined)}
           onClose={() => setContactsOpen(false)}
           onSignOut={handleSignOut}
         />

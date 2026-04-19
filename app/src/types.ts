@@ -8,6 +8,8 @@ export interface Settings {
   serverUrl: string;
   savedEmail: string;
   displayName: string;
+  /** Emoji shown as the user's avatar in participant lists + tile overlays. */
+  avatarEmoji: string;
   rememberMe: boolean;
   channels: Channel[];
   autoJoinChannel: string;
@@ -17,6 +19,11 @@ export interface Settings {
   preferredSpeakerDeviceId: string;
   sidebarWidth?: number;
   autoOpenChatUrls: boolean;
+}
+
+/** Shape of the participant metadata JSON we publish via LiveKit. */
+export interface ParticipantMeta {
+  avatarEmoji?: string;
 }
 
 export interface ChatMessage {
