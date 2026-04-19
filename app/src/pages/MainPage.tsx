@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useRoomContext, useTracks } from '@livekit/components-react';
-import { Track, RoomEvent } from 'livekit-client';
+import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel, ChatMessage } from '../types';
 import { saveSettings, clearSession } from '../settings';
-import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl, displayShare, getPlatform, type DisplayShareSource, type Platform } from '../runtime';
+import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl, displayShare, diagnostics, getPlatform, type DisplayShareSource, type Platform } from '../runtime';
 import { getRooms, getRoomToken, UnauthorizedError } from '../api';
+import { createLogger } from '../logger';
+import { startLogUploader, stopLogUploader } from '../logUploader';
 import Sidebar from '../components/Sidebar';
 import VideoGrid, { GAME_SIZES, type GameSize } from '../components/VideoGrid';
 import CallControls from '../components/CallControls';
@@ -20,6 +22,12 @@ import { useDirectCalling } from '../calling';
 const CHAT_URL_RE = /\bhttps?:\/\/[^\s<>"]+/gi;
 const CHAT_TOPIC = 'chat';
 const ROOMS_POLL_MS = 2000;
+
+const uiLog     = createLogger('ui');
+const callLog   = createLogger('call');
+const deviceLog = createLogger('device');
+const shareLog  = createLogger('share');
+const gameLog   = createLogger('game');
 
 interface Props {
   session:          Session;
@@ -76,7 +84,35 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     void getPlatform().then(p => {
       setPlatform(p);
       document.documentElement.classList.add(p);
+      uiLog.info('platform detected', { platform: p, userAgent: navigator.userAgent });
     });
+  }, []);
+
+  // Start the log uploader so diagnostics make it to the server automatically.
+  useEffect(() => {
+    startLogUploader(session.serverUrl, session.sessionToken);
+    uiLog.info('session started', { email: session.email, isAdmin: session.isAdmin, serverUrl: session.serverUrl });
+    return () => { stopLogUploader(); };
+  }, [session.serverUrl, session.sessionToken, session.email, session.isAdmin]);
+
+  // Log + refresh on device change so hot-plugged cameras/mics appear without
+  // a restart. Fires inside VirtualBox passthrough scenarios too.
+  useEffect(() => {
+    async function enumerate(reason: string) {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cams    = devices.filter(d => d.kind === 'videoinput').map(d => ({ id: d.deviceId, label: d.label }));
+        const mics    = devices.filter(d => d.kind === 'audioinput').map(d => ({ id: d.deviceId, label: d.label }));
+        const spks    = devices.filter(d => d.kind === 'audiooutput').map(d => ({ id: d.deviceId, label: d.label }));
+        deviceLog.info(`enumerate (${reason})`, { cameras: cams, microphones: mics, speakers: spks });
+      } catch (err) {
+        deviceLog.error(`enumerate failed (${reason})`, err);
+      }
+    }
+    void enumerate('startup');
+    const handler = () => { void enumerate('devicechange'); };
+    navigator.mediaDevices?.addEventListener?.('devicechange', handler);
+    return () => { navigator.mediaDevices?.removeEventListener?.('devicechange', handler); };
   }, []);
 
   useEffect(() => {
@@ -174,6 +210,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
 
   async function joinChannel(channel: Channel) {
     if (connection?.roomName === channel.name) return;
+    callLog.info('join channel', { channel: channel.name });
     setError('');
     setConnectState('connecting');
     setConnection(null);
@@ -192,12 +229,14 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       setRemoteSharing(false);
       setChatMessages([]);
       setChatUnread(0);
+      callLog.info('got room token', { channel: channel.name, livekitUrl: result.livekitUrl });
       // Refresh participant counts immediately rather than waiting for the
       // next poll tick — gives an instant sidebar update for the joiner.
       void pollRooms();
     } catch (err) {
       if (err instanceof UnauthorizedError) { clearSession(); onSignOut(); return; }
       setConnectState('idle');
+      callLog.error('join failed', err);
       setError(err instanceof Error ? err.message : 'Could not join room.');
     }
   }
@@ -213,8 +252,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     void pollRooms();
   }
 
-  function handleHangup()       { resetCallState(); }
-  function handleDisconnected() { resetCallState(); }
+  function handleHangup()       { callLog.info('user hangup'); resetCallState(); }
+  function handleDisconnected() { callLog.info('livekit disconnected'); resetCallState(); }
 
   useEffect(() => {
     return calling.onAccepted(({ roomName, livekitToken, livekitUrl }) => {
@@ -284,33 +323,46 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   // so toggling Game Mode while sharing doesn't re-fire getDisplayMedia.
 
   async function enterGameMode() {
-    try { await windowCtl.saveBounds(); } catch { /* ignore */ }
-    try { await windowCtl.setAlwaysOnTop(true); } catch { /* ignore */ }
-    try { await windowCtl.setResizable(false); } catch { /* ignore */ }
+    gameLog.info('enter game mode', { gameSize, showSelf });
+    try { await windowCtl.saveBounds(); } catch (e) { gameLog.warn('saveBounds failed', e); }
+    try { await windowCtl.setAlwaysOnTop(true); } catch (e) { gameLog.warn('setAlwaysOnTop failed', e); }
+    try { await windowCtl.setResizable(false); } catch (e) { gameLog.warn('setResizable failed', e); }
     try { await windowCtl.setWindowButtonVisibility(false); } catch { /* mac only */ }
     setGameMode(true);
   }
 
   async function exitGameMode() {
+    gameLog.info('exit game mode');
     setGameMode(false);
-    try { await windowCtl.setAlwaysOnTop(false); } catch { /* ignore */ }
-    try { await windowCtl.setResizable(true); }   catch { /* ignore */ }
+    try { await windowCtl.setAlwaysOnTop(false); } catch (e) { gameLog.warn('setAlwaysOnTop(false) failed', e); }
+    try { await windowCtl.setResizable(true); }   catch (e) { gameLog.warn('setResizable(true) failed', e); }
     try { await windowCtl.setWindowButtonVisibility(true); } catch { /* mac only */ }
-    try { await windowCtl.restoreBounds(); }      catch { /* ignore */ }
+    try { await windowCtl.restoreBounds(); }      catch (e) { gameLog.warn('restoreBounds failed', e); }
   }
 
   // ── Screen-share picker ───────────────────────────────────────────────────
   useEffect(() => {
-    const off = displayShare.onRequest(sources => setShareSources(sources));
+    const off = displayShare.onRequest(sources => {
+      shareLog.info('picker request', {
+        count:   sources.length,
+        screens: sources.filter(s => s.isScreen).length,
+        windows: sources.filter(s => !s.isScreen).length,
+        names:   sources.map(s => s.name),
+      });
+      setShareSources(sources);
+    });
     return off;
   }, []);
 
   function handleSharePick(sourceId: string) {
+    const picked = shareSources?.find(s => s.id === sourceId);
+    shareLog.info('picker pick', { sourceId, name: picked?.name, isScreen: picked?.isScreen });
     setShareSources(null);
     void displayShare.choose(sourceId);
   }
 
   function handleShareCancel() {
+    shareLog.info('picker cancel');
     setShareSources(null);
     void displayShare.cancel();
     setScreenSharing(false);
@@ -430,6 +482,20 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               )}
             </button>
           )}
+          <button
+            className="icon-btn nodrag"
+            onClick={() => void diagnostics.openLogFolder()}
+            title="Open logs folder"
+          >
+            <LogIcon />
+          </button>
+          <button
+            className="icon-btn nodrag"
+            onClick={() => void diagnostics.toggleDevTools()}
+            title="Toggle DevTools (F12)"
+          >
+            <BugIcon />
+          </button>
           <button className="icon-btn nodrag" onClick={() => setSettingsOpen(true)} title="Settings">
             <SettingsIcon />
           </button>
@@ -502,10 +568,12 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               connect={true}
               audio={true}
               video={true}
+              onConnected={() => callLog.info('livekit connected', { room: connection.roomName })}
               onDisconnected={handleDisconnected}
-              onError={err => setError(err.message)}
+              onError={err => { callLog.error('livekit error', err); setError(err.message); }}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}
             >
+              <RoomEventLogger />
               <MediaController
                 micMuted={micMuted}
                 camMuted={camMuted}
@@ -689,6 +757,52 @@ function GameModeAutoSize({ gameSize, showSelf }: { gameSize: GameSize; showSelf
   return null;
 }
 
+// ── RoomEventLogger ───────────────────────────────────────────────────────────
+// Bridges LiveKit room events into our logger so the server sees connection
+// churn, track publish/unpublish, and participant join/leave without us
+// having to infer it from state shape.
+
+function RoomEventLogger() {
+  const room = useRoomContext();
+
+  useEffect(() => {
+    const onState = (state: ConnectionState) => callLog.info('connection state', { state });
+    const onJoin  = (p: { identity: string; name?: string; sid: string }) =>
+      callLog.info('participant connected', { identity: p.identity, name: p.name, sid: p.sid });
+    const onLeave = (p: { identity: string; sid: string }) =>
+      callLog.info('participant disconnected', { identity: p.identity, sid: p.sid });
+    const onLocalPub = (pub: { kind: string; source?: string }) =>
+      callLog.info('local track published', { kind: pub.kind, source: pub.source });
+    const onLocalUnpub = (pub: { kind: string; source?: string }) =>
+      callLog.info('local track unpublished', { kind: pub.kind, source: pub.source });
+    const onMediaErr = (err: unknown) => callLog.error('media device failure', err);
+    const onReconnecting = () => callLog.warn('livekit reconnecting');
+    const onReconnected  = () => callLog.info('livekit reconnected');
+
+    room.on(RoomEvent.ConnectionStateChanged,    onState);
+    room.on(RoomEvent.ParticipantConnected,      onJoin);
+    room.on(RoomEvent.ParticipantDisconnected,   onLeave);
+    room.on(RoomEvent.LocalTrackPublished,       onLocalPub);
+    room.on(RoomEvent.LocalTrackUnpublished,     onLocalUnpub);
+    room.on(RoomEvent.MediaDevicesError,         onMediaErr);
+    room.on(RoomEvent.Reconnecting,              onReconnecting);
+    room.on(RoomEvent.Reconnected,               onReconnected);
+
+    return () => {
+      room.off(RoomEvent.ConnectionStateChanged,    onState);
+      room.off(RoomEvent.ParticipantConnected,      onJoin);
+      room.off(RoomEvent.ParticipantDisconnected,   onLeave);
+      room.off(RoomEvent.LocalTrackPublished,       onLocalPub);
+      room.off(RoomEvent.LocalTrackUnpublished,     onLocalUnpub);
+      room.off(RoomEvent.MediaDevicesError,         onMediaErr);
+      room.off(RoomEvent.Reconnecting,              onReconnecting);
+      room.off(RoomEvent.Reconnected,               onReconnected);
+    };
+  }, [room]);
+
+  return null;
+}
+
 // ── MediaController ───────────────────────────────────────────────────────────
 
 interface MediaControllerProps {
@@ -738,12 +852,15 @@ function MediaController({
     if (!localParticipant) return;
     if (desiredShareRef.current === screenSharing) return;
     desiredShareRef.current = screenSharing;
+    shareLog.info('setScreenShareEnabled', { enable: screenSharing });
     localParticipant.setScreenShareEnabled(screenSharing).catch(err => {
       const msg = err instanceof Error ? err.message : String(err);
       if (/Permission denied|aborted|cancel|NotAllowedError/i.test(msg)) {
+        shareLog.info('screen share cancelled by user', { msg });
         desiredShareRef.current = false;
         onLocalShareEnded();
       } else {
+        shareLog.error('screen share failed', err);
         desiredShareRef.current = false;
         onShareError(msg);
       }
@@ -756,17 +873,34 @@ function MediaController({
         const devices = await navigator.mediaDevices.enumerateDevices();
         if (preferredMicDeviceId) {
           const ok = devices.some(d => d.kind === 'audioinput' && d.deviceId === preferredMicDeviceId);
-          if (ok) await room.switchActiveDevice('audioinput', preferredMicDeviceId);
+          if (ok) {
+            await room.switchActiveDevice('audioinput', preferredMicDeviceId);
+            deviceLog.info('switched microphone', { deviceId: preferredMicDeviceId });
+          } else {
+            deviceLog.warn('preferred microphone not available', { deviceId: preferredMicDeviceId });
+          }
         }
         if (preferredCamDeviceId) {
           const ok = devices.some(d => d.kind === 'videoinput' && d.deviceId === preferredCamDeviceId);
-          if (ok) await room.switchActiveDevice('videoinput', preferredCamDeviceId);
+          if (ok) {
+            await room.switchActiveDevice('videoinput', preferredCamDeviceId);
+            deviceLog.info('switched camera', { deviceId: preferredCamDeviceId });
+          } else {
+            deviceLog.warn('preferred camera not available', { deviceId: preferredCamDeviceId });
+          }
         }
         if (preferredSpeakerDeviceId) {
           const ok = devices.some(d => d.kind === 'audiooutput' && d.deviceId === preferredSpeakerDeviceId);
-          if (ok) await room.switchActiveDevice('audiooutput', preferredSpeakerDeviceId);
+          if (ok) {
+            await room.switchActiveDevice('audiooutput', preferredSpeakerDeviceId);
+            deviceLog.info('switched speaker', { deviceId: preferredSpeakerDeviceId });
+          } else {
+            deviceLog.warn('preferred speaker not available', { deviceId: preferredSpeakerDeviceId });
+          }
         }
-      } catch { /* falls back to default */ }
+      } catch (err) {
+        deviceLog.error('applyPreferredDevices failed', err);
+      }
     }
     void applyPreferredDevices();
   }, [preferredMicDeviceId, preferredCamDeviceId, preferredSpeakerDeviceId, room]);
@@ -777,12 +911,14 @@ function MediaController({
 
   useEffect(() => {
     if (!mounted.current) { mounted.current = true; return; }
-    localParticipant?.setMicrophoneEnabled(!micMuted).catch(() => {});
+    deviceLog.info('mic toggled', { muted: micMuted });
+    localParticipant?.setMicrophoneEnabled(!micMuted).catch(err => deviceLog.error('setMicrophoneEnabled failed', err));
   }, [micMuted, localParticipant]);
 
   useEffect(() => {
     if (!mounted.current) return;
-    localParticipant?.setCameraEnabled(!camMuted).catch(() => {});
+    deviceLog.info('camera toggled', { muted: camMuted });
+    localParticipant?.setCameraEnabled(!camMuted).catch(err => deviceLog.error('setCameraEnabled failed', err));
   }, [camMuted, localParticipant]);
 
   return null;
@@ -921,6 +1057,35 @@ function SelfIcon() {
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
       <circle cx="12" cy="7" r="4"/>
+    </svg>
+  );
+}
+
+function LogIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="8"  y1="13" x2="16" y2="13"/>
+      <line x1="8"  y1="17" x2="13" y2="17"/>
+    </svg>
+  );
+}
+
+function BugIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2l1.88 1.88"/>
+      <path d="M14.12 3.88 16 2"/>
+      <path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/>
+      <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/>
+      <path d="M12 20v-9"/>
+      <path d="M6.53 9H2"/>
+      <path d="M6 13H2"/>
+      <path d="M6 17h-4"/>
+      <path d="M22 9h-4.5"/>
+      <path d="M22 13h-4"/>
+      <path d="M22 17h-4"/>
     </svg>
   );
 }

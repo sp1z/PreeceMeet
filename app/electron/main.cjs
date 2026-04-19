@@ -1,8 +1,24 @@
 const { app, BrowserWindow, shell, ipcMain, desktopCapturer } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
+const log  = require('electron-log/main');
 
 const IS_MAC = process.platform === 'darwin';
+
+// ── Logging ─────────────────────────────────────────────────────────────────
+// Writes to userData/logs/main.log with rotation. Renderer goes through the
+// `log:*` IPC handlers below. Expose a file path for the "Open Logs Folder"
+// menu/button so users can grab logs without knowing platform conventions.
+log.initialize();
+log.transports.file.level    = 'info';
+log.transports.console.level = 'info';
+log.transports.file.maxSize  = 5 * 1024 * 1024; // 5 MB — autorotate
+log.info(`─── PreeceMeet v${app.getVersion()} starting on ${process.platform} (${process.arch}) ───`);
+log.info(`node=${process.versions.node} electron=${process.versions.electron} chromium=${process.versions.chrome}`);
+log.info(`log file: ${log.transports.file.getFile().path}`);
+autoUpdater.logger = log;
+process.on('uncaughtException',  err => log.error('uncaughtException', err));
+process.on('unhandledRejection', err => log.error('unhandledRejection', err));
 
 let mainWindow;
 let savedBounds = null;
@@ -45,6 +61,28 @@ function createWindow() {
   mainWindow.on('maximize',   () => mainWindow.webContents.send('win:maximized-changed', true));
   mainWindow.on('unmaximize', () => mainWindow.webContents.send('win:maximized-changed', false));
 
+  // DevTools hotkey: F12 or Ctrl/Cmd+Shift+I (undocked by default so it pops
+  // into its own window and doesn't steal space from the call UI).
+  mainWindow.webContents.on('before-input-event', (ev, input) => {
+    if (input.type !== 'keyDown') return;
+    const mod = IS_MAC ? input.meta : input.control;
+    const toggle =
+      input.key === 'F12' ||
+      (mod && input.shift && (input.key === 'I' || input.key === 'i'));
+    if (toggle) {
+      ev.preventDefault();
+      if (mainWindow.webContents.isDevToolsOpened()) mainWindow.webContents.closeDevTools();
+      else mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    log.error('render-process-gone', details);
+  });
+  mainWindow.webContents.on('preload-error', (_e, preloadPath, err) => {
+    log.error('preload-error', preloadPath, err);
+  });
+
   // Open target=_blank / external links in the user's default browser.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -72,7 +110,7 @@ function createWindow() {
         fetchWindowIcons: true,
       });
       pendingSources = sources;
-      console.log(
+      log.info(
         `[display-share] got ${sources.length} source(s) ` +
         `(screens=${sources.filter(s => s.id.startsWith('screen:')).length}, ` +
         `windows=${sources.filter(s => s.id.startsWith('window:')).length})`,
@@ -98,7 +136,7 @@ function createWindow() {
       }));
       mainWindow.webContents.send('display-share:request', payload);
     } catch (err) {
-      console.error('[display-share] getSources failed:', err);
+      log.error('[display-share] getSources failed:', err);
       try { pendingDisplayCb({}); } catch {}
       pendingDisplayCb = null;
       pendingSources   = null;
@@ -113,6 +151,33 @@ ipcMain.handle('shell:open-external', async (_ev, url) => {
   if (typeof url !== 'string') return false;
   try { await shell.openExternal(url); return true; }
   catch { return false; }
+});
+
+// ── Log bridge + viewer ─────────────────────────────────────────────────────
+// Renderer pushes log entries through here so everything lands in a single
+// rotating file (userData/logs/main.log). Renderer-originated lines get a
+// [renderer] prefix so they're easy to grep. Levels are whitelisted.
+const LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error']);
+ipcMain.on('log:write', (_ev, level, scope, message, meta) => {
+  const lvl  = LOG_LEVELS.has(level) ? level : 'info';
+  const tag  = `[renderer${scope ? ':' + scope : ''}]`;
+  if (meta !== undefined) log[lvl](tag, message, meta);
+  else                    log[lvl](tag, message);
+});
+ipcMain.handle('log:get-path', () => log.transports.file.getFile().path);
+ipcMain.handle('log:open-folder', async () => {
+  const logPath = log.transports.file.getFile().path;
+  const dir = path.dirname(logPath);
+  try { await shell.openPath(dir); return true; } catch { return false; }
+});
+
+// DevTools toggle from the renderer (button on the top bar).
+ipcMain.handle('devtools:toggle', () => {
+  if (!mainWindow) return false;
+  const wc = mainWindow.webContents;
+  if (wc.isDevToolsOpened()) { wc.closeDevTools(); return false; }
+  wc.openDevTools({ mode: 'detach' });
+  return true;
 });
 
 // Window controls (powers Game Mode + fullscreen toggles in the renderer)

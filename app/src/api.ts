@@ -182,3 +182,26 @@ export async function adminSetAdmin(serverUrl: string, sessionToken: string, ema
   if (resp.status === 401) throw new UnauthorizedError();
   if (!resp.ok) throw new Error(`Failed to update admin status (${resp.status})`);
 }
+
+// ── Diagnostic log upload ─────────────────────────────────────────────────────
+// Fire-and-forget: never throws, never blocks the caller. The server
+// appends lines to a per-user date-bucketed file.
+export async function uploadLogs(
+  serverUrl:     string,
+  sessionToken:  string,
+  lines:         string[],
+  clientVersion: string,
+  platform:      string,
+): Promise<boolean> {
+  if (!lines.length) return true;
+  try {
+    const resp = await fetch(`${serverUrl}/api/logs/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lines, clientVersion, platform }),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}

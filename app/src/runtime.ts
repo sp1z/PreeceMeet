@@ -39,6 +39,10 @@ declare global {
       onDisplayShareRequest: (h: (sources: DisplayShareSource[]) => void) => () => void;
       chooseDisplaySource:   (sourceId: string) => Promise<boolean>;
       cancelDisplayShare:    () => Promise<boolean>;
+      log?:            (level: string, scope: string, message: string, meta?: unknown) => void;
+      logPath?:        () => Promise<string>;
+      openLogFolder?:  () => Promise<boolean>;
+      toggleDevTools?: () => Promise<boolean>;
     };
   }
 }
@@ -136,6 +140,21 @@ export const windowCtl = {
   onMaximizedChange(handler: (v: boolean) => void): () => void {
     if (!window.preecemeet) return () => {};
     return window.preecemeet.onMaximizedChange(handler);
+  },
+};
+
+// Diagnostics surface: DevTools toggle + "Open Logs Folder".
+export const diagnostics = {
+  async toggleDevTools(): Promise<void> {
+    if (window.preecemeet?.toggleDevTools) await window.preecemeet.toggleDevTools();
+  },
+  async openLogFolder(): Promise<boolean> {
+    if (!window.preecemeet?.openLogFolder) return false;
+    return window.preecemeet.openLogFolder();
+  },
+  async logPath(): Promise<string | null> {
+    if (!window.preecemeet?.logPath) return null;
+    try { return await window.preecemeet.logPath(); } catch { return null; }
   },
 };
 

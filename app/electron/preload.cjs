@@ -43,4 +43,11 @@ contextBridge.exposeInMainWorld('preecemeet', {
   },
   chooseDisplaySource: (sourceId) => ipcRenderer.invoke('display-share:choose', sourceId),
   cancelDisplayShare:  ()         => ipcRenderer.invoke('display-share:cancel'),
+
+  // Logging + diagnostics
+  log: (level, scope, message, meta) =>
+    ipcRenderer.send('log:write', level, scope, message, meta),
+  logPath:       () => ipcRenderer.invoke('log:get-path'),
+  openLogFolder: () => ipcRenderer.invoke('log:open-folder'),
+  toggleDevTools:() => ipcRenderer.invoke('devtools:toggle'),
 });

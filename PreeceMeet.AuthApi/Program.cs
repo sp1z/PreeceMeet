@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using Livekit.Server.Sdk.Dotnet;
 using Microsoft.EntityFrameworkCore;
 using OtpNet;
@@ -363,6 +364,89 @@ app.MapGet("/api/users", async (HttpContext ctx, AppDbContext db,
     return Results.Ok(users.Select(email => new { email, online = online.Contains(email) }));
 });
 
+// ── Client diagnostic log upload ──────────────────────────────────────────────
+// Authenticated clients POST batches of log lines here; we append them to
+// /data/logs/{safeEmail}-{yyyy-MM-dd}.log. Intentionally simple: no parsing,
+// no indexing, just durable capture so a dev can tail the file and see what
+// a user hit in the wild. Admins can pull via GET /api/admin/logs.
+var logsDir = Cfg("LOGS_DIR").NullIfEmpty() ?? "/data/logs";
+try { Directory.CreateDirectory(logsDir); } catch { /* best-effort */ }
+
+const int MaxBytesPerUpload = 512 * 1024; // 512 KB per request
+const int MaxLinesPerUpload = 2000;
+
+app.MapPost("/api/logs/upload", async (UploadLogRequest req, HttpContext ctx, SessionTokenService session) =>
+{
+    var email = session.Validate(ctx.Request.Headers.Authorization);
+    if (email is null) return Results.Unauthorized();
+
+    if (req.Lines is null || req.Lines.Count == 0)
+        return Results.Ok(new { accepted = 0 });
+
+    var lines = req.Lines.Take(MaxLinesPerUpload).ToList();
+
+    // Safe filename derived from email (alphanumeric + @._- → _).
+    var safe = new string(email.Select(c =>
+        char.IsLetterOrDigit(c) || c == '@' || c == '.' || c == '_' || c == '-' ? c : '_').ToArray());
+    var file = Path.Combine(logsDir, $"{safe}-{DateTime.UtcNow:yyyy-MM-dd}.log");
+
+    // Header per batch so we can see session boundaries in the file.
+    var header = $"── {DateTime.UtcNow:O} v={req.ClientVersion ?? "?"} " +
+                 $"platform={req.Platform ?? "?"} lines={lines.Count} ──";
+
+    var content = new StringBuilder(header.Length + lines.Sum(l => l.Length) + lines.Count * 2 + 4);
+    content.AppendLine(header);
+    var bytesWritten = 0;
+    foreach (var raw in lines)
+    {
+        var line = raw.Length > 4096 ? raw[..4096] : raw;
+        bytesWritten += line.Length + 1;
+        if (bytesWritten > MaxBytesPerUpload) break;
+        content.AppendLine(line);
+    }
+
+    try
+    {
+        await File.AppendAllTextAsync(file, content.ToString());
+        return Results.Ok(new { accepted = lines.Count, file = Path.GetFileName(file) });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"log write failed: {ex.Message}");
+    }
+});
+
+// Admin-only: list log files and read them. No pagination — files are
+// date-bucketed so they stay manageable; callers just GET the one they want.
+app.MapGet("/api/admin/logs", async (HttpContext ctx, SessionTokenService session, AppDbContext db) =>
+{
+    var admin = await RequireAdmin(ctx.Request.Headers.Authorization, session, db);
+    if (admin is null) return Results.Unauthorized();
+
+    try
+    {
+        var entries = new DirectoryInfo(logsDir).GetFiles("*.log")
+            .OrderByDescending(f => f.LastWriteTimeUtc)
+            .Take(500)
+            .Select(f => new { name = f.Name, size = f.Length, modified = f.LastWriteTimeUtc })
+            .ToList();
+        return Results.Ok(entries);
+    }
+    catch { return Results.Ok(Array.Empty<object>()); }
+});
+
+app.MapGet("/api/admin/logs/{name}", async (string name, HttpContext ctx, SessionTokenService session, AppDbContext db) =>
+{
+    var admin = await RequireAdmin(ctx.Request.Headers.Authorization, session, db);
+    if (admin is null) return Results.Unauthorized();
+
+    // Prevent path traversal.
+    if (name.Contains('/') || name.Contains('\\') || name.Contains("..")) return Results.BadRequest();
+    var path = Path.Combine(logsDir, name);
+    if (!File.Exists(path)) return Results.NotFound();
+    return Results.File(path, "text/plain; charset=utf-8");
+});
+
 // ── SignalR hub for 1:1 call signalling ───────────────────────────────────────
 
 app.MapHub<CallHub>("/hubs/call");
@@ -376,6 +460,7 @@ record VerifyTotpRequest(string TempToken, string Code);
 record CreateUserRequest(string Email, string Password);
 record ChangePasswordRequest(string Password);
 record SetAdminRequest(bool IsAdmin);
+record UploadLogRequest(List<string>? Lines, string? ClientVersion, string? Platform);
 
 // ── String helper ─────────────────────────────────────────────────────────────
 
