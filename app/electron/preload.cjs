@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('preecemeet', {
   version:           () => ipcRenderer.invoke('app:version'),
   platform:          () => ipcRenderer.invoke('app:platform'),
   openExternal:      (url) => ipcRenderer.invoke('shell:open-external', url),
+  appReady:          () => ipcRenderer.send('app:ready'),
 
   // Window state / sizing
   getBounds:         () => ipcRenderer.invoke('win:get-bounds'),

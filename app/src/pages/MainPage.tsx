@@ -10,6 +10,7 @@ import { startLogUploader, stopLogUploader } from '../logUploader';
 import Sidebar from '../components/Sidebar';
 import VideoGrid, { GAME_SIZES, type GameSize } from '../components/VideoGrid';
 import DeviceFallbackBanner from '../components/DeviceFallbackBanner';
+import ConnectingPanel from '../components/ConnectingPanel';
 import CallControls from '../components/CallControls';
 import SettingsModal from '../components/SettingsModal';
 import AdminPanel from '../components/AdminPanel';
@@ -68,6 +69,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [platform,       setPlatform]       = useState<Platform>('browser');
   const [deviceFallbacks, setDeviceFallbacks] = useState<DeviceKind[]>([]);
   const [deviceRetryNonce, setDeviceRetryNonce] = useState(0);
+  const [videoReady,       setVideoReady]       = useState(false);
 
   const calling = useDirectCalling(session);
 
@@ -128,6 +130,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.sidebarWidth]);
+
+  const handleVideoReady = useCallback(() => setVideoReady(true), []);
 
   const pollRooms = useCallback(async () => {
     try {
@@ -234,6 +238,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     setError('');
     setConnectState('connecting');
     setConnection(null);
+    setVideoReady(false);
     try {
       const result = await getRoomToken(
         session.serverUrl,
@@ -269,6 +274,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     setChatMessages([]);
     setChatUnread(0);
     setChatVisible(false);
+    setVideoReady(false);
     void pollRooms();
   }
 
@@ -286,6 +292,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       setRemoteSharing(false);
       setChatMessages([]);
       setChatUnread(0);
+      setVideoReady(false);
       void pollRooms();
     });
   }, [calling, pollRooms]);
@@ -570,20 +577,20 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
             <div className="game-empty">No active call — restore window to join a channel</div>
           )}
 
-          {!gameMode && connectState === 'connecting' && (
-            <div className="overlay">
-              <div className="overlay-card">
-                <div className="spinner" />
-                <h3>Connecting…</h3>
-                <p>Joining room</p>
-              </div>
-            </div>
-          )}
-
           {gameMode && connectState === 'connecting' && (
             <div className="game-empty">
               <div className="spinner" style={{ width: 14, height: 14, marginBottom: 0 }} /> Connecting…
             </div>
+          )}
+
+          {!gameMode && (
+            <ConnectingPanel
+              visible={
+                connectState === 'connecting' ||
+                (connectState === 'connected' && !videoReady)
+              }
+              subLabel={connection ? `Joining #${connection.roomName}` : undefined}
+            />
           )}
 
           {connection && (
@@ -599,7 +606,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               onError={err => { callLog.error('livekit error', err); setError(err.message); }}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}
             >
-              <RoomEventLogger />
+              <RoomEventLogger onVideoReady={handleVideoReady} />
               <MediaController
                 micMuted={micMuted}
                 camMuted={camMuted}
@@ -788,22 +795,51 @@ function GameModeAutoSize({ gameSize, showSelf }: { gameSize: GameSize; showSelf
 // ── RoomEventLogger ───────────────────────────────────────────────────────────
 // Bridges LiveKit room events into our logger so the server sees connection
 // churn, track publish/unpublish, and participant join/leave without us
-// having to infer it from state shape.
+// having to infer it from state shape. Also signals "video ready" upward
+// so MainPage can dismiss the connecting panel — fired when the local
+// camera publishes, or as a fallback 4s after the room reaches `connected`.
 
-function RoomEventLogger() {
+const VIDEO_READY_FALLBACK_MS = 4000;
+
+interface RoomEventLoggerProps {
+  onVideoReady: () => void;
+}
+
+function RoomEventLogger({ onVideoReady }: RoomEventLoggerProps) {
   const room = useRoomContext();
 
   useEffect(() => {
-    const onState = (state: ConnectionState) => callLog.info('connection state', { state });
+    let fallback: ReturnType<typeof setTimeout> | null = null;
+    let signalled = false;
+    function signalReady(reason: string) {
+      if (signalled) return;
+      signalled = true;
+      callLog.info('video ready', { reason });
+      onVideoReady();
+    }
+
+    const onState = (state: ConnectionState) => {
+      callLog.info('connection state', { state });
+      if (state === ConnectionState.Connected && !signalled && !fallback) {
+        fallback = setTimeout(() => signalReady('fallback-timeout'), VIDEO_READY_FALLBACK_MS);
+      }
+    };
     const onJoin  = (p: { identity: string; name?: string; sid: string }) =>
       callLog.info('participant connected', { identity: p.identity, name: p.name, sid: p.sid });
     const onLeave = (p: { identity: string; sid: string }) =>
       callLog.info('participant disconnected', { identity: p.identity, sid: p.sid });
-    const onLocalPub = (pub: { kind: string; source?: string }) =>
+    const onLocalPub = (pub: { kind: string; source?: string }) => {
       callLog.info('local track published', { kind: pub.kind, source: pub.source });
+      if (pub.source === Track.Source.Camera) signalReady('local-camera-published');
+    };
     const onLocalUnpub = (pub: { kind: string; source?: string }) =>
       callLog.info('local track unpublished', { kind: pub.kind, source: pub.source });
-    const onMediaErr = (err: unknown) => callLog.error('media device failure', err);
+    const onMediaErr = (err: unknown) => {
+      callLog.error('media device failure', err);
+      // If gUM failed (e.g. no camera available), nothing will ever publish —
+      // unblock the connecting panel so the user isn't trapped behind it.
+      signalReady('media-device-error');
+    };
     const onReconnecting = () => callLog.warn('livekit reconnecting');
     const onReconnected  = () => callLog.info('livekit reconnected');
 
@@ -817,6 +853,7 @@ function RoomEventLogger() {
     room.on(RoomEvent.Reconnected,               onReconnected);
 
     return () => {
+      if (fallback) clearTimeout(fallback);
       room.off(RoomEvent.ConnectionStateChanged,    onState);
       room.off(RoomEvent.ParticipantConnected,      onJoin);
       room.off(RoomEvent.ParticipantDisconnected,   onLeave);
@@ -826,6 +863,9 @@ function RoomEventLogger() {
       room.off(RoomEvent.Reconnecting,              onReconnecting);
       room.off(RoomEvent.Reconnected,               onReconnected);
     };
+    // onVideoReady is intentionally excluded — it's stable on the parent
+    // side and re-running this effect would detach all listeners mid-call.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room]);
 
   return null;

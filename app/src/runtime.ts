@@ -18,6 +18,7 @@ declare global {
       version:        () => Promise<string>;
       platform:       () => Promise<NodeJS.Platform>;
       openExternal:   (url: string) => Promise<boolean>;
+      appReady:       () => void;
       getBounds:      () => Promise<{ x: number; y: number; width: number; height: number }>;
       setBounds:      (b: { x?: number; y?: number; width?: number; height?: number }) => Promise<void>;
       setSize:        (w: number, h: number) => Promise<void>;

@@ -26,9 +26,12 @@ public class LiveKitTokenService
     {
         var grant = new VideoGrants
         {
-            RoomJoin     = true,
-            CanPublish   = true,
-            CanSubscribe = true,
+            RoomJoin              = true,
+            CanPublish            = true,
+            CanSubscribe          = true,
+            // Required for the client to call localParticipant.setMetadata()
+            // — we use that channel to broadcast each user's avatar emoji.
+            CanUpdateOwnMetadata  = true,
         };
 
         if (!string.IsNullOrWhiteSpace(roomName))

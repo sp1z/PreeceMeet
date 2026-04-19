@@ -8,6 +8,12 @@
       content="default-src 'self'; connect-src 'self' https: wss:; media-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'"
     />
     <title>PreeceMeet</title>
+    <!-- Paint the initial frame dark immediately so there's no white flash
+         between HTML load and external CSS parse. Matches --bg-main. -->
+    <style>
+      html, body { margin: 0; background: #0B1220; color: #fff; }
+      #root { height: 100vh; }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

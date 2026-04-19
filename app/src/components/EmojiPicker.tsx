@@ -36,8 +36,8 @@ interface Props {
   className?: string;
 }
 
-const POPOVER_W = 260;
-const POPOVER_H = 280;
+const POPOVER_W = 360;
+const POPOVER_H = 260;
 
 export default function EmojiPicker({ value, onChange, size = 'md', className }: Props) {
   const [open, setOpen] = useState(false);

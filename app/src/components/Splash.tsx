@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 
-// Brand splash — 2.4s boot animation. Recreates design_handoff_preecemeet_brand/splash.html
-// in React/CSS. Calls onDone when the sequence is complete so the host can
-// transition to the next page. Keeps the loader bar animating until onDone
-// actually fires (callers may gate on real readiness).
+// Brand splash — recreates design_handoff_preecemeet_brand/splash.html in
+// React/CSS. Total visible time: 4s on first launch, ~1s on warm launches.
+// The 4s first-run window gives the loader bar time to complete a full
+// sweep before we fade out.
 
-const TOTAL_MS = 2400;
+const FIRST_RUN_MS = 4000;
+const WARM_RUN_MS  = 1000;
 
 interface Props {
   /** Fires when the splash animation has finished its introduction sequence. */
@@ -17,7 +18,7 @@ interface Props {
 export default function Splash({ onDone, quick = false }: Props) {
   const [done, setDone] = useState(false);
   useEffect(() => {
-    const delay = quick ? 600 : TOTAL_MS;
+    const delay = quick ? WARM_RUN_MS : FIRST_RUN_MS;
     const t = setTimeout(() => { setDone(true); onDone?.(); }, delay);
     return () => clearTimeout(t);
   }, [onDone, quick]);

@@ -62,10 +62,17 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 
-  mainWindow.webContents.once('did-finish-load', () => {
-    mainWindow.show();
-    mainWindow.focus();
-  });
+  // Fallback reveal: if the renderer never signals ready (dev hot-reload,
+  // bundle error, etc.), still show the window after a short grace period
+  // so the user isn't staring at nothing.
+  const fallbackShow = setTimeout(() => {
+    if (mainWindow && !mainWindow.isVisible()) {
+      log.warn('renderer did not signal app:ready within 5s — revealing window anyway');
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }, 5000);
+  mainWindow.on('closed', () => clearTimeout(fallbackShow));
 
   mainWindow.on('maximize',   () => mainWindow.webContents.send('win:maximized-changed', true));
   mainWindow.on('unmaximize', () => mainWindow.webContents.send('win:maximized-changed', false));
@@ -156,6 +163,14 @@ function createWindow() {
 // ── IPC ─────────────────────────────────────────────────────────────────────
 ipcMain.handle('app:version',         () => app.getVersion());
 ipcMain.handle('app:platform',        () => process.platform);
+
+// Renderer says "splash is painted, reveal me". We show and focus here so
+// the first pixel the user sees is the splash — never a white flash.
+ipcMain.on('app:ready', () => {
+  if (!mainWindow || mainWindow.isVisible()) return;
+  mainWindow.show();
+  mainWindow.focus();
+});
 ipcMain.handle('shell:open-external', async (_ev, url) => {
   if (typeof url !== 'string') return false;
   try { await shell.openExternal(url); return true; }
