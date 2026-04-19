@@ -3,16 +3,16 @@ import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useRoomContext, us
 import { Track, RoomEvent } from 'livekit-client';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel, ChatMessage } from '../types';
 import { saveSettings, clearSession } from '../settings';
-import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl } from '../runtime';
-import pkg from '../../package.json';
+import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl, displayShare, type DisplayShareSource } from '../runtime';
 import { getRooms, getRoomToken, UnauthorizedError } from '../api';
 import Sidebar from '../components/Sidebar';
-import VideoGrid from '../components/VideoGrid';
+import VideoGrid, { GAME_SIZES, type GameSize } from '../components/VideoGrid';
 import CallControls from '../components/CallControls';
 import SettingsModal from '../components/SettingsModal';
 import AdminPanel from '../components/AdminPanel';
 import ChatPanel from '../components/ChatPanel';
 import ContactsModal from '../components/ContactsModal';
+import ScreenSharePicker from '../components/ScreenSharePicker';
 import { IncomingCallModal, OutgoingCallModal } from '../components/CallRingModals';
 import { useDirectCalling } from '../calling';
 
@@ -47,11 +47,13 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [settingsInitialTab, setSettingsInitialTab] = useState<'profile' | 'channels' | 'permissions'>('profile');
   const [adminOpen,         setAdminOpen]          = useState(false);
   const [gameMode,       setGameMode]       = useState(false);
+  const [gameSize,       setGameSize]       = useState<GameSize>('medium');
   const [installing,     setInstalling]     = useState(false);
   const [uiHidden,       setUiHidden]       = useState(false);
   const [isFullscreen,   setIsFullscreen]   = useState(false);
   const [statsVisible,   setStatsVisible]   = useState(false);
   const [contactsOpen,   setContactsOpen]   = useState(false);
+  const [shareSources,   setShareSources]   = useState<DisplayShareSource[] | null>(null);
 
   const calling = useDirectCalling(session);
 
@@ -255,22 +257,39 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   }
 
   // ── Game mode ─────────────────────────────────────────────────────────────
+  // Window resizing happens in GameModeAutoSize (it has the participant count
+  // from inside the LiveKitRoom context). enterGameMode just flips state +
+  // pins the window, exit restores the saved bounds.
 
   async function enterGameMode() {
+    try { await windowCtl.saveBounds(); } catch { /* ignore */ }
+    try { await windowCtl.setAlwaysOnTop(true); } catch { /* ignore */ }
     setGameMode(true);
-    try {
-      await windowCtl.saveBounds();
-      await windowCtl.setAlwaysOnTop(true);
-      await windowCtl.setSize(1280, 252);
-    } catch { /* window API unavailable — ignore */ }
   }
 
   async function exitGameMode() {
     setGameMode(false);
-    try {
-      await windowCtl.setAlwaysOnTop(false);
-      await windowCtl.restoreBounds();
-    } catch { /* ignore */ }
+    try { await windowCtl.setAlwaysOnTop(false); } catch { /* ignore */ }
+    try { await windowCtl.restoreBounds(); }     catch { /* ignore */ }
+  }
+
+  // ── Screen-share picker ───────────────────────────────────────────────────
+  // Main pushes a source list whenever LiveKit calls getDisplayMedia. We
+  // surface the modal; the user's choice (or cancel) resolves the request.
+  useEffect(() => {
+    const off = displayShare.onRequest(sources => setShareSources(sources));
+    return off;
+  }, []);
+
+  function handleSharePick(sourceId: string) {
+    setShareSources(null);
+    void displayShare.choose(sourceId);
+  }
+
+  function handleShareCancel() {
+    setShareSources(null);
+    void displayShare.cancel();
+    setScreenSharing(false);
   }
 
   async function installUpdate() {
@@ -327,22 +346,19 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   if (gameMode) {
     return (
       <div className="app-layout game-mode">
-        <div className="game-titlebar">
-          <span className="game-titlebar-title">PreeceMeet v{pkg.version}</span>
-          <button className="game-exit-btn" onClick={() => void exitGameMode()} title="Exit Game Mode">
-            ⊞ Restore
-          </button>
-        </div>
+        <GameTitleBar
+          gameSize={gameSize}
+          onSizeChange={setGameSize}
+          onRestore={() => void exitGameMode()}
+        />
 
         <div className="video-area game-video-area">
           {connectState === 'idle' && !connection && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 13 }}>
-              No active call — select a channel to join
-            </div>
+            <div className="game-empty">No active call — restore window to join a channel</div>
           )}
           {connectState === 'connecting' && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 10, color: 'var(--text-muted)', fontSize: 13 }}>
-              <div className="spinner" style={{ width: 16, height: 16 }} /> Connecting…
+            <div className="game-empty">
+              <div className="spinner" style={{ width: 14, height: 14, marginBottom: 0 }} /> Connecting…
             </div>
           )}
           {connection && (
@@ -369,11 +385,20 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 onRemoteShareChange={setRemoteSharing}
                 onShareError={msg => { setError(msg); setScreenSharing(false); }}
               />
+              <GameModeAutoSize gameSize={gameSize} />
               <RoomAudioRenderer />
-              <VideoGrid gameMode statsVisible={statsVisible} />
+              <VideoGrid gameMode gameSize={gameSize} statsVisible={statsVisible} />
             </LiveKitRoom>
           )}
         </div>
+
+        {shareSources && (
+          <ScreenSharePicker
+            sources={shareSources}
+            onSelect={handleSharePick}
+            onCancel={handleShareCancel}
+          />
+        )}
       </div>
     );
   }
@@ -618,8 +643,79 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           onCancel={() => void calling.cancel()}
         />
       )}
+
+      {shareSources && (
+        <ScreenSharePicker
+          sources={shareSources}
+          onSelect={handleSharePick}
+          onCancel={handleShareCancel}
+        />
+      )}
     </div>
   );
+}
+
+// ── Game mode title bar ──────────────────────────────────────────────────────
+
+interface GameTitleBarProps {
+  gameSize:     GameSize;
+  onSizeChange: (s: GameSize) => void;
+  onRestore:    () => void;
+}
+
+function GameTitleBar({ gameSize, onSizeChange, onRestore }: GameTitleBarProps) {
+  const sizes: { key: GameSize; label: string }[] = [
+    { key: 'small',  label: 'S' },
+    { key: 'medium', label: 'M' },
+    { key: 'large',  label: 'L' },
+  ];
+  return (
+    <div className="game-titlebar">
+      <div className="game-size-buttons">
+        {sizes.map(s => (
+          <button
+            key={s.key}
+            className={`game-size-btn${gameSize === s.key ? ' active' : ''}`}
+            onClick={() => onSizeChange(s.key)}
+            title={`${s.label} — ${GAME_SIZES[s.key]}px tall`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+      <span className="game-titlebar-title">PreeceMeet</span>
+      <button className="game-exit-btn" onClick={onRestore} title="Exit Game Mode">
+        ⊞ Restore
+      </button>
+    </div>
+  );
+}
+
+// ── Game mode auto-size ──────────────────────────────────────────────────────
+// Fits the window content area to (participants × tile-width) horizontally and
+// (titlebar + tile-height + padding) vertically. Re-runs when participants
+// join/leave or the user toggles S/M/L.
+
+function GameModeAutoSize({ gameSize }: { gameSize: GameSize }) {
+  const tracks = useTracks(
+    [{ source: Track.Source.Camera, withPlaceholder: true }],
+    { onlySubscribed: false },
+  );
+  const count = Math.max(1, tracks.length);
+
+  useEffect(() => {
+    const tileH      = GAME_SIZES[gameSize];
+    const tileW      = Math.round((tileH * 16) / 9);
+    const gap        = 4;
+    const pad        = 4;
+    const titleBarH  = 30;
+    const minBarW    = 320; // keeps S/M/L + Restore visible at idle
+    const contentW   = Math.max(minBarW, pad * 2 + count * tileW + (count - 1) * gap);
+    const contentH   = titleBarH + tileH + pad * 2;
+    void windowCtl.setContentSize(contentW, contentH);
+  }, [count, gameSize]);
+
+  return null;
 }
 
 // ── MediaController ───────────────────────────────────────────────────────────

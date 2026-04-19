@@ -3,6 +3,13 @@
 // don't need to know whether they're running inside Electron or a plain
 // browser (the latter is only used for `npm run dev` and best-effort works).
 
+export interface DisplayShareSource {
+  id:        string;
+  name:      string;
+  thumbnail: string;
+  isScreen:  boolean;
+}
+
 declare global {
   interface Window {
     preecemeet?: {
@@ -11,14 +18,17 @@ declare global {
       getBounds:      () => Promise<{ x: number; y: number; width: number; height: number }>;
       setBounds:      (b: { x?: number; y?: number; width?: number; height?: number }) => Promise<void>;
       setSize:        (w: number, h: number) => Promise<void>;
+      setContentSize: (w: number, h: number) => Promise<void>;
       setAlwaysOnTop: (v: boolean) => Promise<void>;
       setFullscreen:  (v: boolean) => Promise<void>;
       isFullscreen:   () => Promise<boolean>;
       saveBounds:     () => Promise<void>;
       restoreBounds:  () => Promise<void>;
-      setFrameless:   (v: boolean) => Promise<void>;
       checkUpdate:    () => Promise<string | null>;
       installUpdate:  () => Promise<true | { error: string }>;
+      onDisplayShareRequest: (h: (sources: DisplayShareSource[]) => void) => () => void;
+      chooseDisplaySource:   (sourceId: string) => Promise<boolean>;
+      cancelDisplayShare:    () => Promise<boolean>;
     };
   }
 }
@@ -56,6 +66,9 @@ export const windowCtl = {
   async setSize(w: number, h: number): Promise<void> {
     if (window.preecemeet) await window.preecemeet.setSize(w, h);
   },
+  async setContentSize(w: number, h: number): Promise<void> {
+    if (window.preecemeet) await window.preecemeet.setContentSize(w, h);
+  },
   async setAlwaysOnTop(v: boolean): Promise<void> {
     if (window.preecemeet) await window.preecemeet.setAlwaysOnTop(v);
   },
@@ -65,7 +78,6 @@ export const windowCtl = {
       await window.preecemeet.setFullscreen(!now);
       return !now;
     }
-    // Browser fallback
     if (document.fullscreenElement) {
       await document.exitFullscreen();
       return false;
@@ -83,5 +95,20 @@ export const windowCtl = {
   },
   async restoreBounds(): Promise<void> {
     if (window.preecemeet) await window.preecemeet.restoreBounds();
+  },
+};
+
+// Screen-share picker bridge. The main process pushes a source list when
+// LiveKit calls getDisplayMedia; the renderer picks one (or cancels).
+export const displayShare = {
+  onRequest(handler: (sources: DisplayShareSource[]) => void): () => void {
+    if (!window.preecemeet) return () => {};
+    return window.preecemeet.onDisplayShareRequest(handler);
+  },
+  async choose(sourceId: string): Promise<void> {
+    if (window.preecemeet) await window.preecemeet.chooseDisplaySource(sourceId);
+  },
+  async cancel(): Promise<void> {
+    if (window.preecemeet) await window.preecemeet.cancelDisplayShare();
   },
 };

@@ -535,15 +535,15 @@ input::placeholder { color: var(--text-muted); }
   box-shadow: inset 0 0 0 2px #00C853 !important;
 }
 
-/* Contain video (don't crop) — matches WPF Stretch="Uniform".
-   Set explicit width/height so object-fit has a defined box to work against;
-   without this the <video> defaults to its intrinsic size and overflows on
-   tiles that aren't the same aspect ratio (e.g. game-mode 16:9 vs camera). */
+/* Discord-style: video fills the whole tile so the green speaking ring hugs
+   the visible image instead of leaving letterbox bars between the border and
+   the video. Slight edge crop is the accepted trade-off. Game mode overrides
+   this back to `contain` so streamers see the full webcam frame in the bar. */
 .lk-participant-tile video,
 .lk-participant-tile .lk-participant-media-video {
   width: 100% !important;
   height: 100% !important;
-  object-fit: contain !important;
+  object-fit: cover !important;
   display: block !important;
 }
 
@@ -603,89 +603,232 @@ input::placeholder { color: var(--text-muted); }
 .update-pill:disabled { opacity: 0.6; cursor: default; }
 
 /* ── Game Mode ──────────────────────────────────────────────────────────── */
+/* Compact horizontal "streamer bar": pinned to top-of-screen via always-on-top,
+   participants shown side-by-side at S/M/L tile heights set by the title bar.
+   The window content size is driven by GameModeAutoSize in MainPage so the
+   width matches participants × tile-width exactly. */
 .app-layout.game-mode {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 }
 
-/* Custom drag-region title bar replaces native decorations */
 .game-titlebar {
+  height: 30px;
+  flex-shrink: 0;
   background: var(--bg-bar);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  padding: 0 8px;
+  padding: 0 6px;
   gap: 8px;
-  /* Tauri reads the data attribute to make this the drag region */
 }
+.game-size-buttons {
+  display: flex;
+  gap: 2px;
+  background: rgba(0,0,0,0.25);
+  padding: 2px;
+  border-radius: 6px;
+}
+.game-size-btn {
+  width: 24px;
+  height: 22px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+.game-size-btn:hover { background: var(--bg-sidebar-hover); color: var(--text-primary); }
+.game-size-btn.active { background: var(--accent); color: #fff; }
 .game-titlebar-title {
   flex: 1;
-  font-size: 12px;
+  text-align: center;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
-  pointer-events: none; /* let drags pass through */
+  letter-spacing: 0.04em;
+  pointer-events: none;
 }
 .game-exit-btn {
   font-size: 11px;
   font-weight: 600;
-  padding: 3px 10px;
+  padding: 4px 10px;
   background: var(--accent);
   color: #fff;
   border-radius: 4px;
   transition: opacity 0.15s;
-  pointer-events: all;
   cursor: pointer;
+  flex-shrink: 0;
 }
 .game-exit-btn:hover { opacity: 0.85; }
 
-/* Game mode video area: horizontal strip */
+.game-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 0 12px;
+  text-align: center;
+}
+
 .game-video-area {
   display: flex;
   overflow: hidden;
   min-height: 0;
   height: 100%;
+  background: var(--bg-video);
 }
 .game-mode-grid {
-  flex: 1 !important;           /* fill LiveKitRoom flex container */
+  flex: 1 !important;
   display: flex !important;
   flex-direction: row !important;
   flex-wrap: nowrap !important;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
+  overflow: hidden !important;
   gap: 4px !important;
   padding: 4px !important;
   align-items: stretch !important;
   height: 100% !important;
 }
-/* In game mode each tile is a vertical-fill column with a 16:9 width.
-   The wrapper has a definite size; the absolute lk-participant-tile fills it. */
+/* Each tile is exactly tile-h tall × tile-w wide (16:9). Sizes come from CSS
+   custom props set inline by VideoGrid based on the gameSize prop. */
 .game-mode-grid .tile-wrapper {
   position: relative !important;
-  flex-shrink: 0 !important;
-  height: 100% !important;
-  width: auto !important;
-  aspect-ratio: 16 / 9 !important;
-}
-/* Each tile wrapper (our div + local-camera-tile) */
-.game-mode-grid > * {
   flex: 0 0 auto !important;
-  height: 100% !important;
-  aspect-ratio: 16 / 9 !important;
-  min-width: 100px !important;
+  height: var(--game-tile-h) !important;
+  width:  var(--game-tile-w) !important;
+  border-radius: 8px;
+  overflow: hidden;
 }
-/* LiveKit tile inside the wrapper fills it completely */
 .game-mode-grid > * > .lk-participant-tile {
   height: 100% !important;
   width: 100% !important;
 }
-/* Contain (don't crop) video in game mode — same explicit sizing as normal mode. */
+/* Game mode shows the full webcam frame (no crop) — streamer's choice. */
 .game-mode-grid video,
 .game-mode-grid .lk-participant-media-video {
   width: 100% !important;
   height: 100% !important;
   object-fit: contain !important;
   display: block !important;
+}
+
+/* ── Screen-share picker ─────────────────────────────────────────────────── */
+.share-picker {
+  background: var(--bg-card);
+  border-radius: 14px;
+  width: 720px;
+  max-width: 92vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+.share-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+.share-picker-close {
+  font-size: 16px;
+  color: var(--text-muted);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.share-picker-close:hover { background: var(--bg-sidebar-hover); color: var(--text-primary); }
+.share-picker-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+.share-picker-tab {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s;
+}
+.share-picker-tab:hover { color: var(--text-primary); }
+.share-picker-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.share-picker-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+.share-picker-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 32px 0;
+}
+.share-picker-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  text-align: left;
+  transition: border-color 0.15s, transform 0.1s;
+  overflow: hidden;
+}
+.share-picker-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.share-picker-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #0a0a14;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.share-picker-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.share-picker-name {
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px 2px;
+}
+.share-picker-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
 }
 
 /* ── Settings modal ─────────────────────────────────────────────────────── */

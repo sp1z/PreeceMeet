@@ -4,8 +4,17 @@ import { Track, RemoteTrackPublication } from 'livekit-client';
 
 const TILE_ORDER_KEY = 'preecemeet_tile_order';
 
+export type GameSize = 'small' | 'medium' | 'large';
+
+export const GAME_SIZES: Record<GameSize, number> = {
+  small:  150,
+  medium: 200,
+  large:  300,
+};
+
 interface Props {
-  gameMode?: boolean;
+  gameMode?:     boolean;
+  gameSize?:     GameSize;
   statsVisible?: boolean;
 }
 
@@ -29,12 +38,11 @@ function StatsTile() {
     return () => clearInterval(id);
   }, []);
 
-  // Silence the unused-variable warning — tick is only used to trigger re-renders
   void tick;
 
   const duration = Date.now() - startRef.current;
   const remoteParticipants = Array.from(room.remoteParticipants.values());
-  const totalParticipants = remoteParticipants.length + 1; // +1 for local
+  const totalParticipants = remoteParticipants.length + 1;
 
   const isConnected = room.state === 'connected';
 
@@ -69,7 +77,7 @@ function StatsTile() {
   );
 }
 
-export default function VideoGrid({ gameMode, statsVisible }: Props) {
+export default function VideoGrid({ gameMode, gameSize = 'medium', statsVisible }: Props) {
   const room = useRoomContext();
 
   const tracks = useTracks(
@@ -92,7 +100,6 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
   const [dragSid, setDragSid] = useState<string | null>(null);
   const [dragOverSid, setDragOverSid] = useState<string | null>(null);
 
-  // Close context menu on any window click
   useEffect(() => {
     if (!contextMenu) return;
     const handler = () => setContextMenu(null);
@@ -100,20 +107,14 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
     return () => window.removeEventListener('click', handler);
   }, [contextMenu]);
 
-  // Sort tracks: pinned first (by order array), local participant first when not in array
   const sortedTracks = [...tracks].sort((a, b) => {
     const sidA = `${a.participant.sid}-${a.source}`;
     const sidB = `${b.participant.sid}-${b.source}`;
     const iA = order.indexOf(sidA);
     const iB = order.indexOf(sidB);
-
-    // If both are in the order array, sort by index
     if (iA !== -1 && iB !== -1) return iA - iB;
-    // If only A is in array, A comes first
     if (iA !== -1) return -1;
-    // If only B is in array, B comes first
     if (iB !== -1) return 1;
-    // Neither in array: local participant first
     if (a.participant.isLocal && !b.participant.isLocal) return -1;
     if (!a.participant.isLocal && b.participant.isLocal) return 1;
     return 0;
@@ -123,9 +124,7 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
   const cols = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
   const rows = Math.ceil(count / cols);
 
-  function handleDragStart(sid: string) {
-    setDragSid(sid);
-  }
+  function handleDragStart(sid: string) { setDragSid(sid); }
 
   function handleDragOver(e: React.DragEvent, sid: string) {
     e.preventDefault();
@@ -138,21 +137,17 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
       setDragOverSid(null);
       return;
     }
-
     const currentOrder = sortedTracks.map(t => `${t.participant.sid}-${t.source}`);
     const fromIdx = currentOrder.indexOf(dragSid);
     const toIdx   = currentOrder.indexOf(targetSid);
-
     if (fromIdx === -1 || toIdx === -1) {
       setDragSid(null);
       setDragOverSid(null);
       return;
     }
-
     const newOrder = [...currentOrder];
     newOrder.splice(fromIdx, 1);
     newOrder.splice(toIdx, 0, dragSid);
-
     setOrder(newOrder);
     localStorage.setItem(TILE_ORDER_KEY, JSON.stringify(newOrder));
     setDragSid(null);
@@ -174,13 +169,7 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
     setLocallyMuted(prev => {
       const next = new Set(prev);
       const nowMuted = !next.has(sid);
-      if (nowMuted) {
-        next.add(sid);
-      } else {
-        next.delete(sid);
-      }
-
-      // remoteParticipants is keyed by identity, so find by SID
+      if (nowMuted) next.add(sid); else next.delete(sid);
       const participant = [...room.remoteParticipants.values()].find(p => p.sid === sid);
       if (participant) {
         participant.trackPublications.forEach(pub => {
@@ -189,7 +178,6 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
           }
         });
       }
-
       return next;
     });
     setContextMenu(null);
@@ -197,7 +185,6 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
 
   function handlePinToTop(sid: string) {
     const currentOrder = sortedTracks.map(t => `${t.participant.sid}-${t.source}`);
-    // Find all keys for this participant SID
     const participantKeys = currentOrder.filter(k => k.startsWith(sid + '-'));
     const rest = currentOrder.filter(k => !participantKeys.includes(k));
     const newOrder = [...participantKeys, ...rest];
@@ -210,6 +197,11 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
     ? tracks.find(t => t.participant.sid === contextMenu.sid)?.participant ?? null
     : null;
 
+  // Game mode tiles use a fixed pixel height (small/medium/large) with a 16:9
+  // tile width. The window itself is sized to fit by GameModeAutoSize in MainPage.
+  const tileH = GAME_SIZES[gameSize];
+  const tileW = Math.round((tileH * 16) / 9);
+
   return (
     <>
       <div
@@ -217,7 +209,7 @@ export default function VideoGrid({ gameMode, statsVisible }: Props) {
         style={!gameMode ? {
           gridTemplateColumns: `repeat(${cols}, 1fr)`,
           gridTemplateRows:    `repeat(${rows}, 1fr)`,
-        } : undefined}
+        } : { ['--game-tile-h' as never]: `${tileH}px`, ['--game-tile-w' as never]: `${tileW}px` }}
       >
         {sortedTracks.map(track => {
           const tileSid = `${track.participant.sid}-${track.source}`;
