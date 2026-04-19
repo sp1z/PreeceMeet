@@ -1,0 +1,29 @@
+{
+  "name": "preecemeet-mobile",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start":   "expo start --dev-client",
+    "android": "expo run:android",
+    "ios":     "expo run:ios",
+    "prebuild": "expo prebuild --clean"
+  },
+  "dependencies": {
+    "@livekit/react-native":          "^2.7.0",
+    "@livekit/react-native-webrtc":   "^144.0.0",
+    "@microsoft/signalr":             "^8.0.7",
+    "@react-native-async-storage/async-storage": "1.24.0",
+    "expo":                           "~54.0.33",
+    "expo-build-properties":          "~0.13.2",
+    "expo-secure-store":              "~14.0.1",
+    "expo-status-bar":                "~3.0.9",
+    "livekit-client":                 "^2.5.0",
+    "react":                          "19.1.0",
+    "react-native":                   "0.81.5"
+  },
+  "devDependencies": {
+    "@types/react":                   "~19.1.0",
+    "typescript":                     "~5.9.2"
+  },
+  "private": true
+}

@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name":          "PreeceMeet",
+    "slug":          "preecemeet",
+    "version":       "1.0.0",
+    "scheme":        "preecemeet",
+    "orientation":   "portrait",
+    "icon":          "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image":           "./assets/splash-icon.png",
+      "resizeMode":      "contain",
+      "backgroundColor": "#12121e"
+    },
+    "ios": {
+      "bundleIdentifier": "com.russellpreece.preecemeet",
+      "supportsTablet":   true,
+      "infoPlist": {
+        "NSCameraUsageDescription":      "PreeceMeet needs the camera to share your video on calls.",
+        "NSMicrophoneUsageDescription":  "PreeceMeet needs the microphone to capture your voice on calls.",
+        "UIBackgroundModes":             ["audio", "voip"]
+      }
+    },
+    "android": {
+      "package": "com.russellpreece.preecemeet",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#12121e"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.FOREGROUND_SERVICE"
+      ]
+    },
+    "plugins": [
+      [
+        "@livekit/react-native-webrtc",
+        {
+          "cameraPermission":     "PreeceMeet needs camera access for video calls.",
+          "microphonePermission": "PreeceMeet needs microphone access for calls."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios":     { "deploymentTarget": "15.1" },
+          "android": { "minSdkVersion": 24, "compileSdkVersion": 34, "targetSdkVersion": 34 }
+        }
+      ]
+    ]
+  }
+}
