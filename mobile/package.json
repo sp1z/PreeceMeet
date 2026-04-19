@@ -9,7 +9,7 @@
     "prebuild": "expo prebuild --clean"
   },
   "dependencies": {
-    "@config-plugins/react-native-webrtc": "^14.0.0",
+    "@config-plugins/react-native-webrtc": "^13.0.0",
     "@livekit/react-native":          "^2.7.0",
     "@livekit/react-native-webrtc":   "^144.0.0",
     "@microsoft/signalr":             "^8.0.7",
