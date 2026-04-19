@@ -2,6 +2,8 @@ const { app, BrowserWindow, shell, ipcMain, desktopCapturer } = require('electro
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
+const IS_MAC = process.platform === 'darwin';
+
 let mainWindow;
 let savedBounds = null;
 // One pending getDisplayMedia callback at a time. The renderer's picker fulfils
@@ -18,6 +20,12 @@ function createWindow() {
     backgroundColor:  '#12121e',
     title:            'PreeceMeet',
     icon:             path.join(__dirname, '..', 'build', 'icon.png'),
+    // On Mac keep the native traffic lights but hide the title bar so we get a
+    // tight custom top-bar; on Win/Linux go fully frameless and provide our
+    // own min/max/close in the renderer. Game mode hides chrome on every OS.
+    frame:            IS_MAC,
+    titleBarStyle:    IS_MAC ? 'hiddenInset' : undefined,
+    trafficLightPosition: IS_MAC ? { x: 12, y: 12 } : undefined,
     webPreferences: {
       preload:          path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -29,6 +37,9 @@ function createWindow() {
 
   mainWindow.setMenuBarVisibility(false);
   mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+
+  mainWindow.on('maximize',   () => mainWindow.webContents.send('win:maximized-changed', true));
+  mainWindow.on('unmaximize', () => mainWindow.webContents.send('win:maximized-changed', false));
 
   // Open target=_blank / external links in the user's default browser.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -53,7 +64,7 @@ function createWindow() {
       const sources = await desktopCapturer.getSources({
         types: ['screen', 'window'],
         thumbnailSize: { width: 320, height: 180 },
-        fetchWindowIcons: false,
+        fetchWindowIcons: true,
       });
       const payload = sources
         .filter(s => s.thumbnail && !s.thumbnail.isEmpty())
@@ -74,6 +85,7 @@ function createWindow() {
 
 // ── IPC ─────────────────────────────────────────────────────────────────────
 ipcMain.handle('app:version',         () => app.getVersion());
+ipcMain.handle('app:platform',        () => process.platform);
 ipcMain.handle('shell:open-external', async (_ev, url) => {
   if (typeof url !== 'string') return false;
   try { await shell.openExternal(url); return true; }
@@ -86,10 +98,26 @@ ipcMain.handle('win:set-bounds',       (_ev, bounds)  => mainWindow?.setBounds(b
 ipcMain.handle('win:set-size',         (_ev, { w, h }) => mainWindow?.setSize(w, h));
 ipcMain.handle('win:set-content-size', (_ev, { w, h }) => mainWindow?.setContentSize(Math.round(w), Math.round(h)));
 ipcMain.handle('win:set-always-on-top',(_ev, v)       => mainWindow?.setAlwaysOnTop(!!v));
+ipcMain.handle('win:set-resizable',    (_ev, v)       => mainWindow?.setResizable(!!v));
 ipcMain.handle('win:set-fullscreen',   (_ev, v)       => mainWindow?.setFullScreen(!!v));
 ipcMain.handle('win:is-fullscreen',    ()             => !!mainWindow?.isFullScreen());
 ipcMain.handle('win:save-bounds',      () => { savedBounds = mainWindow?.getBounds(); });
 ipcMain.handle('win:restore-bounds',   () => { if (savedBounds) mainWindow?.setBounds(savedBounds); });
+
+// Frameless window controls (used by the renderer's WindowControls bar).
+ipcMain.handle('win:minimize',     () => mainWindow?.minimize());
+ipcMain.handle('win:toggle-max',   () => {
+  if (!mainWindow) return false;
+  if (mainWindow.isMaximized()) { mainWindow.unmaximize(); return false; }
+  mainWindow.maximize();
+  return true;
+});
+ipcMain.handle('win:close',        () => mainWindow?.close());
+ipcMain.handle('win:is-maximized', () => !!mainWindow?.isMaximized());
+// Mac-only: hide the native traffic lights (used by game mode for clean look)
+ipcMain.handle('win:set-window-button-visibility', (_ev, v) => {
+  if (IS_MAC && mainWindow?.setWindowButtonVisibility) mainWindow.setWindowButtonVisibility(!!v);
+});
 
 // Screen-share picker resolution from the renderer.
 ipcMain.handle('display-share:choose', async (_ev, sourceId) => {

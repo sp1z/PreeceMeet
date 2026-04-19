@@ -3,8 +3,10 @@ import { useTracks, ParticipantTile, useRoomContext } from '@livekit/components-
 import { Track, RemoteTrackPublication } from 'livekit-client';
 
 const TILE_ORDER_KEY = 'preecemeet_tile_order';
+const TILE_SCALE_KEY = 'preecemeet_tile_scale';
 
 export type GameSize = 'small' | 'medium' | 'large';
+export type TileScale = 'cover' | 'contain';
 
 export const GAME_SIZES: Record<GameSize, number> = {
   small:  150,
@@ -15,6 +17,7 @@ export const GAME_SIZES: Record<GameSize, number> = {
 interface Props {
   gameMode?:     boolean;
   gameSize?:     GameSize;
+  showSelf?:     boolean;
   statsVisible?: boolean;
 }
 
@@ -77,7 +80,7 @@ function StatsTile() {
   );
 }
 
-export default function VideoGrid({ gameMode, gameSize = 'medium', statsVisible }: Props) {
+export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = false, statsVisible }: Props) {
   const room = useRoomContext();
 
   const tracks = useTracks(
@@ -95,8 +98,18 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', statsVisible 
     } catch { return []; }
   });
 
+  // Per-tile scale override (cover|contain). Persisted by participant SID +
+  // source so it survives reconnects. Default falls through to CSS:
+  // camera = cover, screen_share = contain.
+  const [scaleOverrides, setScaleOverrides] = useState<Record<string, TileScale>>(() => {
+    try {
+      const raw = localStorage.getItem(TILE_SCALE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+
   const [locallyMuted, setLocallyMuted] = useState<Set<string>>(new Set());
-  const [contextMenu, setContextMenu] = useState<{ sid: string; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ sid: string; tileKey: string; source: string; x: number; y: number } | null>(null);
   const [dragSid, setDragSid] = useState<string | null>(null);
   const [dragOverSid, setDragOverSid] = useState<string | null>(null);
 
@@ -120,7 +133,17 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', statsVisible 
     return 0;
   });
 
-  const count = sortedTracks.length + (statsVisible ? 1 : 0);
+  // Game mode: only camera tracks of *other* participants by default. Screen
+  // shares are kept publishing but not displayed. "Show Self" pulls our own
+  // camera tile back in for self-monitoring.
+  const visibleTracks = gameMode
+    ? sortedTracks.filter(t =>
+        t.source !== Track.Source.ScreenShare &&
+        (showSelf || !t.participant.isLocal),
+      )
+    : sortedTracks;
+
+  const count = visibleTracks.length + (statsVisible && !gameMode ? 1 : 0);
   const cols = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
   const rows = Math.ceil(count / cols);
 
@@ -137,7 +160,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', statsVisible 
       setDragOverSid(null);
       return;
     }
-    const currentOrder = sortedTracks.map(t => `${t.participant.sid}-${t.source}`);
+    const currentOrder = visibleTracks.map(t => `${t.participant.sid}-${t.source}`);
     const fromIdx = currentOrder.indexOf(dragSid);
     const toIdx   = currentOrder.indexOf(targetSid);
     if (fromIdx === -1 || toIdx === -1) {
@@ -159,10 +182,10 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', statsVisible 
     setDragOverSid(null);
   }
 
-  function handleContextMenu(e: React.MouseEvent, sid: string) {
+  function handleContextMenu(e: React.MouseEvent, sid: string, tileKey: string, source: string) {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenu({ sid, x: e.clientX, y: e.clientY });
+    setContextMenu({ sid, tileKey, source, x: e.clientX, y: e.clientY });
   }
 
   function handleMuteLocally(sid: string) {
@@ -184,12 +207,22 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', statsVisible 
   }
 
   function handlePinToTop(sid: string) {
-    const currentOrder = sortedTracks.map(t => `${t.participant.sid}-${t.source}`);
+    const currentOrder = visibleTracks.map(t => `${t.participant.sid}-${t.source}`);
     const participantKeys = currentOrder.filter(k => k.startsWith(sid + '-'));
     const rest = currentOrder.filter(k => !participantKeys.includes(k));
     const newOrder = [...participantKeys, ...rest];
     setOrder(newOrder);
     localStorage.setItem(TILE_ORDER_KEY, JSON.stringify(newOrder));
+    setContextMenu(null);
+  }
+
+  function setTileScale(tileKey: string, scale: TileScale | null) {
+    setScaleOverrides(prev => {
+      const next = { ...prev };
+      if (scale === null) delete next[tileKey]; else next[tileKey] = scale;
+      localStorage.setItem(TILE_SCALE_KEY, JSON.stringify(next));
+      return next;
+    });
     setContextMenu(null);
   }
 
@@ -211,11 +244,12 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', statsVisible 
           gridTemplateRows:    `repeat(${rows}, 1fr)`,
         } : { ['--game-tile-h' as never]: `${tileH}px`, ['--game-tile-w' as never]: `${tileW}px` }}
       >
-        {sortedTracks.map(track => {
+        {visibleTracks.map(track => {
           const tileSid = `${track.participant.sid}-${track.source}`;
           const isLocalCamera = track.participant.isLocal && track.source === Track.Source.Camera;
           const isMuted = locallyMuted.has(track.participant.sid);
           const isDragOver = dragOverSid === tileSid;
+          const scale = scaleOverrides[tileSid];
 
           return (
             <div
@@ -224,13 +258,14 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', statsVisible 
                 'tile-wrapper',
                 isLocalCamera ? 'local-camera-tile' : '',
                 isDragOver ? 'drag-over' : '',
+                scale ? `scale-${scale}` : '',
               ].filter(Boolean).join(' ')}
               draggable
               onDragStart={() => handleDragStart(tileSid)}
               onDragOver={e => handleDragOver(e, tileSid)}
               onDrop={() => handleDrop(tileSid)}
               onDragEnd={handleDragEnd}
-              onContextMenu={e => handleContextMenu(e, track.participant.sid)}
+              onContextMenu={e => handleContextMenu(e, track.participant.sid, tileSid, String(track.source))}
             >
               <ParticipantTile trackRef={track} />
               {isMuted && (
@@ -240,25 +275,50 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', statsVisible 
           );
         })}
 
-        {statsVisible && <StatsTile />}
+        {statsVisible && !gameMode && <StatsTile />}
       </div>
 
-      {contextMenu && (
-        <div
-          className="tile-context-menu"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          onClick={e => e.stopPropagation()}
-        >
-          {contextMenuParticipant && !contextMenuParticipant.isLocal && (
-            <button onClick={() => handleMuteLocally(contextMenu.sid)}>
-              {locallyMuted.has(contextMenu.sid) ? '🔊 Unmute for me' : '🔇 Mute for me'}
+      {contextMenu && (() => {
+        const isScreen = contextMenu.source === Track.Source.ScreenShare;
+        const currentScale = scaleOverrides[contextMenu.tileKey];
+        return (
+          <div
+            className="tile-context-menu"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onClick={e => e.stopPropagation()}
+          >
+            {contextMenuParticipant && !contextMenuParticipant.isLocal && !isScreen && (
+              <button onClick={() => handleMuteLocally(contextMenu.sid)}>
+                {locallyMuted.has(contextMenu.sid) ? '🔊 Unmute for me' : '🔇 Mute for me'}
+              </button>
+            )}
+            {!gameMode && (
+              <button onClick={() => handlePinToTop(contextMenu.sid)}>
+                📌 Pin to top
+              </button>
+            )}
+            <div className="context-divider" />
+            <div className="context-section-label">Scale</div>
+            <button
+              className={currentScale === 'contain' || (!currentScale && isScreen) ? 'active' : ''}
+              onClick={() => setTileScale(contextMenu.tileKey, 'contain')}
+            >
+              ⛶ Fit (no crop)
             </button>
-          )}
-          <button onClick={() => handlePinToTop(contextMenu.sid)}>
-            📌 Pin to top
-          </button>
-        </div>
-      )}
+            <button
+              className={currentScale === 'cover' || (!currentScale && !isScreen) ? 'active' : ''}
+              onClick={() => setTileScale(contextMenu.tileKey, 'cover')}
+            >
+              ▦ Fill (crop edges)
+            </button>
+            {currentScale && (
+              <button onClick={() => setTileScale(contextMenu.tileKey, null)}>
+                ↺ Reset to default
+              </button>
+            )}
+          </div>
+        );
+      })()}
     </>
   );
 }

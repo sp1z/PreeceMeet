@@ -149,6 +149,8 @@ input::placeholder { color: var(--text-muted); }
 }
 
 /* ── Top bar ───────────────────────────────────────────────────────────── */
+/* Frameless on Win/Linux, hiddenInset on macOS — the bar is the OS drag
+   region. Buttons mark themselves .nodrag so clicks aren't swallowed. */
 .top-bar {
   height: 44px;
   flex-shrink: 0;
@@ -158,13 +160,33 @@ input::placeholder { color: var(--text-muted); }
   padding: 0 10px;
   border-bottom: 1px solid var(--border);
   gap: 8px;
+  -webkit-app-region: drag;
+  app-region: drag;
 }
 .top-bar .room-name {
   flex: 1;
   font-size: 13px;
   font-weight: 600;
   color: #ccc;
+  -webkit-app-region: drag;
+  app-region: drag;
 }
+.top-bar .nodrag,
+.top-bar input,
+.top-bar select {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.top-bar .top-error {
+  flex: 1;
+  font-size: 12px;
+  color: #ef5350;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+/* On macOS the native traffic lights live in the top-left of the bar via
+   titleBarStyle:'hiddenInset' — pad the bar so our content sits beside them. */
+.darwin .top-bar { padding-left: 78px; }
 .icon-btn {
   width: 32px;
   height: 32px;
@@ -535,16 +557,30 @@ input::placeholder { color: var(--text-muted); }
   box-shadow: inset 0 0 0 2px #00C853 !important;
 }
 
-/* Discord-style: video fills the whole tile so the green speaking ring hugs
-   the visible image instead of leaving letterbox bars between the border and
-   the video. Slight edge crop is the accepted trade-off. Game mode overrides
-   this back to `contain` so streamers see the full webcam frame in the bar. */
+/* Discord-style: camera tiles fill the whole space so the green speaking ring
+   hugs the visible image instead of leaving letterbox bars. Slight edge crop
+   is the accepted trade-off. Screen-share tiles default to `contain` so
+   nothing is cropped. Game mode overrides cameras back to `contain` for
+   streamers. Per-tile right-click overrides win via .scale-cover/-contain. */
 .lk-participant-tile video,
 .lk-participant-tile .lk-participant-media-video {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
   display: block !important;
+}
+.lk-participant-tile[data-lk-source="screen_share"] video,
+.lk-participant-tile[data-lk-source="screen_share"] .lk-participant-media-video {
+  object-fit: contain !important;
+  background: #0a0a14;
+}
+.tile-wrapper.scale-contain .lk-participant-tile video,
+.tile-wrapper.scale-contain .lk-participant-tile .lk-participant-media-video {
+  object-fit: contain !important;
+}
+.tile-wrapper.scale-cover .lk-participant-tile video,
+.tile-wrapper.scale-cover .lk-participant-tile .lk-participant-media-video {
+  object-fit: cover !important;
 }
 
 /* Audio visualizer placeholder — prevent it from dictating tile height */
@@ -623,7 +659,28 @@ input::placeholder { color: var(--text-muted); }
   align-items: center;
   padding: 0 6px;
   gap: 8px;
+  -webkit-app-region: drag;
+  app-region: drag;
 }
+.game-titlebar .nodrag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.game-self-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.25);
+  border-radius: 6px;
+  height: 22px;
+  transition: background 0.15s, color 0.15s;
+}
+.game-self-btn:hover { color: var(--text-primary); }
+.game-self-btn.active { background: var(--accent); color: #fff; }
 .game-size-buttons {
   display: flex;
   gap: 2px;
@@ -1121,3 +1178,50 @@ input::placeholder { color: var(--text-muted); }
   max-width: 96px;
   max-height: 96px;
 }
+
+/* ── Tile context menu (extras) ─────────────────────────────────────────── */
+.tile-context-menu .context-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+.tile-context-menu .context-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 14px 2px;
+}
+.tile-context-menu button.active {
+  color: var(--accent);
+  background: rgba(91,155,213,0.12);
+}
+
+/* ── Frameless window controls (Win/Linux) ──────────────────────────────── */
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-left: 4px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.win-ctrl {
+  width: 38px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  border-radius: 4px;
+  transition: background 0.1s, color 0.1s;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.win-ctrl:hover { background: var(--bg-sidebar-hover); color: var(--text-primary); }
+.win-ctrl.close:hover { background: #e81123; color: #fff; }
+.game-titlebar .window-controls { margin-left: 0; }
+.game-titlebar .win-ctrl { height: 22px; width: 30px; }
+

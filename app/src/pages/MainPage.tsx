@@ -3,7 +3,7 @@ import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useRoomContext, us
 import { Track, RoomEvent } from 'livekit-client';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel, ChatMessage } from '../types';
 import { saveSettings, clearSession } from '../settings';
-import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl, displayShare, type DisplayShareSource } from '../runtime';
+import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl, displayShare, getPlatform, type DisplayShareSource, type Platform } from '../runtime';
 import { getRooms, getRoomToken, UnauthorizedError } from '../api';
 import Sidebar from '../components/Sidebar';
 import VideoGrid, { GAME_SIZES, type GameSize } from '../components/VideoGrid';
@@ -13,11 +13,13 @@ import AdminPanel from '../components/AdminPanel';
 import ChatPanel from '../components/ChatPanel';
 import ContactsModal from '../components/ContactsModal';
 import ScreenSharePicker from '../components/ScreenSharePicker';
+import WindowControls from '../components/WindowControls';
 import { IncomingCallModal, OutgoingCallModal } from '../components/CallRingModals';
 import { useDirectCalling } from '../calling';
 
 const CHAT_URL_RE = /\bhttps?:\/\/[^\s<>"]+/gi;
 const CHAT_TOPIC = 'chat';
+const ROOMS_POLL_MS = 2000;
 
 interface Props {
   session:          Session;
@@ -48,12 +50,14 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [adminOpen,         setAdminOpen]          = useState(false);
   const [gameMode,       setGameMode]       = useState(false);
   const [gameSize,       setGameSize]       = useState<GameSize>('medium');
+  const [showSelf,       setShowSelf]       = useState(false);
   const [installing,     setInstalling]     = useState(false);
   const [uiHidden,       setUiHidden]       = useState(false);
   const [isFullscreen,   setIsFullscreen]   = useState(false);
   const [statsVisible,   setStatsVisible]   = useState(false);
   const [contactsOpen,   setContactsOpen]   = useState(false);
   const [shareSources,   setShareSources]   = useState<DisplayShareSource[] | null>(null);
+  const [platform,       setPlatform]       = useState<Platform>('browser');
 
   const calling = useDirectCalling(session);
 
@@ -62,11 +66,19 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const settingsRef    = useRef(settings);
   const sidebarWidthRef = useRef(sidebarWidth);
 
-  // Keep refs in sync
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { sidebarWidthRef.current = sidebarWidth; }, [sidebarWidth]);
 
-  // Sync sidebarWidth from settings when changed externally
+  // Probe platform once for window-control routing (Mac → native traffic
+  // lights, Win/Linux → custom buttons). Tag the root element so per-OS CSS
+  // (e.g. left-padding for macOS traffic lights) can apply.
+  useEffect(() => {
+    void getPlatform().then(p => {
+      setPlatform(p);
+      document.documentElement.classList.add(p);
+    });
+  }, []);
+
   useEffect(() => {
     if (settings.sidebarWidth !== undefined && settings.sidebarWidth !== sidebarWidth) {
       setSidebarWidth(settings.sidebarWidth);
@@ -74,7 +86,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.sidebarWidth]);
 
-  // Poll room list every 5 seconds
   const pollRooms = useCallback(async () => {
     try {
       const list = await getRooms(session.serverUrl, session.sessionToken);
@@ -86,27 +97,24 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
 
   useEffect(() => {
     void pollRooms();
-    pollRef.current = setInterval(() => void pollRooms(), 5000);
+    pollRef.current = setInterval(() => void pollRooms(), ROOMS_POLL_MS);
     return () => clearInterval(pollRef.current);
   }, [pollRooms]);
 
-  // Auto-join on mount if a channel is configured
   useEffect(() => {
     if (settings.autoJoinChannel) {
       const ch = settings.channels.find(c => c.name === settings.autoJoinChannel);
       if (ch) void joinChannel(ch);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally runs once on mount only
+  }, []);
 
-  // Fullscreen state tracking
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
-  // Keyboard shortcuts: F11 fullscreen, Ctrl+M mic, Ctrl+E cam, Ctrl+D disconnect
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'F11') { e.preventDefault(); void toggleFullscreen(); return; }
@@ -122,11 +130,9 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFullscreen, connection]);
 
-  // Sidebar resize mouse events
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (!resizingRef.current) return;
-      // The sidebar starts at x=0, so its width = mouse x
       const newWidth = Math.max(160, Math.min(480, e.clientX));
       setSidebarWidth(newWidth);
       sidebarWidthRef.current = newWidth;
@@ -154,7 +160,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
         await document.exitFullscreen();
       }
     } catch {
-      // Fallback via Electron IPC
       try {
         const now = await windowCtl.toggleFullscreen();
         setIsFullscreen(now);
@@ -187,6 +192,9 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       setRemoteSharing(false);
       setChatMessages([]);
       setChatUnread(0);
+      // Refresh participant counts immediately rather than waiting for the
+      // next poll tick — gives an instant sidebar update for the joiner.
+      void pollRooms();
     } catch (err) {
       if (err instanceof UnauthorizedError) { clearSession(); onSignOut(); return; }
       setConnectState('idle');
@@ -194,11 +202,20 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     }
   }
 
-  function handleHangup() { setConnection(null); setConnectState('idle'); setScreenSharing(false); setRemoteSharing(false); setChatMessages([]); setChatUnread(0); setChatVisible(false); }
-  function handleDisconnected() { setConnection(null); setConnectState('idle'); setScreenSharing(false); setRemoteSharing(false); setChatMessages([]); setChatUnread(0); setChatVisible(false); }
+  function resetCallState() {
+    setConnection(null);
+    setConnectState('idle');
+    setScreenSharing(false);
+    setRemoteSharing(false);
+    setChatMessages([]);
+    setChatUnread(0);
+    setChatVisible(false);
+    void pollRooms();
+  }
 
-  // When a direct call is accepted (either side), drop straight into the LiveKit
-  // room with the token the hub gave us — bypasses the per-channel token fetch.
+  function handleHangup()       { resetCallState(); }
+  function handleDisconnected() { resetCallState(); }
+
   useEffect(() => {
     return calling.onAccepted(({ roomName, livekitToken, livekitUrl }) => {
       setError('');
@@ -210,18 +227,18 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       setRemoteSharing(false);
       setChatMessages([]);
       setChatUnread(0);
+      void pollRooms();
     });
-  }, [calling]);
+  }, [calling, pollRooms]);
 
   useEffect(() => {
     return calling.onDeclined(() => setError('Call declined'));
   }, [calling]);
 
   useEffect(() => {
-    return calling.onCancelled(() => { /* incoming dismissed by caller — nothing extra to do */ });
+    return calling.onCancelled(() => { /* nothing extra */ });
   }, [calling]);
 
-  // Toggle chat panel — clears unread when opening.
   function toggleChat() {
     setChatVisible(v => {
       if (!v) setChatUnread(0);
@@ -229,7 +246,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     });
   }
 
-  // Append an incoming/outgoing chat message and (for incoming) maybe auto-open URLs.
   const handleIncomingChat = useCallback((msg: ChatMessage) => {
     setChatMessages(prev => [...prev, msg]);
     if (!msg.isLocal) {
@@ -241,12 +257,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     }
   }, [chatVisible]);
 
-  // Ref for the ChatBridge to access send fn — set by the bridge once mounted.
   const chatSendRef = useRef<((text: string) => void) | null>(null);
-
-  function handleSendChat(text: string) {
-    chatSendRef.current?.(text);
-  }
+  function handleSendChat(text: string) { chatSendRef.current?.(text); }
 
   function toggleSidebar() {
     const next = !sidebarVisible;
@@ -257,25 +269,28 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   }
 
   // ── Game mode ─────────────────────────────────────────────────────────────
-  // Window resizing happens in GameModeAutoSize (it has the participant count
-  // from inside the LiveKitRoom context). enterGameMode just flips state +
-  // pins the window, exit restores the saved bounds.
+  // The window is sized + locked here; tile rendering is handled by VideoGrid
+  // and the live participant count comes from GameModeAutoSize (inside the
+  // LiveKitRoom). The LiveKitRoom itself stays mounted across mode toggles
+  // so toggling Game Mode while sharing doesn't re-fire getDisplayMedia.
 
   async function enterGameMode() {
     try { await windowCtl.saveBounds(); } catch { /* ignore */ }
     try { await windowCtl.setAlwaysOnTop(true); } catch { /* ignore */ }
+    try { await windowCtl.setResizable(false); } catch { /* ignore */ }
+    try { await windowCtl.setWindowButtonVisibility(false); } catch { /* mac only */ }
     setGameMode(true);
   }
 
   async function exitGameMode() {
     setGameMode(false);
     try { await windowCtl.setAlwaysOnTop(false); } catch { /* ignore */ }
-    try { await windowCtl.restoreBounds(); }     catch { /* ignore */ }
+    try { await windowCtl.setResizable(true); }   catch { /* ignore */ }
+    try { await windowCtl.setWindowButtonVisibility(true); } catch { /* mac only */ }
+    try { await windowCtl.restoreBounds(); }      catch { /* ignore */ }
   }
 
   // ── Screen-share picker ───────────────────────────────────────────────────
-  // Main pushes a source list whenever LiveKit calls getDisplayMedia. We
-  // surface the modal; the user's choice (or cancel) resolves the request.
   useEffect(() => {
     const off = displayShare.onRequest(sources => setShareSources(sources));
     return off;
@@ -297,14 +312,10 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     setInstalling(true);
     try {
       const r = await runtimeInstallUpdate();
-      if (r.ok) {
-        // Electron quits + relaunches itself when the installer finishes.
-        return;
-      }
+      if (r.ok) return;
       setInstalling(false);
       console.error('[updater]', r.error);
       setError(`Update failed: ${r.error}`);
-      return;
     } catch (e) {
       console.error('[updater] failed:', e);
       setInstalling(false);
@@ -335,96 +346,41 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     saveSettings({ ...s, sidebarWidth: sidebarWidthRef.current });
   }
 
-  // Stable reference — AdminPanel's load() useCallback dep on onSignOut must not
-  // change on every parent render (rooms poll fires every 5 s).
   const handleSignOut = useCallback(() => { clearSession(); onSignOut(); }, [onSignOut]);
 
   const activeRoomName = connection?.roomName ?? null;
+  const showWinControls = platform === 'win32' || platform === 'linux';
+  const showChat = chatVisible && !!connection && !gameMode;
+  const sidebarOn = sidebarVisible && !gameMode;
+  const contentColumns = gameMode
+    ? '1fr'
+    : (sidebarOn ? `${sidebarWidth}px 6px 1fr` : '1fr') + (showChat ? ' 320px' : '');
 
-  // ── Game mode layout ──────────────────────────────────────────────────────
+  return (
+    <div className={`app-layout${gameMode ? ' game-mode' : ''}${uiHidden ? ' ui-hidden' : ''}`}>
 
-  if (gameMode) {
-    return (
-      <div className="app-layout game-mode">
+      {/* ── Top bar: game-mode title bar OR normal top bar ─────────────────── */}
+      {gameMode ? (
         <GameTitleBar
           gameSize={gameSize}
           onSizeChange={setGameSize}
+          showSelf={showSelf}
+          onToggleSelf={() => setShowSelf(v => !v)}
           onRestore={() => void exitGameMode()}
+          showWinControls={showWinControls}
         />
-
-        <div className="video-area game-video-area">
-          {connectState === 'idle' && !connection && (
-            <div className="game-empty">No active call — restore window to join a channel</div>
-          )}
-          {connectState === 'connecting' && (
-            <div className="game-empty">
-              <div className="spinner" style={{ width: 14, height: 14, marginBottom: 0 }} /> Connecting…
-            </div>
-          )}
-          {connection && (
-            <LiveKitRoom
-              key={connection.key}
-              serverUrl={connection.url}
-              token={connection.token}
-              connect={true}
-              audio={true}
-              video={true}
-              onDisconnected={handleDisconnected}
-              onError={err => setError(err.message)}
-              style={{ flex: 1, display: 'flex', minHeight: 0, height: '100%' }}
-            >
-              <MediaController
-                micMuted={micMuted}
-                camMuted={camMuted}
-                screenSharing={screenSharing}
-                preferredMicDeviceId={settings.preferredMicDeviceId}
-                preferredCamDeviceId={settings.preferredCamDeviceId}
-                preferredSpeakerDeviceId={settings.preferredSpeakerDeviceId}
-                displayName={settings.displayName}
-                onLocalShareEnded={() => setScreenSharing(false)}
-                onRemoteShareChange={setRemoteSharing}
-                onShareError={msg => { setError(msg); setScreenSharing(false); }}
-              />
-              <GameModeAutoSize gameSize={gameSize} />
-              <RoomAudioRenderer />
-              <VideoGrid gameMode gameSize={gameSize} statsVisible={statsVisible} />
-            </LiveKitRoom>
-          )}
-        </div>
-
-        {shareSources && (
-          <ScreenSharePicker
-            sources={shareSources}
-            onSelect={handleSharePick}
-            onCancel={handleShareCancel}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // ── Normal layout ─────────────────────────────────────────────────────────
-
-  const showChat = chatVisible && !!connection;
-  const contentColumns = (sidebarVisible ? `${sidebarWidth}px 6px 1fr` : '1fr')
-    + (showChat ? ' 320px' : '');
-
-  return (
-    <div className={`app-layout${uiHidden ? ' ui-hidden' : ''}`}>
-
-      {/* ── Top bar ──────────────────────────────────────────────── */}
-      {!uiHidden && (
+      ) : !uiHidden ? (
         <div className="top-bar">
-          <button className="icon-btn" onClick={toggleSidebar} title="Toggle sidebar">
+          <button className="icon-btn nodrag" onClick={toggleSidebar} title="Toggle sidebar">
             <BurgerIcon />
           </button>
           <span className="room-name">
             {activeRoomName ? `#${activeRoomName}` : 'No active call'}
           </span>
-          {error && <span style={{ fontSize: 12, color: '#ef5350', flex: 1 }}>{error}</span>}
+          {error && <span className="top-error">{error}</span>}
           {updateVersion && !error && (
             <button
-              className="update-pill"
+              className="update-pill nodrag"
               onClick={installUpdate}
               disabled={installing}
               title={`Update to v${updateVersion}`}
@@ -432,49 +388,29 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               {installing ? 'Installing…' : `↑ v${updateVersion} available`}
             </button>
           )}
-          <button
-            className="icon-btn"
-            onClick={() => void enterGameMode()}
-            title="Game Mode — overlay strip for streaming"
-          >
+          <button className="icon-btn nodrag" onClick={() => void enterGameMode()} title="Game Mode — overlay strip for streaming">
             <GameModeIcon />
           </button>
-          <button
-            className={`icon-btn${statsVisible ? ' active' : ''}`}
-            onClick={() => setStatsVisible(v => !v)}
-            title="Toggle stats panel"
-          >
+          <button className={`icon-btn nodrag${statsVisible ? ' active' : ''}`} onClick={() => setStatsVisible(v => !v)} title="Toggle stats panel">
             📊
           </button>
-          <button
-            className={`icon-btn${isFullscreen ? ' active' : ''}`}
-            onClick={() => void toggleFullscreen()}
-            title={isFullscreen ? 'Exit fullscreen (F11)' : 'Fullscreen (F11)'}
-          >
+          <button className={`icon-btn nodrag${isFullscreen ? ' active' : ''}`} onClick={() => void toggleFullscreen()} title={isFullscreen ? 'Exit fullscreen (F11)' : 'Fullscreen (F11)'}>
             <FullscreenIcon exit={isFullscreen} />
           </button>
-          <button
-            className="icon-btn"
-            onClick={() => setUiHidden(true)}
-            title="Hide UI"
-          >
+          <button className="icon-btn nodrag" onClick={() => setUiHidden(true)} title="Hide UI">
             ↕
           </button>
-          <button
-            className="icon-btn"
-            onClick={() => setContactsOpen(true)}
-            title="Contacts — direct call other users"
-          >
+          <button className="icon-btn nodrag" onClick={() => setContactsOpen(true)} title="Contacts — direct call other users">
             <ContactsIcon />
           </button>
           {session.isAdmin && (
-            <button className="icon-btn" onClick={() => setAdminOpen(true)} title="Admin Panel">
+            <button className="icon-btn nodrag" onClick={() => setAdminOpen(true)} title="Admin Panel">
               <AdminIcon />
             </button>
           )}
           {connection && (
             <button
-              className={`icon-btn${chatVisible ? ' active' : ''}`}
+              className={`icon-btn nodrag${chatVisible ? ' active' : ''}`}
               onClick={toggleChat}
               title="Chat"
               style={{ position: 'relative' }}
@@ -485,18 +421,19 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               )}
             </button>
           )}
-          <button className="icon-btn" onClick={() => setSettingsOpen(true)} title="Settings">
+          <button className="icon-btn nodrag" onClick={() => setSettingsOpen(true)} title="Settings">
             <SettingsIcon />
           </button>
+          {showWinControls && <WindowControls />}
         </div>
-      )}
+      ) : null}
 
       {/* ── Content ──────────────────────────────────────────────── */}
       <div
-        className="content-row"
-        style={{ gridTemplateColumns: contentColumns }}
+        className={`content-row${gameMode ? ' content-row-game' : ''}`}
+        style={!gameMode ? { gridTemplateColumns: contentColumns } : undefined}
       >
-        {sidebarVisible && (
+        {sidebarOn && (
           <Sidebar
             channels={settings.channels}
             rooms={rooms}
@@ -510,15 +447,12 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
             visible={true}
           />
         )}
-        {sidebarVisible && (
-          <div
-            className="sidebar-resize-handle"
-            onMouseDown={handleSidebarMouseDown}
-          />
+        {sidebarOn && (
+          <div className="sidebar-resize-handle" onMouseDown={handleSidebarMouseDown} />
         )}
 
-        <div className="video-area">
-          {connectState === 'idle' && !connection && (
+        <div className={`video-area${gameMode ? ' game-video-area' : ''}`}>
+          {!gameMode && connectState === 'idle' && !connection && (
             <div className="empty-state">
               <div className="big-icon">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--border)' }}>
@@ -531,13 +465,23 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
             </div>
           )}
 
-          {connectState === 'connecting' && (
+          {gameMode && connectState === 'idle' && !connection && (
+            <div className="game-empty">No active call — restore window to join a channel</div>
+          )}
+
+          {!gameMode && connectState === 'connecting' && (
             <div className="overlay">
               <div className="overlay-card">
                 <div className="spinner" />
                 <h3>Connecting…</h3>
                 <p>Joining room</p>
               </div>
+            </div>
+          )}
+
+          {gameMode && connectState === 'connecting' && (
+            <div className="game-empty">
+              <div className="spinner" style={{ width: 14, height: 14, marginBottom: 0 }} /> Connecting…
             </div>
           )}
 
@@ -551,7 +495,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               video={true}
               onDisconnected={handleDisconnected}
               onError={err => setError(err.message)}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}
             >
               <MediaController
                 micMuted={micMuted}
@@ -570,8 +514,14 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 onMessage={handleIncomingChat}
                 sendRef={chatSendRef}
               />
+              {gameMode && <GameModeAutoSize gameSize={gameSize} showSelf={showSelf} />}
               <RoomAudioRenderer />
-              <VideoGrid statsVisible={statsVisible} />
+              <VideoGrid
+                gameMode={gameMode}
+                gameSize={gameSize}
+                showSelf={showSelf}
+                statsVisible={statsVisible}
+              />
             </LiveKitRoom>
           )}
         </div>
@@ -585,8 +535,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
         )}
       </div>
 
-      {/* ── Call controls / reveal bar ────────────────────────────── */}
-      {uiHidden ? (
+      {/* ── Bottom controls / reveal bar (normal mode only) ────────────────── */}
+      {!gameMode && (uiHidden ? (
         <div className="reveal-bar" onClick={() => setUiHidden(false)}>
           ▲&nbsp;&nbsp;Click to restore toolbar
         </div>
@@ -602,7 +552,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           onToggleScreenShare={() => setScreenSharing(s => !s)}
           onHangup={handleHangup}
         />
-      )}
+      ))}
 
       {/* ── Modals ───────────────────────────────────────────────── */}
       {settingsOpen && (
@@ -658,12 +608,15 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
 // ── Game mode title bar ──────────────────────────────────────────────────────
 
 interface GameTitleBarProps {
-  gameSize:     GameSize;
-  onSizeChange: (s: GameSize) => void;
-  onRestore:    () => void;
+  gameSize:        GameSize;
+  onSizeChange:    (s: GameSize) => void;
+  showSelf:        boolean;
+  onToggleSelf:    () => void;
+  onRestore:       () => void;
+  showWinControls: boolean;
 }
 
-function GameTitleBar({ gameSize, onSizeChange, onRestore }: GameTitleBarProps) {
+function GameTitleBar({ gameSize, onSizeChange, showSelf, onToggleSelf, onRestore, showWinControls }: GameTitleBarProps) {
   const sizes: { key: GameSize; label: string }[] = [
     { key: 'small',  label: 'S' },
     { key: 'medium', label: 'M' },
@@ -675,7 +628,7 @@ function GameTitleBar({ gameSize, onSizeChange, onRestore }: GameTitleBarProps) 
         {sizes.map(s => (
           <button
             key={s.key}
-            className={`game-size-btn${gameSize === s.key ? ' active' : ''}`}
+            className={`game-size-btn nodrag${gameSize === s.key ? ' active' : ''}`}
             onClick={() => onSizeChange(s.key)}
             title={`${s.label} — ${GAME_SIZES[s.key]}px tall`}
           >
@@ -683,25 +636,34 @@ function GameTitleBar({ gameSize, onSizeChange, onRestore }: GameTitleBarProps) 
           </button>
         ))}
       </div>
+      <button
+        className={`game-self-btn nodrag${showSelf ? ' active' : ''}`}
+        onClick={onToggleSelf}
+        title={showSelf ? 'Hide my own video' : 'Show my own video'}
+      >
+        <SelfIcon /> Self
+      </button>
       <span className="game-titlebar-title">PreeceMeet</span>
-      <button className="game-exit-btn" onClick={onRestore} title="Exit Game Mode">
+      <button className="game-exit-btn nodrag" onClick={onRestore} title="Exit Game Mode">
         ⊞ Restore
       </button>
+      {showWinControls && <WindowControls />}
     </div>
   );
 }
 
 // ── Game mode auto-size ──────────────────────────────────────────────────────
-// Fits the window content area to (participants × tile-width) horizontally and
-// (titlebar + tile-height + padding) vertically. Re-runs when participants
-// join/leave or the user toggles S/M/L.
+// Fits the window content area to (visible-tile-count × tile-width) horizontally
+// and (titlebar + tile-height + padding) vertically. Counts the same set
+// VideoGrid renders: cameras only, with self filtered unless Show Self is on.
 
-function GameModeAutoSize({ gameSize }: { gameSize: GameSize }) {
+function GameModeAutoSize({ gameSize, showSelf }: { gameSize: GameSize; showSelf: boolean }) {
   const tracks = useTracks(
     [{ source: Track.Source.Camera, withPlaceholder: true }],
     { onlySubscribed: false },
   );
-  const count = Math.max(1, tracks.length);
+  const visible = tracks.filter(t => showSelf || !t.participant.isLocal);
+  const count   = Math.max(1, visible.length);
 
   useEffect(() => {
     const tileH      = GAME_SIZES[gameSize];
@@ -709,7 +671,7 @@ function GameModeAutoSize({ gameSize }: { gameSize: GameSize }) {
     const gap        = 4;
     const pad        = 4;
     const titleBarH  = 30;
-    const minBarW    = 320; // keeps S/M/L + Restore visible at idle
+    const minBarW    = 360; // keeps S/M/L + Self + Restore visible at idle
     const contentW   = Math.max(minBarW, pad * 2 + count * tileW + (count - 1) * gap);
     const contentH   = titleBarH + tileH + pad * 2;
     void windowCtl.setContentSize(contentW, contentH);
@@ -749,16 +711,11 @@ function MediaController({
   const room    = useRoomContext();
   const mounted = useRef(false);
 
-  // Watch *remote* screen-share tracks only (used to soft-lock the share button).
   const screenTracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: false });
   const remoteSharing = screenTracks.some(t => !t.participant.isLocal);
 
   useEffect(() => { onRemoteShareChange(remoteSharing); }, [remoteSharing, onRemoteShareChange]);
 
-  // Detect OS-driven stop (Windows "stop sharing" bar, Chrome's overlay etc.) by
-  // listening for the local screen-share track being unpublished. Using a plain
-  // useTracks-based check would fire spuriously between "we requested share" and
-  // "track has finished publishing", causing the share to flicker on then off.
   useEffect(() => {
     const handler = (publication: { source?: Track.Source } | undefined) => {
       if (publication?.source === Track.Source.ScreenShare) onLocalShareEnded();
@@ -767,8 +724,6 @@ function MediaController({
     return () => { room.off(RoomEvent.LocalTrackUnpublished, handler); };
   }, [room, onLocalShareEnded]);
 
-  // Drive the actual LiveKit screen-share toggle. Track the latest desired state
-  // in a ref so a quick toggle off→on (or re-render) doesn't issue duplicate calls.
   const desiredShareRef = useRef(false);
   useEffect(() => {
     if (!localParticipant) return;
@@ -776,7 +731,6 @@ function MediaController({
     desiredShareRef.current = screenSharing;
     localParticipant.setScreenShareEnabled(screenSharing).catch(err => {
       const msg = err instanceof Error ? err.message : String(err);
-      // User cancelled the OS picker → revert quietly.
       if (/Permission denied|aborted|cancel|NotAllowedError/i.test(msg)) {
         desiredShareRef.current = false;
         onLocalShareEnded();
@@ -787,7 +741,6 @@ function MediaController({
     });
   }, [screenSharing, localParticipant, onLocalShareEnded, onShareError]);
 
-  // Re-apply preferred devices whenever prefs change (e.g. settings saved mid-call)
   useEffect(() => {
     async function applyPreferredDevices() {
       try {
@@ -809,7 +762,6 @@ function MediaController({
     void applyPreferredDevices();
   }, [preferredMicDeviceId, preferredCamDeviceId, preferredSpeakerDeviceId, room]);
 
-  // Push display name to LiveKit so tiles show the friendly name, not the email identity
   useEffect(() => {
     if (displayName) room.localParticipant.setName(displayName).catch(() => {});
   }, [displayName, room]);
@@ -843,7 +795,6 @@ function ChatBridge({ displayName, onMessage, sendRef }: ChatBridgeProps) {
   useEffect(() => { onMessageRef.current   = onMessage; },   [onMessage]);
   useEffect(() => { displayNameRef.current = displayName; }, [displayName]);
 
-  // Wire the send fn up to the ref so the parent can call it.
   useEffect(() => {
     sendRef.current = (text: string) => {
       const msg = {
@@ -863,7 +814,6 @@ function ChatBridge({ displayName, onMessage, sendRef }: ChatBridgeProps) {
     return () => { sendRef.current = null; };
   }, [room, sendRef]);
 
-  // Subscribe to incoming data messages on the chat topic.
   useEffect(() => {
     const handler = (payload: Uint8Array, participant: { identity: string; name?: string } | undefined, _kind: unknown, topic?: string) => {
       if (topic !== CHAT_TOPIC) return;
@@ -953,6 +903,15 @@ function SettingsIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3"/>
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  );
+}
+
+function SelfIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
     </svg>
   );
 }

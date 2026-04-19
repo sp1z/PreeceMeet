@@ -10,20 +10,30 @@ export interface DisplayShareSource {
   isScreen:  boolean;
 }
 
+export type Platform = 'darwin' | 'win32' | 'linux' | 'browser';
+
 declare global {
   interface Window {
     preecemeet?: {
       version:        () => Promise<string>;
+      platform:       () => Promise<NodeJS.Platform>;
       openExternal:   (url: string) => Promise<boolean>;
       getBounds:      () => Promise<{ x: number; y: number; width: number; height: number }>;
       setBounds:      (b: { x?: number; y?: number; width?: number; height?: number }) => Promise<void>;
       setSize:        (w: number, h: number) => Promise<void>;
       setContentSize: (w: number, h: number) => Promise<void>;
       setAlwaysOnTop: (v: boolean) => Promise<void>;
+      setResizable:   (v: boolean) => Promise<void>;
       setFullscreen:  (v: boolean) => Promise<void>;
       isFullscreen:   () => Promise<boolean>;
       saveBounds:     () => Promise<void>;
       restoreBounds:  () => Promise<void>;
+      minimize:       () => Promise<void>;
+      toggleMaximize: () => Promise<boolean>;
+      close:          () => Promise<void>;
+      isMaximized:    () => Promise<boolean>;
+      setWindowButtonVisibility: (v: boolean) => Promise<void>;
+      onMaximizedChange: (h: (v: boolean) => void) => () => void;
       checkUpdate:    () => Promise<string | null>;
       installUpdate:  () => Promise<true | { error: string }>;
       onDisplayShareRequest: (h: (sources: DisplayShareSource[]) => void) => () => void;
@@ -46,6 +56,13 @@ export async function openExternal(url: string): Promise<void> {
 export async function appVersion(): Promise<string> {
   if (window.preecemeet) return window.preecemeet.version();
   return '0.0.0-dev';
+}
+
+export async function getPlatform(): Promise<Platform> {
+  if (!window.preecemeet) return 'browser';
+  const p = await window.preecemeet.platform();
+  if (p === 'darwin' || p === 'win32' || p === 'linux') return p;
+  return 'browser';
 }
 
 export async function checkForUpdate(): Promise<string | null> {
@@ -72,6 +89,12 @@ export const windowCtl = {
   async setAlwaysOnTop(v: boolean): Promise<void> {
     if (window.preecemeet) await window.preecemeet.setAlwaysOnTop(v);
   },
+  async setResizable(v: boolean): Promise<void> {
+    if (window.preecemeet) await window.preecemeet.setResizable(v);
+  },
+  async setWindowButtonVisibility(v: boolean): Promise<void> {
+    if (window.preecemeet) await window.preecemeet.setWindowButtonVisibility(v);
+  },
   async toggleFullscreen(): Promise<boolean> {
     if (window.preecemeet) {
       const now = await window.preecemeet.isFullscreen();
@@ -95,6 +118,24 @@ export const windowCtl = {
   },
   async restoreBounds(): Promise<void> {
     if (window.preecemeet) await window.preecemeet.restoreBounds();
+  },
+  async minimize(): Promise<void> {
+    if (window.preecemeet) await window.preecemeet.minimize();
+  },
+  async toggleMaximize(): Promise<boolean> {
+    if (window.preecemeet) return window.preecemeet.toggleMaximize();
+    return false;
+  },
+  async close(): Promise<void> {
+    if (window.preecemeet) await window.preecemeet.close();
+  },
+  async isMaximized(): Promise<boolean> {
+    if (window.preecemeet) return window.preecemeet.isMaximized();
+    return false;
+  },
+  onMaximizedChange(handler: (v: boolean) => void): () => void {
+    if (!window.preecemeet) return () => {};
+    return window.preecemeet.onMaximizedChange(handler);
   },
 };
 
