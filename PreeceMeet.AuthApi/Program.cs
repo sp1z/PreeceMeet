@@ -3,6 +3,7 @@ using Livekit.Server.Sdk.Dotnet;
 using Microsoft.EntityFrameworkCore;
 using OtpNet;
 using PreeceMeet.AuthApi.Data;
+using PreeceMeet.AuthApi.Hubs;
 using PreeceMeet.AuthApi.Models;
 using PreeceMeet.AuthApi.Services;
 
@@ -26,11 +27,19 @@ builder.Services.AddDbContext<AppDbContext>(opts =>
     opts.UseSqlite($"Data Source={dbPath}"));
 
 builder.Services.AddSingleton<TempTokenStore>();
+builder.Services.AddSingleton<PresenceService>();
 builder.Services.AddSingleton(new LiveKitTokenService(livekitApiKey, livekitSecret));
 builder.Services.AddSingleton(new SessionTokenService(livekitSecret));
+builder.Services.AddSignalR();
 
+// SignalR + WebSocket needs SetIsOriginAllowed (not AllowAnyOrigin) when used
+// with credentials/cookies; we don't use cookies but Electron's file:// origin
+// is happier with this form.
 builder.Services.AddCors(opts => opts.AddDefaultPolicy(policy =>
-    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+    policy.SetIsOriginAllowed(_ => true)
+          .AllowAnyMethod()
+          .AllowAnyHeader()
+          .AllowCredentials()));
 
 var livekitHttpUrl = livekitUrl.Replace("wss://", "https://").Replace("ws://", "http://");
 var roomService    = new RoomServiceClient(livekitHttpUrl, livekitApiKey, livekitSecret);
@@ -335,6 +344,28 @@ app.MapDelete("/api/admin/users/{email}", async (string email, HttpContext ctx, 
     await db.SaveChangesAsync();
     return Results.Ok(new { deleted = email });
 });
+
+// ── Users: list (for direct-call contact list) ────────────────────────────────
+
+app.MapGet("/api/users", async (HttpContext ctx, AppDbContext db,
+    SessionTokenService session, PresenceService presence) =>
+{
+    var me = session.Validate(ctx.Request.Headers.Authorization);
+    if (me is null) return Results.Unauthorized();
+
+    var online = new HashSet<string>(presence.OnlineUsers(), StringComparer.OrdinalIgnoreCase);
+    var users  = await db.Users
+        .Where(u => u.Email != me)
+        .OrderBy(u => u.Email)
+        .Select(u => u.Email)
+        .ToListAsync();
+
+    return Results.Ok(users.Select(email => new { email, online = online.Contains(email) }));
+});
+
+// ── SignalR hub for 1:1 call signalling ───────────────────────────────────────
+
+app.MapHub<CallHub>("/hubs/call");
 
 app.Run();
 
