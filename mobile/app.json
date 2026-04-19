@@ -42,7 +42,7 @@
     },
     "plugins": [
       [
-        "@livekit/react-native-webrtc",
+        "@config-plugins/react-native-webrtc",
         {
           "cameraPermission":     "PreeceMeet needs camera access for video calls.",
           "microphonePermission": "PreeceMeet needs microphone access for calls."
