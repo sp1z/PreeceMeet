@@ -136,14 +136,21 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   // Game mode: only camera tracks of *other* participants by default. Screen
   // shares are kept publishing but not displayed. "Show Self" pulls our own
   // camera tile back in for self-monitoring.
+  //
+  // Local-camera-in-game-mode is rendered-but-hidden rather than filtered out,
+  // because unmounting the local ParticipantTile on every toggle races the
+  // v4l2 capture handoff on Linux and leaves the local track black until the
+  // user toggles the camera manually. Keeping it mounted avoids that.
   const visibleTracks = gameMode
-    ? sortedTracks.filter(t =>
-        t.source !== Track.Source.ScreenShare &&
-        (showSelf || !t.participant.isLocal),
-      )
+    ? sortedTracks.filter(t => t.source !== Track.Source.ScreenShare)
     : sortedTracks;
 
-  const count = visibleTracks.length + (statsVisible && !gameMode ? 1 : 0);
+  function isHiddenInGame(track: typeof visibleTracks[number]): boolean {
+    return !!gameMode && !showSelf && track.participant.isLocal;
+  }
+
+  const renderedCount = visibleTracks.filter(t => !isHiddenInGame(t)).length;
+  const count = renderedCount + (statsVisible && !gameMode ? 1 : 0);
   const cols = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
   const rows = Math.ceil(count / cols);
 
@@ -250,6 +257,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
           const isMuted = locallyMuted.has(track.participant.sid);
           const isDragOver = dragOverSid === tileSid;
           const scale = scaleOverrides[tileSid];
+          const hiddenInGame = isHiddenInGame(track);
 
           return (
             <div
@@ -259,6 +267,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
                 isLocalCamera ? 'local-camera-tile' : '',
                 isDragOver ? 'drag-over' : '',
                 scale ? `scale-${scale}` : '',
+                hiddenInGame ? 'game-hidden' : '',
               ].filter(Boolean).join(' ')}
               draggable
               onDragStart={() => handleDragStart(tileSid)}

@@ -51,7 +51,9 @@ export default function ScreenSharePicker({ sources, onSelect, onCancel }: Props
               title={src.name}
             >
               <div className="share-picker-thumb">
-                <img src={src.thumbnail} alt={src.name} draggable={false} />
+                {src.thumbnail
+                  ? <img src={src.thumbnail} alt={src.name} draggable={false} />
+                  : <div className="share-picker-thumb-empty">{src.isScreen ? '🖥' : '🪟'}</div>}
               </div>
               <div className="share-picker-name">{src.name}</div>
             </button>

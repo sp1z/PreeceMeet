@@ -252,7 +252,16 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       if (!chatVisible) setChatUnread(u => u + 1);
       if (settingsRef.current.autoOpenChatUrls) {
         const urls = msg.text.match(CHAT_URL_RE);
-        if (urls) urls.forEach(url => { void openExternal(url); });
+        if (urls) {
+          // Serialize so e.g. Firefox on Linux doesn't get hammered with
+          // concurrent xdg-open calls (races its profile lock and "stalls").
+          void (async () => {
+            for (const url of urls) {
+              try { await openExternal(url); } catch { /* ignore */ }
+              await new Promise(r => setTimeout(r, 250));
+            }
+          })();
+        }
       }
     }
   }, [chatVisible]);

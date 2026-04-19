@@ -7,8 +7,12 @@ const IS_MAC = process.platform === 'darwin';
 let mainWindow;
 let savedBounds = null;
 // One pending getDisplayMedia callback at a time. The renderer's picker fulfils
-// it via 'display-share:choose' / 'display-share:cancel'.
+// it via 'display-share:choose' / 'display-share:cancel'. pendingSources caches
+// the desktopCapturer.getSources() result so the choose handler doesn't have
+// to call getSources() again — on Wayland that would re-invoke the XDG portal
+// and prompt the user a second time.
 let pendingDisplayCb = null;
+let pendingSources   = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -60,25 +64,44 @@ function createWindow() {
   mainWindow.webContents.session.setDisplayMediaRequestHandler(async (_req, cb) => {
     if (pendingDisplayCb) { try { pendingDisplayCb({}); } catch {} }
     pendingDisplayCb = cb;
+    pendingSources   = null;
     try {
       const sources = await desktopCapturer.getSources({
         types: ['screen', 'window'],
         thumbnailSize: { width: 320, height: 180 },
         fetchWindowIcons: true,
       });
-      const payload = sources
-        .filter(s => s.thumbnail && !s.thumbnail.isEmpty())
-        .map(s => ({
-          id:        s.id,
-          name:      s.name,
-          thumbnail: s.thumbnail.toDataURL(),
-          isScreen:  s.id.startsWith('screen:'),
-        }));
+      pendingSources = sources;
+      console.log(
+        `[display-share] got ${sources.length} source(s) ` +
+        `(screens=${sources.filter(s => s.id.startsWith('screen:')).length}, ` +
+        `windows=${sources.filter(s => s.id.startsWith('window:')).length})`,
+      );
+
+      // Linux + Wayland: desktopCapturer.getSources() invokes the XDG portal
+      // which shows the user its own native chooser and returns exactly one
+      // selected source. In that case skip our picker entirely (showing it
+      // would just be a single-option redundant click, and a re-enumeration
+      // would re-open the portal).
+      if (process.platform === 'linux' && sources.length === 1) {
+        cb({ video: sources[0], audio: 'loopback' });
+        pendingDisplayCb = null;
+        pendingSources   = null;
+        return;
+      }
+
+      const payload = sources.map(s => ({
+        id:        s.id,
+        name:      s.name,
+        thumbnail: s.thumbnail && !s.thumbnail.isEmpty() ? s.thumbnail.toDataURL() : '',
+        isScreen:  s.id.startsWith('screen:'),
+      }));
       mainWindow.webContents.send('display-share:request', payload);
     } catch (err) {
       console.error('[display-share] getSources failed:', err);
       try { pendingDisplayCb({}); } catch {}
       pendingDisplayCb = null;
+      pendingSources   = null;
     }
   });
 }
@@ -119,28 +142,26 @@ ipcMain.handle('win:set-window-button-visibility', (_ev, v) => {
   if (IS_MAC && mainWindow?.setWindowButtonVisibility) mainWindow.setWindowButtonVisibility(!!v);
 });
 
-// Screen-share picker resolution from the renderer.
-ipcMain.handle('display-share:choose', async (_ev, sourceId) => {
+// Screen-share picker resolution from the renderer. Uses the cached source
+// list from the initial getSources() call — calling getSources() a second
+// time would re-prompt the user through the XDG portal on Wayland.
+ipcMain.handle('display-share:choose', (_ev, sourceId) => {
   if (!pendingDisplayCb) return false;
   const cb = pendingDisplayCb;
+  const sources = pendingSources || [];
   pendingDisplayCb = null;
-  try {
-    const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
-    const source  = sources.find(s => s.id === sourceId);
-    if (source) cb({ video: source, audio: 'loopback' });
-    else        cb({});
-    return !!source;
-  } catch (err) {
-    console.error('[display-share] choose failed:', err);
-    cb({});
-    return false;
-  }
+  pendingSources   = null;
+  const source = sources.find(s => s.id === sourceId);
+  if (source) cb({ video: source, audio: 'loopback' });
+  else        cb({});
+  return !!source;
 });
 
 ipcMain.handle('display-share:cancel', () => {
   if (!pendingDisplayCb) return false;
   try { pendingDisplayCb({}); } catch {}
   pendingDisplayCb = null;
+  pendingSources   = null;
   return true;
 });
 
