@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useRoomContext, useTracks } from '@livekit/components-react';
 import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel, ChatMessage } from '../types';
@@ -131,6 +131,22 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.sidebarWidth]);
+
+  // Stable LiveKitRoom audio/video options — passing a fresh object literal
+  // each render risks LiveKit re-doing gUM and switching back to the system
+  // default (which is what we were debugging with NVIDIA Broadcast).
+  const liveKitAudio = useMemo(
+    () => settings.preferredMicDeviceId
+      ? { deviceId: settings.preferredMicDeviceId }
+      : true,
+    [settings.preferredMicDeviceId],
+  );
+  const liveKitVideo = useMemo(
+    () => settings.preferredCamDeviceId
+      ? { deviceId: settings.preferredCamDeviceId }
+      : true,
+    [settings.preferredCamDeviceId],
+  );
 
   const handleVideoReady = useCallback(() => setVideoReady(true), []);
   const handleParticipantsChanged = useCallback(() => { void pollRoomsRef.current?.(); }, []);
@@ -656,12 +672,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               serverUrl={connection.url}
               token={connection.token}
               connect={true}
-              audio={settings.preferredMicDeviceId
-                ? { deviceId: settings.preferredMicDeviceId }
-                : true}
-              video={settings.preferredCamDeviceId
-                ? { deviceId: settings.preferredCamDeviceId }
-                : true}
+              audio={liveKitAudio}
+              video={liveKitVideo}
               onConnected={() => callLog.info('livekit connected', { room: connection.roomName })}
               onDisconnected={handleDisconnected}
               onError={err => { callLog.error('livekit error', err); setError(err.message); }}
@@ -895,8 +907,23 @@ function RoomEventLogger({ onVideoReady, onParticipantsChanged }: RoomEventLogge
       callLog.info('participant disconnected', { identity: p.identity, sid: p.sid });
       onParticipantsChanged();
     };
-    const onLocalPub = (pub: { kind: string; source?: string }) => {
-      callLog.info('local track published', { kind: pub.kind, source: pub.source });
+    const onLocalPub = (pub: { kind: string; source?: string; track?: { mediaStreamTrack?: MediaStreamTrack } }) => {
+      // Surface what the OS actually selected so we can spot mismatches with
+      // the user's preferred device (e.g. NVIDIA Broadcast not loading and
+      // the OS falling through to the raw webcam).
+      let actualDeviceId: string | undefined;
+      let actualLabel: string | undefined;
+      try {
+        const trackSettings = pub.track?.mediaStreamTrack?.getSettings?.();
+        actualDeviceId = trackSettings?.deviceId;
+        actualLabel    = pub.track?.mediaStreamTrack?.label;
+      } catch { /* ignore */ }
+      callLog.info('local track published', {
+        kind:     pub.kind,
+        source:   pub.source,
+        deviceId: actualDeviceId,
+        label:    actualLabel,
+      });
       if (pub.source === Track.Source.Camera) signalReady('local-camera-published');
     };
     const onLocalUnpub = (pub: { kind: string; source?: string }) =>
