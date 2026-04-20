@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Channel, RoomInfo } from '../types';
+import type { ContactUser } from '../api';
+import { formatUser } from '../format';
 import { PreeceMeetMark, PreeceMeetWordmark } from './Mark';
 
 interface Props {
@@ -9,6 +11,10 @@ interface Props {
   email:           string;
   displayName:     string;
   avatarEmoji:     string;
+  users:           ContactUser[];
+  online:          Set<string>;
+  inCall:          boolean;
+  onCall:          (email: string) => Promise<{ ok: boolean; error?: string }>;
   onJoin:          (channel: Channel) => void;
   onSettings:      () => void;
   onSignOut:       () => void;
@@ -19,7 +25,8 @@ interface Props {
 
 interface ChannelMenu { name: string; x: number; y: number; }
 
-export default function Sidebar({ channels, rooms, activeRoom, email, displayName, avatarEmoji, onJoin, onSettings, onSignOut, onAddChannel, onDeleteChannel, visible }: Props) {
+export default function Sidebar({ channels, rooms, activeRoom, email, displayName, avatarEmoji, users, online, inCall, onCall, onJoin, onSettings, onSignOut, onAddChannel, onDeleteChannel, visible }: Props) {
+  const [callingEmail, setCallingEmail] = useState('');
   const [footerMenuOpen, setFooterMenuOpen] = useState(false);
   const [channelMenu,    setChannelMenu]    = useState<ChannelMenu | null>(null);
 
@@ -46,6 +53,20 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
   // nothing (shouldn't happen once session.email is populated).
   const footerLabel = displayName?.trim() || email || 'Account';
 
+  // Build the user roster: exclude ourselves, layer live presence on top of
+  // the REST snapshot, and sort online-first.
+  const myEmail = email.toLowerCase();
+  const roster = users
+    .filter(u => u.email.toLowerCase() !== myEmail)
+    .map(u => ({ ...u, online: online.has(u.email.toLowerCase()) }))
+    .sort((a, b) => Number(b.online) - Number(a.online) || a.email.localeCompare(b.email));
+
+  async function handleCall(userEmail: string) {
+    setCallingEmail(userEmail);
+    try { await onCall(userEmail); }
+    finally { setCallingEmail(''); }
+  }
+
   return (
     <aside className="sidebar" style={{ position: 'relative' }}>
       <div className="sidebar-header">
@@ -56,6 +77,35 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
         <button className="icon-btn" onClick={onAddChannel} title="Add channel" style={{ width: 28, height: 28, fontSize: 20 }}>
           +
         </button>
+      </div>
+
+      <div className="sidebar-section-label">Users</div>
+      <div className="user-list">
+        {roster.length === 0 && (
+          <div style={{ padding: '8px 10px', color: 'var(--text-muted)', fontSize: 12 }}>
+            No other users yet.
+          </div>
+        )}
+        {roster.map(u => {
+          const label = formatUser(u.email);
+          const busy  = callingEmail === u.email;
+          const disabled = !u.online || inCall || busy;
+          const title = !u.online ? 'User offline' : inCall ? 'Already in a call' : `Call ${label}`;
+          return (
+            <button
+              key={u.email}
+              type="button"
+              className={`user-row${u.online ? ' online' : ''}${disabled ? ' disabled' : ''}`}
+              onClick={() => { if (!disabled) void handleCall(u.email); }}
+              disabled={disabled}
+              title={title}
+            >
+              <span className={`user-dot${u.online ? ' online' : ''}`} />
+              <span className="user-name">{label}</span>
+              {busy && <span className="user-calling">calling…</span>}
+            </button>
+          );
+        })}
       </div>
 
       <div className="sidebar-section-label">Channels</div>

@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import type { Settings, Channel } from '../types';
 import EmojiPicker from './EmojiPicker';
+import { diagnostics } from '../runtime';
 import pkg from '../../package.json';
 
 interface Props {
   settings:     Settings;
   onSave:       (s: Settings) => void;
   onClose:      () => void;
-  initialTab?:  'profile' | 'channels' | 'permissions';
+  initialTab?:  'profile' | 'channels' | 'permissions' | 'debug';
 }
 
-type Tab       = 'profile' | 'channels' | 'permissions';
+type Tab       = 'profile' | 'channels' | 'permissions' | 'debug';
 type PermState = 'unknown' | 'granted' | 'denied' | 'prompt';
 
 export default function SettingsModal({ settings, onSave, onClose, initialTab }: Props) {
@@ -37,6 +38,8 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
   const [prefSpeaker,    setPrefSpeaker]    = useState(settings.preferredSpeakerDeviceId);
   const [autoOpenUrls,   setAutoOpenUrls]   = useState(settings.autoOpenChatUrls);
   const [showSpeaking,   setShowSpeaking]   = useState(settings.showSpeakingIndicator);
+  const [localLog,       setLocalLog]       = useState(settings.localLoggingEnabled);
+  const [serverLog,      setServerLog]      = useState(settings.serverLoggingEnabled);
 
   useEffect(() => { void checkPerms(); }, []);
 
@@ -119,7 +122,7 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
   function cancelEditChannel() { setEditingName(null); }
 
   function save() {
-    onSave({ ...settings, displayName: displayName.trim(), avatarEmoji, serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin, preferredMicDeviceId: prefMic, preferredCamDeviceId: prefCam, preferredSpeakerDeviceId: prefSpeaker, autoOpenChatUrls: autoOpenUrls, showSpeakingIndicator: showSpeaking });
+    onSave({ ...settings, displayName: displayName.trim(), avatarEmoji, serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin, preferredMicDeviceId: prefMic, preferredCamDeviceId: prefCam, preferredSpeakerDeviceId: prefSpeaker, autoOpenChatUrls: autoOpenUrls, showSpeakingIndicator: showSpeaking, localLoggingEnabled: localLog, serverLoggingEnabled: serverLog });
     onClose();
   }
 
@@ -136,7 +139,7 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
         </div>
 
         <div className="modal-tabs">
-          {(['profile', 'channels', 'permissions'] as Tab[]).map(t => (
+          {(['profile', 'channels', 'permissions', 'debug'] as Tab[]).map(t => (
             <button key={t} className={`modal-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
@@ -337,6 +340,40 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
                   <strong style={{ color: 'var(--text-primary)' }}>Linux</strong> — Check your desktop environment's privacy settings
                 </div>
               )}
+            </div>
+          )}
+
+          {tab === 'debug' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <label className="checkbox-row">
+                <input type="checkbox" checked={localLog} onChange={e => setLocalLog(e.target.checked)} />
+                <span>
+                  Local logging
+                  <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Keep a log of client events on this machine. Off by default — turn on when reproducing an issue.
+                  </span>
+                </span>
+              </label>
+              <label className="checkbox-row">
+                <input type="checkbox" checked={serverLog} onChange={e => setServerLog(e.target.checked)} />
+                <span>
+                  Send logs to server
+                  <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Periodically upload your local logs to the server so they can be inspected remotely. Requires Local logging to be on to collect anything.
+                  </span>
+                </span>
+              </label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                <button className="btn-secondary" onClick={() => void diagnostics.openLogFolder()}>
+                  Open log folder
+                </button>
+                <button className="btn-secondary" onClick={() => void diagnostics.toggleDevTools()}>
+                  Toggle DevTools
+                </button>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                DevTools shortcut: F12 (or ⌘⌥I on macOS).
+              </p>
             </div>
           )}
 

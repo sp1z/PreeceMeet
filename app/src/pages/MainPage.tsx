@@ -3,9 +3,9 @@ import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useRoomContext, us
 import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel, ChatMessage } from '../types';
 import { saveSettings, clearSession } from '../settings';
-import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl, displayShare, diagnostics, getPlatform, type DisplayShareSource, type Platform } from '../runtime';
-import { getRooms, getRoomToken, UnauthorizedError } from '../api';
-import { createLogger } from '../logger';
+import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl, displayShare, getPlatform, type DisplayShareSource, type Platform } from '../runtime';
+import { getRooms, getRoomToken, getUsers, UnauthorizedError, type ContactUser } from '../api';
+import { createLogger, setLocalLoggingEnabled } from '../logger';
 import { startLogUploader, stopLogUploader } from '../logUploader';
 import Sidebar from '../components/Sidebar';
 import VideoGrid, { GAME_SIZES, type GameSize } from '../components/VideoGrid';
@@ -15,7 +15,6 @@ import CallControls from '../components/CallControls';
 import SettingsModal from '../components/SettingsModal';
 import AdminPanel from '../components/AdminPanel';
 import ChatPanel from '../components/ChatPanel';
-import ContactsModal from '../components/ContactsModal';
 import ScreenSharePicker from '../components/ScreenSharePicker';
 import WindowControls from '../components/WindowControls';
 import { IncomingCallModal, OutgoingCallModal } from '../components/CallRingModals';
@@ -56,15 +55,14 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [chatUnread,     setChatUnread]     = useState(0);
   const [error,          setError]          = useState('');
   const [settingsOpen,      setSettingsOpen]      = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'profile' | 'channels' | 'permissions'>('profile');
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'profile' | 'channels' | 'permissions' | 'debug'>('profile');
   const [adminOpen,         setAdminOpen]          = useState(false);
   const [gameMode,       setGameMode]       = useState(false);
   const [gameSize,       setGameSize]       = useState<GameSize>('medium');
   const [showSelf,       setShowSelf]       = useState(false);
   const [installing,     setInstalling]     = useState(false);
-  const [uiHidden,       setUiHidden]       = useState(false);
   const [isFullscreen,   setIsFullscreen]   = useState(false);
-  const [contactsOpen,   setContactsOpen]   = useState(false);
+  const [users,          setUsers]          = useState<ContactUser[]>([]);
   const [shareSources,   setShareSources]   = useState<DisplayShareSource[] | null>(null);
   const [platform,       setPlatform]       = useState<Platform>('browser');
   const [deviceFallbacks, setDeviceFallbacks] = useState<DeviceKind[]>([]);
@@ -93,12 +91,20 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     });
   }, []);
 
-  // Start the log uploader so diagnostics make it to the server automatically.
+  // Keep the module-level logger flag in sync with settings so enabling
+  // local logging mid-session doesn't require a restart.
   useEffect(() => {
+    setLocalLoggingEnabled(settings.localLoggingEnabled);
+  }, [settings.localLoggingEnabled]);
+
+  // The uploader only runs when server logging is enabled. Toggling the
+  // setting off stops it; toggling back on restarts it.
+  useEffect(() => {
+    if (!settings.serverLoggingEnabled) return;
     startLogUploader(session.serverUrl, session.sessionToken);
     uiLog.info('session started', { email: session.email, isAdmin: session.isAdmin, serverUrl: session.serverUrl });
     return () => { stopLogUploader(); };
-  }, [session.serverUrl, session.sessionToken, session.email, session.isAdmin]);
+  }, [settings.serverLoggingEnabled, session.serverUrl, session.sessionToken, session.email, session.isAdmin]);
 
   // Log + refresh on device change so hot-plugged cameras/mics appear without
   // a restart. Fires inside VirtualBox passthrough scenarios too. Also bumps
@@ -131,6 +137,19 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.sidebarWidth]);
+
+  // Load the registered-user list once; live presence is layered on top via
+  // calling.online (the /hubs/call SignalR feed). No polling needed.
+  useEffect(() => {
+    let cancelled = false;
+    getUsers(session.serverUrl, session.sessionToken)
+      .then(list => { if (!cancelled) setUsers(list); })
+      .catch(err => {
+        if (err instanceof UnauthorizedError) { clearSession(); onSignOut(); return; }
+        uiLog.warn('getUsers failed', err);
+      });
+    return () => { cancelled = true; };
+  }, [session.serverUrl, session.sessionToken, onSignOut]);
 
   // Stable LiveKitRoom audio/video options — passing a fresh object literal
   // each render risks LiveKit re-doing gUM and switching back to the system
@@ -486,7 +505,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     }
   }
 
-  function openSettingsAt(tab: 'profile' | 'channels' | 'permissions') {
+  function openSettingsAt(tab: 'profile' | 'channels' | 'permissions' | 'debug') {
     setSettingsInitialTab(tab);
     setSettingsOpen(true);
   }
@@ -518,7 +537,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     : (sidebarOn ? `${sidebarWidth}px 6px 1fr` : '1fr') + (showChat ? ' 320px' : '');
 
   return (
-    <div className={`app-layout${gameMode ? ' game-mode' : ''}${uiHidden ? ' ui-hidden' : ''}`}>
+    <div className={`app-layout${gameMode ? ' game-mode' : ''}`}>
 
       {/* ── Top bar: game-mode title bar OR normal top bar ─────────────────── */}
       {gameMode ? (
@@ -530,7 +549,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           onRestore={() => void exitGameMode()}
           showWinControls={showWinControls}
         />
-      ) : !uiHidden ? (
+      ) : (
         <div className="top-bar">
           <button className="icon-btn nodrag" onClick={toggleSidebar} title="Toggle sidebar">
             <BurgerIcon />
@@ -555,12 +574,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           <button className={`icon-btn nodrag${isFullscreen ? ' active' : ''}`} onClick={() => void toggleFullscreen()} title={isFullscreen ? 'Exit fullscreen (F11)' : 'Fullscreen (F11)'}>
             <FullscreenIcon exit={isFullscreen} />
           </button>
-          <button className="icon-btn nodrag" onClick={() => setUiHidden(true)} title="Hide UI">
-            ↕
-          </button>
-          <button className="icon-btn nodrag" onClick={() => setContactsOpen(true)} title="Contacts — direct call other users">
-            <ContactsIcon />
-          </button>
           {session.isAdmin && (
             <button className="icon-btn nodrag" onClick={() => setAdminOpen(true)} title="Admin Panel">
               <AdminIcon />
@@ -579,26 +592,12 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               )}
             </button>
           )}
-          <button
-            className="icon-btn nodrag"
-            onClick={() => void diagnostics.openLogFolder()}
-            title="Open logs folder"
-          >
-            <LogIcon />
-          </button>
-          <button
-            className="icon-btn nodrag"
-            onClick={() => void diagnostics.toggleDevTools()}
-            title="Toggle DevTools (F12)"
-          >
-            <BugIcon />
-          </button>
           <button className="icon-btn nodrag" onClick={() => setSettingsOpen(true)} title="Settings">
             <SettingsIcon />
           </button>
           {showWinControls && <WindowControls />}
         </div>
-      ) : null}
+      )}
 
       {/* ── Content ──────────────────────────────────────────────── */}
       <div
@@ -613,6 +612,10 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
             email={session.email || ''}
             displayName={settings.displayName || ''}
             avatarEmoji={settings.avatarEmoji || '🙂'}
+            users={users}
+            online={calling.online}
+            inCall={!!connection}
+            onCall={email => calling.call(email, settings.displayName || undefined)}
             onJoin={joinChannel}
             onSettings={() => openSettingsAt('profile')}
             onSignOut={handleSignOut}
@@ -722,12 +725,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
         )}
       </div>
 
-      {/* ── Bottom controls / reveal bar (normal mode only) ────────────────── */}
-      {!gameMode && (uiHidden ? (
-        <div className="reveal-bar" onClick={() => setUiHidden(false)}>
-          ▲&nbsp;&nbsp;Click to restore toolbar
-        </div>
-      ) : (
+      {/* ── Bottom controls (normal mode only) ─────────────────────────────── */}
+      {!gameMode && (
         <CallControls
           connected={!!connection}
           micMuted={micMuted}
@@ -739,7 +738,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           onToggleScreenShare={() => setScreenSharing(s => !s)}
           onHangup={handleHangup}
         />
-      ))}
+      )}
 
       {/* ── Modals ───────────────────────────────────────────────── */}
       {settingsOpen && (
@@ -754,16 +753,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
         <AdminPanel
           session={session}
           onClose={() => setAdminOpen(false)}
-          onSignOut={handleSignOut}
-        />
-      )}
-      {contactsOpen && (
-        <ContactsModal
-          session={session}
-          online={calling.online}
-          inCall={!!connection}
-          onCall={email => calling.call(email, settings.displayName || undefined)}
-          onClose={() => setContactsOpen(false)}
           onSignOut={handleSignOut}
         />
       )}
@@ -1226,14 +1215,6 @@ function AdminIcon() {
   );
 }
 
-function ContactsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>
-    </svg>
-  );
-}
-
 function ChatIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1260,31 +1241,3 @@ function SelfIcon() {
   );
 }
 
-function LogIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-      <polyline points="14 2 14 8 20 8"/>
-      <line x1="8"  y1="13" x2="16" y2="13"/>
-      <line x1="8"  y1="17" x2="13" y2="17"/>
-    </svg>
-  );
-}
-
-function BugIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 2l1.88 1.88"/>
-      <path d="M14.12 3.88 16 2"/>
-      <path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/>
-      <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6z"/>
-      <path d="M12 20v-9"/>
-      <path d="M6.53 9H2"/>
-      <path d="M6 13H2"/>
-      <path d="M6 17h-4"/>
-      <path d="M22 9h-4.5"/>
-      <path d="M22 13h-4"/>
-      <path d="M22 17h-4"/>
-    </svg>
-  );
-}

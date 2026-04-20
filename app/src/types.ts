@@ -20,6 +20,8 @@ export interface Settings {
   sidebarWidth?: number;
   autoOpenChatUrls: boolean;
   showSpeakingIndicator: boolean;
+  localLoggingEnabled: boolean;
+  serverLoggingEnabled: boolean;
 }
 
 /** Shape of the participant metadata JSON we publish via LiveKit. */

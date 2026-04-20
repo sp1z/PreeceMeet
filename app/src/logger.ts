@@ -27,6 +27,25 @@ const BUFFER_MAX = 2000;
 const buffer: Entry[] = [];
 const listeners = new Set<(e: Entry) => void>();
 
+// Local logging is a user setting (default off) — read from the same
+// localStorage key the Settings screen writes. When disabled, emit() is a
+// no-op so nothing hits console / IPC / ring buffer, and therefore the
+// uploader has nothing to send even if it's still running.
+let localLoggingEnabled = (() => {
+  try {
+    const raw = localStorage.getItem('preecemeet_settings');
+    if (raw) {
+      const s = JSON.parse(raw);
+      return !!s?.localLoggingEnabled;
+    }
+  } catch { /* ignore */ }
+  return false;
+})();
+
+export function setLocalLoggingEnabled(on: boolean): void {
+  localLoggingEnabled = on;
+}
+
 function serializeMeta(meta: unknown): unknown {
   if (meta === undefined || meta === null) return meta;
   if (meta instanceof Error) {
@@ -40,6 +59,7 @@ function serializeMeta(meta: unknown): unknown {
 }
 
 function emit(level: Level, scope: string, message: string, meta?: unknown): void {
+  if (!localLoggingEnabled) return;
   const safeMeta = serializeMeta(meta);
   const entry: Entry = { ts: Date.now(), level, scope, message, meta: safeMeta };
   if (buffer.length >= BUFFER_MAX) buffer.shift();

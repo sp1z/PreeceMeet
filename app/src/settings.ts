@@ -18,6 +18,8 @@ const defaults: Settings = {
   sidebarWidth: 220,
   autoOpenChatUrls: false,
   showSpeakingIndicator: true,
+  localLoggingEnabled: false,
+  serverLoggingEnabled: false,
 };
 
 export function loadSettings(): Settings {
