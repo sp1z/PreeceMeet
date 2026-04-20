@@ -3,7 +3,7 @@ import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useRoomContext, us
 import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel, ChatMessage } from '../types';
 import { saveSettings, clearSession } from '../settings';
-import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl, displayShare, getPlatform, type DisplayShareSource, type Platform } from '../runtime';
+import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl, displayShare, passThru, getPlatform, type DisplayShareSource, type Platform } from '../runtime';
 import { getRooms, getRoomToken, getUsers, UnauthorizedError, type ContactUser } from '../api';
 import { createLogger, setLocalLoggingEnabled } from '../logger';
 import { startLogUploader, stopLogUploader } from '../logUploader';
@@ -11,7 +11,7 @@ import Sidebar from '../components/Sidebar';
 import VideoGrid, { GAME_SIZES, type GameSize } from '../components/VideoGrid';
 import DeviceFallbackBanner from '../components/DeviceFallbackBanner';
 import ConnectingPanel from '../components/ConnectingPanel';
-import CallControls from '../components/CallControls';
+import CallControls, { MicIcon, MicOffIcon, CamIcon, CamOffIcon } from '../components/CallControls';
 import SettingsModal from '../components/SettingsModal';
 import AdminPanel from '../components/AdminPanel';
 import ChatPanel from '../components/ChatPanel';
@@ -64,6 +64,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [isFullscreen,   setIsFullscreen]   = useState(false);
   const [users,          setUsers]          = useState<ContactUser[]>([]);
   const [shareSources,   setShareSources]   = useState<DisplayShareSource[] | null>(null);
+  const [passThruSources, setPassThruSources] = useState<DisplayShareSource[] | null>(null);
+  const [passThruStream,  setPassThruStream]  = useState<MediaStream | null>(null);
   const [platform,       setPlatform]       = useState<Platform>('browser');
   const [deviceFallbacks, setDeviceFallbacks] = useState<DeviceKind[]>([]);
   const [deviceRetryNonce, setDeviceRetryNonce] = useState(0);
@@ -487,6 +489,57 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     setScreenSharing(false);
   }
 
+  // ── PassThru (local-only preview) ─────────────────────────────────────────
+  // Opens the picker with sources from a dedicated IPC so it doesn't entangle
+  // with the LiveKit screen-share callback. The resulting MediaStream stays
+  // in the renderer — it's rendered as an extra local tile and never touched
+  // by the LiveKit publishTrack path.
+  async function handleTogglePassThru() {
+    if (passThruStream) {
+      passThruStream.getTracks().forEach(t => t.stop());
+      setPassThruStream(null);
+      shareLog.info('passthru stopped');
+      return;
+    }
+    const sources = await passThru.getSources();
+    if (!sources.length) {
+      shareLog.warn('passthru: no sources returned');
+      return;
+    }
+    setPassThruSources(sources);
+  }
+
+  async function handlePassThruPick(sourceId: string) {
+    setPassThruSources(null);
+    try {
+      const stream = await passThru.capture(sourceId);
+      // If the source ends externally (user closed the window, resolution
+      // change), drop the tile so the grid layout recovers.
+      stream.getVideoTracks().forEach(t => {
+        t.addEventListener('ended', () => {
+          setPassThruStream(cur => (cur === stream ? null : cur));
+        });
+      });
+      setPassThruStream(stream);
+      shareLog.info('passthru started', { sourceId });
+    } catch (err) {
+      shareLog.error('passthru capture failed', err);
+    }
+  }
+
+  function handlePassThruCancel() {
+    setPassThruSources(null);
+  }
+
+  // Stop any active PassThru stream when the component unmounts (sign out,
+  // disconnect) so we don't leak a capture process.
+  useEffect(() => {
+    return () => {
+      if (passThruStream) passThruStream.getTracks().forEach(t => t.stop());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function installUpdate() {
     if (installing) return;
     setInstalling(true);
@@ -546,6 +599,11 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           onSizeChange={setGameSize}
           showSelf={showSelf}
           onToggleSelf={() => setShowSelf(v => !v)}
+          micMuted={micMuted}
+          camMuted={camMuted}
+          hasConnection={!!connection}
+          onToggleMic={() => setMicMuted(m => !m)}
+          onToggleCam={() => setCamMuted(c => !c)}
           onRestore={() => void exitGameMode()}
           showWinControls={showWinControls}
         />
@@ -710,6 +768,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 gameSize={gameSize}
                 showSelf={showSelf}
                 showSpeakingIndicator={settings.showSpeakingIndicator}
+                passThruStream={passThruStream}
+                onStopPassThru={() => void handleTogglePassThru()}
                 onForceMicMute={handleForceMicMute}
               />
             </LiveKitRoom>
@@ -733,9 +793,11 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           camMuted={camMuted}
           screenSharing={screenSharing}
           screenShareDisabled={remoteSharing}
+          passThruActive={!!passThruStream}
           onToggleMic={() => setMicMuted(m => !m)}
           onToggleCam={() => setCamMuted(c => !c)}
           onToggleScreenShare={() => setScreenSharing(s => !s)}
+          onTogglePassThru={() => void handleTogglePassThru()}
           onHangup={handleHangup}
         />
       )}
@@ -777,6 +839,14 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           onCancel={handleShareCancel}
         />
       )}
+
+      {passThruSources && (
+        <ScreenSharePicker
+          sources={passThruSources}
+          onSelect={handlePassThruPick}
+          onCancel={handlePassThruCancel}
+        />
+      )}
     </div>
   );
 }
@@ -788,11 +858,16 @@ interface GameTitleBarProps {
   onSizeChange:    (s: GameSize) => void;
   showSelf:        boolean;
   onToggleSelf:    () => void;
+  micMuted:        boolean;
+  camMuted:        boolean;
+  hasConnection:   boolean;
+  onToggleMic:     () => void;
+  onToggleCam:     () => void;
   onRestore:       () => void;
   showWinControls: boolean;
 }
 
-function GameTitleBar({ gameSize, onSizeChange, showSelf, onToggleSelf, onRestore, showWinControls }: GameTitleBarProps) {
+function GameTitleBar({ gameSize, onSizeChange, showSelf, onToggleSelf, micMuted, camMuted, hasConnection, onToggleMic, onToggleCam, onRestore, showWinControls }: GameTitleBarProps) {
   const sizes: { key: GameSize; label: string }[] = [
     { key: 'small',  label: 'S' },
     { key: 'medium', label: 'M' },
@@ -818,6 +893,22 @@ function GameTitleBar({ gameSize, onSizeChange, showSelf, onToggleSelf, onRestor
         title={showSelf ? 'Hide my own video' : 'Show my own video'}
       >
         <SelfIcon /> Self
+      </button>
+      <button
+        className={`game-av-btn nodrag${micMuted ? ' muted' : ''}`}
+        onClick={onToggleMic}
+        disabled={!hasConnection}
+        title={micMuted ? 'Unmute microphone' : 'Mute microphone'}
+      >
+        {micMuted ? <MicOffIcon /> : <MicIcon />}
+      </button>
+      <button
+        className={`game-av-btn nodrag${camMuted ? ' muted' : ''}`}
+        onClick={onToggleCam}
+        disabled={!hasConnection}
+        title={camMuted ? 'Turn camera on' : 'Turn camera off'}
+      >
+        {camMuted ? <CamOffIcon /> : <CamIcon />}
       </button>
       <span className="game-titlebar-title">PreeceMeet</span>
       <button className="game-exit-btn nodrag" onClick={onRestore} title="Exit Game Mode">

@@ -293,6 +293,29 @@ ipcMain.handle('display-share:cancel', () => {
   return true;
 });
 
+// PassThru: enumerate capture sources for the renderer's local-only preview.
+// This is independent of the LiveKit getDisplayMedia flow above — the stream
+// never leaves this machine, so there's no pending callback to resolve.
+ipcMain.handle('passthru:get-sources', async () => {
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen', 'window'],
+      thumbnailSize: { width: 320, height: 180 },
+      fetchWindowIcons: true,
+    });
+    log.info(`[passthru] got ${sources.length} source(s)`);
+    return sources.map(s => ({
+      id:        s.id,
+      name:      s.name,
+      thumbnail: s.thumbnail && !s.thumbnail.isEmpty() ? s.thumbnail.toDataURL() : '',
+      isScreen:  s.id.startsWith('screen:'),
+    }));
+  } catch (err) {
+    log.error('[passthru] getSources failed:', err);
+    return [];
+  }
+});
+
 // ── Auto-updater (electron-updater, GitHub provider) ────────────────────────
 autoUpdater.autoDownload         = false;
 autoUpdater.autoInstallOnAppQuit = true;

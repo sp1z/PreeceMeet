@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useTracks, ParticipantTile, useRoomContext } from '@livekit/components-react';
 import { Track, RemoteTrackPublication, RoomEvent, RemoteParticipant } from 'livekit-client';
 import { createLogger } from '../logger';
@@ -24,13 +24,17 @@ interface Props {
   gameSize?:        GameSize;
   showSelf?:        boolean;
   showSpeakingIndicator?: boolean;
+  /** Local-only MediaStream to render as an extra tile (PassThru). Never
+   *  published to LiveKit. `null` means no PassThru active. */
+  passThruStream?:  MediaStream | null;
+  onStopPassThru?:  () => void;
   /** Called when a remote sends a "please-mute" data message. The host
    *  should flip its micMuted state so the mic-button UI reflects reality
    *  and the user can unmute with a single click. */
   onForceMicMute?:  (sourceName: string) => void;
 }
 
-export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = false, showSpeakingIndicator = true, onForceMicMute }: Props) {
+export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = false, showSpeakingIndicator = true, passThruStream = null, onStopPassThru, onForceMicMute }: Props) {
   const room = useRoomContext();
 
   const tracks = useTracks(
@@ -130,6 +134,26 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
     return () => window.removeEventListener('click', handler);
   }, [contextMenu]);
 
+  // After the menu renders, measure it and shift into the viewport if the
+  // raw mouse-click coords would push any edge off-screen. Important in
+  // game mode where the window can be 300px tall and a right-click near
+  // the bottom/right would otherwise clip the menu.
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (!contextMenu || !menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const pad = 6;
+    let left = contextMenu.x;
+    let top  = contextMenu.y;
+    if (left + rect.width  + pad > window.innerWidth)  left = window.innerWidth  - rect.width  - pad;
+    if (top  + rect.height + pad > window.innerHeight) top  = window.innerHeight - rect.height - pad;
+    left = Math.max(pad, left);
+    top  = Math.max(pad, top);
+    if (left !== contextMenu.x || top !== contextMenu.y) {
+      setContextMenu(prev => prev ? { ...prev, x: left, y: top } : prev);
+    }
+  }, [contextMenu]);
+
   const sortedTracks = [...tracks].sort((a, b) => {
     const sidA = `${a.participant.sid}-${a.source}`;
     const sidB = `${b.participant.sid}-${b.source}`;
@@ -159,7 +183,8 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
     return !!gameMode && !showSelf && track.participant.isLocal;
   }
 
-  const renderedCount = visibleTracks.filter(t => !isHiddenInGame(t)).length;
+  const passThruVisible = !!passThruStream && !gameMode;
+  const renderedCount = visibleTracks.filter(t => !isHiddenInGame(t)).length + (passThruVisible ? 1 : 0);
   const count = renderedCount;
   const cols = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
   const rows = Math.ceil(count / cols);
@@ -342,9 +367,12 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
           <div className="focus-main">
             {renderTile(focusedTrack, 'focus-main')}
           </div>
-          {thumbTracks.length > 0 && (
+          {(thumbTracks.length > 0 || passThruVisible) && (
             <div className="focus-strip">
               {thumbTracks.map(t => renderTile(t, 'focus-thumb'))}
+              {passThruVisible && (
+                <PassThruTile stream={passThruStream!} variant="focus-thumb" onStop={onStopPassThru} />
+              )}
             </div>
           )}
         </div>
@@ -357,6 +385,9 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
         } : { ['--game-tile-h' as never]: `${tileH}px`, ['--game-tile-w' as never]: `${tileW}px` }}
       >
         {visibleTracks.map(track => renderTile(track, 'grid'))}
+        {passThruVisible && (
+          <PassThruTile stream={passThruStream!} variant="grid" onStop={onStopPassThru} />
+        )}
       </div>
       )}
 
@@ -369,6 +400,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
         const currentScale = scaleOverrides[contextMenu.scaleKey];
         return (
           <div
+            ref={menuRef}
             className="tile-context-menu"
             style={{ left: contextMenu.x, top: contextMenu.y }}
             onClick={e => e.stopPropagation()}
@@ -437,5 +469,49 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
         );
       })()}
     </>
+  );
+}
+
+// ── PassThru tile ──────────────────────────────────────────────────────────
+// Renders a local-only MediaStream as an additional tile. Never wired to
+// LiveKit — it exists purely in this client's DOM.
+
+interface PassThruTileProps {
+  stream:  MediaStream;
+  variant: 'grid' | 'focus-thumb';
+  onStop?: () => void;
+}
+
+function PassThruTile({ stream, variant, onStop }: PassThruTileProps) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.srcObject = stream;
+    void el.play().catch(() => { /* auto-play blocked is fine, element will play muted on interaction */ });
+    return () => { if (el) el.srcObject = null; };
+  }, [stream]);
+
+  return (
+    <div
+      className={[
+        'tile-wrapper',
+        'passthru-tile',
+        variant === 'focus-thumb' ? 'focus-thumb-tile' : '',
+      ].filter(Boolean).join(' ')}
+    >
+      <video ref={videoRef} autoPlay playsInline muted className="passthru-video" />
+      <div className="passthru-label">PassThru (local only)</div>
+      {onStop && (
+        <button
+          type="button"
+          className="passthru-stop"
+          onClick={onStop}
+          title="Stop PassThru"
+        >
+          ✕
+        </button>
+      )}
+    </div>
   );
 }

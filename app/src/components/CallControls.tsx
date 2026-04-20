@@ -4,13 +4,15 @@ interface Props {
   camMuted:            boolean;
   screenSharing:       boolean;
   screenShareDisabled: boolean;
+  passThruActive:      boolean;
   onToggleMic:         () => void;
   onToggleCam:         () => void;
   onToggleScreenShare: () => void;
+  onTogglePassThru:    () => void;
   onHangup:            () => void;
 }
 
-function MicIcon() {
+export function MicIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
@@ -21,7 +23,7 @@ function MicIcon() {
   );
 }
 
-function MicOffIcon() {
+export function MicOffIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="1" y1="1" x2="23" y2="23"/>
@@ -33,7 +35,7 @@ function MicOffIcon() {
   );
 }
 
-function CamIcon() {
+export function CamIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="23 7 16 12 23 17 23 7"/>
@@ -42,7 +44,7 @@ function CamIcon() {
   );
 }
 
-function CamOffIcon() {
+export function CamOffIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="1" y1="1" x2="23" y2="23"/>
@@ -76,6 +78,17 @@ function ShareStopIcon() {
   );
 }
 
+function PassThruIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="14" rx="2" ry="2"/>
+      <circle cx="12" cy="11" r="3"/>
+      <line x1="12" y1="2"  x2="12" y2="4"/>
+      <line x1="12" y1="18" x2="12" y2="20"/>
+    </svg>
+  );
+}
+
 function HangupIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -91,9 +104,11 @@ export default function CallControls({
   camMuted,
   screenSharing,
   screenShareDisabled,
+  passThruActive,
   onToggleMic,
   onToggleCam,
   onToggleScreenShare,
+  onTogglePassThru,
   onHangup,
 }: Props) {
   const shareDisabled = !connected || (screenShareDisabled && !screenSharing);
@@ -128,6 +143,14 @@ export default function CallControls({
         title={shareTitle}
       >
         {screenSharing ? <ShareStopIcon /> : <ShareIcon />}
+      </button>
+      <button
+        className={`control-btn${passThruActive ? ' active' : ''}`}
+        onClick={onTogglePassThru}
+        disabled={!connected}
+        title={passThruActive ? 'Stop PassThru (local view)' : 'PassThru — show a window or screen only to you'}
+      >
+        <PassThruIcon />
       </button>
       <button
         className="control-btn hangup"

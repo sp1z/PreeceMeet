@@ -42,6 +42,7 @@ declare global {
       onDisplayShareRequest: (h: (sources: DisplayShareSource[]) => void) => () => void;
       chooseDisplaySource:   (sourceId: string) => Promise<boolean>;
       cancelDisplayShare:    () => Promise<boolean>;
+      passThruGetSources?:   () => Promise<DisplayShareSource[]>;
       log?:            (level: string, scope: string, message: string, meta?: unknown) => void;
       logPath?:        () => Promise<string>;
       openLogFolder?:  () => Promise<boolean>;
@@ -181,5 +182,34 @@ export const displayShare = {
   },
   async cancel(): Promise<void> {
     if (window.preecemeet) await window.preecemeet.cancelDisplayShare();
+  },
+};
+
+// PassThru: local-only screen/window preview. Uses Electron's desktopCapturer
+// to enumerate sources, then captures via the legacy chromeMediaSourceId
+// constraint so the stream is produced in the renderer without going through
+// the session-level displayMedia handler (that one's reserved for LiveKit's
+// shared screen share).
+export const passThru = {
+  async getSources(): Promise<DisplayShareSource[]> {
+    if (!window.preecemeet?.passThruGetSources) return [];
+    return window.preecemeet.passThruGetSources();
+  },
+  async capture(sourceId: string): Promise<MediaStream> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const constraints: any = {
+      audio: false,
+      video: {
+        mandatory: {
+          chromeMediaSource:   'desktop',
+          chromeMediaSourceId: sourceId,
+          minWidth:  640,
+          maxWidth:  3840,
+          minHeight: 480,
+          maxHeight: 2160,
+        },
+      },
+    };
+    return navigator.mediaDevices.getUserMedia(constraints);
   },
 };

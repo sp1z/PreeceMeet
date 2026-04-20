@@ -886,6 +886,7 @@ input::placeholder { color: var(--text-muted); }
   flex-shrink: 0;
   display: flex;
   flex-direction: row;
+  justify-content: center;
   gap: 4px;
   height: 120px;
   overflow-x: auto;
@@ -1113,6 +1114,21 @@ input::placeholder { color: var(--text-muted); }
 }
 .game-self-btn:hover { color: var(--text-primary); }
 .game-self-btn.active { background: var(--accent); color: #fff; }
+.game-av-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.25);
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.game-av-btn svg { width: 14px; height: 14px; }
+.game-av-btn:hover:not(:disabled) { color: var(--text-primary); }
+.game-av-btn.muted { background: #b33; color: #fff; }
+.game-av-btn:disabled { opacity: 0.4; cursor: default; }
 .game-size-buttons {
   display: flex;
   gap: 2px;
@@ -1767,6 +1783,53 @@ input::placeholder { color: var(--text-muted); }
   width: 100%;
   accent-color: var(--accent);
 }
+
+/* PassThru tile — local-only screen/window preview */
+.passthru-tile {
+  position: relative;
+  background: #0a0a14;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 2px #b388ff;
+}
+.passthru-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #0a0a14;
+}
+.passthru-label {
+  position: absolute;
+  bottom: 6px;
+  left:   8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: #fff;
+  background: rgba(179,136,255,0.85);
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+.passthru-stop {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.passthru-tile:hover .passthru-stop { opacity: 1; }
+.passthru-stop:hover { background: #b33; }
 
 /* ── Frameless window controls (Win/Linux) ──────────────────────────────── */
 .window-controls {

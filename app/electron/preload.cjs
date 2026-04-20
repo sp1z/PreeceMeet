@@ -51,6 +51,9 @@ contextBridge.exposeInMainWorld('preecemeet', {
   chooseDisplaySource: (sourceId) => ipcRenderer.invoke('display-share:choose', sourceId),
   cancelDisplayShare:  ()         => ipcRenderer.invoke('display-share:cancel'),
 
+  // PassThru: local-only preview sources
+  passThruGetSources:  () => ipcRenderer.invoke('passthru:get-sources'),
+
   // Logging + diagnostics
   log: (level, scope, message, meta) =>
     ipcRenderer.send('log:write', level, scope, message, meta),
