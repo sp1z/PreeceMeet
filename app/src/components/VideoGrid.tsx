@@ -532,14 +532,16 @@ interface PassThruTileProps {
 }
 
 function PassThruTile({ stream, variant, scale, onStop, onContextMenu, onDoubleClick }: PassThruTileProps) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  useEffect(() => {
-    const el = videoRef.current;
+  // Ref callback rather than useRef + useEffect: when React reparents the
+  // tile (grid → focus-main), the <video> gets unmounted and a fresh one
+  // mounted. A callback ref fires synchronously on that new element, so
+  // the stream is attached before the browser paints the first frame —
+  // no black flash.
+  const attachVideo = (el: HTMLVideoElement | null) => {
     if (!el) return;
-    el.srcObject = stream;
-    void el.play().catch(() => { /* auto-play blocked is fine, element will play muted on interaction */ });
-    return () => { if (el) el.srcObject = null; };
-  }, [stream]);
+    if (el.srcObject !== stream) el.srcObject = stream;
+    if (el.paused) void el.play().catch(() => { /* autoplay-muted denied is fine */ });
+  };
 
   // Default to `contain` (like screen share) unless the user picked `cover`.
   const effectiveScale: TileScale = scale ?? 'contain';
@@ -556,7 +558,7 @@ function PassThruTile({ stream, variant, scale, onStop, onContextMenu, onDoubleC
       onContextMenu={onContextMenu}
       onDoubleClick={onDoubleClick}
     >
-      <video ref={videoRef} autoPlay playsInline muted className="passthru-video" />
+      <video ref={attachVideo} autoPlay playsInline muted className="passthru-video" />
       <div className="passthru-label">PassThru (local only)</div>
       {onStop && (
         <button
