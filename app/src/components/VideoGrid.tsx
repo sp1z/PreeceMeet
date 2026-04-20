@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useTracks, ParticipantTile, useRoomContext } from '@livekit/components-react';
-import { Track, RemoteTrackPublication, RoomEvent } from 'livekit-client';
+import { Track, RemoteTrackPublication, RoomEvent, RemoteParticipant } from 'livekit-client';
 import { createLogger } from '../logger';
 
-const TILE_ORDER_KEY = 'preecemeet_tile_order';
-const TILE_SCALE_KEY = 'preecemeet_tile_scale';
+const TILE_ORDER_KEY  = 'preecemeet_tile_order';
+const TILE_SCALE_KEY  = 'preecemeet_tile_scale';
+const TILE_VOLUME_KEY = 'preecemeet_tile_volume';
 
 const MODERATION_TOPIC = 'moderation';
 const vgLog = createLogger('videogrid');
@@ -22,13 +23,14 @@ interface Props {
   gameMode?:        boolean;
   gameSize?:        GameSize;
   showSelf?:        boolean;
+  showSpeakingIndicator?: boolean;
   /** Called when a remote sends a "please-mute" data message. The host
    *  should flip its micMuted state so the mic-button UI reflects reality
    *  and the user can unmute with a single click. */
   onForceMicMute?:  (sourceName: string) => void;
 }
 
-export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = false, onForceMicMute }: Props) {
+export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = false, showSpeakingIndicator = true, onForceMicMute }: Props) {
   const room = useRoomContext();
 
   const tracks = useTracks(
@@ -57,8 +59,18 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
     } catch { return {}; }
   });
 
+  // Per-participant playback volume (0.0–1.5). Persisted by participant
+  // *identity* (email) so it survives reconnects and carries across rooms.
+  // Absence = default (1.0).
+  const [volumeOverrides, setVolumeOverrides] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem(TILE_VOLUME_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+
   const [locallyMuted, setLocallyMuted] = useState<Set<string>>(new Set());
-  const [contextMenu, setContextMenu] = useState<{ sid: string; tileKey: string; scaleKey: string; source: string; x: number; y: number } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ sid: string; identity: string; tileKey: string; scaleKey: string; source: string; x: number; y: number } | null>(null);
   const [dragSid, setDragSid] = useState<string | null>(null);
   const [dragOverSid, setDragOverSid] = useState<string | null>(null);
   const [focusKey, setFocusKey] = useState<string | null>(null);
@@ -92,6 +104,17 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
     room.on(RoomEvent.DataReceived, handler);
     return () => { room.off(RoomEvent.DataReceived, handler); };
   }, [room]);
+
+  // Apply persisted per-participant volume overrides to remote participants.
+  // Re-runs whenever the track set changes (new joiner, resubscribe) or the
+  // override map mutates. Identity is stable across reconnects/rooms, so the
+  // same volume follows a person everywhere.
+  useEffect(() => {
+    room.remoteParticipants.forEach(p => {
+      const v = volumeOverrides[p.identity];
+      (p as RemoteParticipant).setVolume(typeof v === 'number' ? v : 1);
+    });
+  }, [tracks, volumeOverrides, room]);
 
   // Clear the focus when the focused participant leaves / tile key changes.
   useEffect(() => {
@@ -181,10 +204,19 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
     setDragOverSid(null);
   }
 
-  function handleContextMenu(e: React.MouseEvent, sid: string, tileKey: string, scaleKey: string, source: string) {
+  function handleContextMenu(e: React.MouseEvent, sid: string, identity: string, tileKey: string, scaleKey: string, source: string) {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenu({ sid, tileKey, scaleKey, source, x: e.clientX, y: e.clientY });
+    setContextMenu({ sid, identity, tileKey, scaleKey, source, x: e.clientX, y: e.clientY });
+  }
+
+  function setParticipantVolume(identity: string, volume: number | null) {
+    setVolumeOverrides(prev => {
+      const next = { ...prev };
+      if (volume === null) delete next[identity]; else next[identity] = volume;
+      localStorage.setItem(TILE_VOLUME_KEY, JSON.stringify(next));
+      return next;
+    });
   }
 
   function handleMuteLocally(sid: string) {
@@ -289,7 +321,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
         onDragOver={e => handleDragOver(e, tileSid)}
         onDrop={() => handleDrop(tileSid)}
         onDragEnd={handleDragEnd}
-        onContextMenu={e => handleContextMenu(e, track.participant.sid, tileSid, scaleKey, String(track.source))}
+        onContextMenu={e => handleContextMenu(e, track.participant.sid, track.participant.identity, tileSid, scaleKey, String(track.source))}
         onDoubleClick={() => !gameMode && handleFocus(tileSid)}
       >
         <ParticipantTile trackRef={track} />
@@ -306,7 +338,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   return (
     <>
       {focusActive && focusedTrack ? (
-        <div className="video-focus-layout">
+        <div className={`video-focus-layout${!showSpeakingIndicator ? ' hide-speaking' : ''}`}>
           <div className="focus-main">
             {renderTile(focusedTrack, 'focus-main')}
           </div>
@@ -318,7 +350,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
         </div>
       ) : (
       <div
-        className={`video-grid${gameMode ? ' game-mode-grid' : ''}`}
+        className={`video-grid${gameMode ? ' game-mode-grid' : ''}${!showSpeakingIndicator ? ' hide-speaking' : ''}`}
         style={!gameMode ? {
           gridTemplateColumns: `repeat(${cols}, 1fr)`,
           gridTemplateRows:    `repeat(${rows}, 1fr)`,
@@ -354,6 +386,25 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
                 {!isScreen && (
                   <button onClick={() => handleMuteForAll(contextMenu.sid)}>
                     🛑 Mute mic for all
+                  </button>
+                )}
+                <div className="context-divider" />
+                <div className="context-section-label">
+                  Volume for me — {Math.round(((volumeOverrides[contextMenu.identity] ?? 1)) * 100)}%
+                </div>
+                <div className="context-volume-row">
+                  <input
+                    type="range"
+                    min={0}
+                    max={1.5}
+                    step={0.05}
+                    value={volumeOverrides[contextMenu.identity] ?? 1}
+                    onChange={e => setParticipantVolume(contextMenu.identity, parseFloat(e.target.value))}
+                  />
+                </div>
+                {contextMenu.identity in volumeOverrides && (
+                  <button onClick={() => setParticipantVolume(contextMenu.identity, null)}>
+                    ↺ Reset volume
                   </button>
                 )}
               </>

@@ -946,9 +946,14 @@ input::placeholder { color: var(--text-muted); }
   font-size: 13px !important;
 }
 
-/* Speaking indicator: green ring matching WPF PART_SpeakingRing (var(--online-dot)) */
+/* Speaking indicator: green ring matching WPF PART_SpeakingRing (var(--online-dot)).
+   Gated by the `hide-speaking` class on the grid/focus root so the Profile-tab
+   toggle can disable it. */
 .lk-participant-tile[data-lk-speaking="true"] {
   box-shadow: inset 0 0 0 2px var(--online-dot) !important;
+}
+.hide-speaking .lk-participant-tile[data-lk-speaking="true"] {
+  box-shadow: none !important;
 }
 
 /* Discord-style: camera tiles fill the whole space so the green speaking ring
@@ -1723,6 +1728,13 @@ input::placeholder { color: var(--text-muted); }
 .tile-context-menu button.active {
   color: var(--accent);
   background: rgba(91,155,213,0.12);
+}
+.tile-context-menu .context-volume-row {
+  padding: 4px 14px 8px;
+}
+.tile-context-menu .context-volume-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
 }
 
 /* ── Frameless window controls (Win/Linux) ──────────────────────────────── */

@@ -19,6 +19,7 @@ export interface Settings {
   preferredSpeakerDeviceId: string;
   sidebarWidth?: number;
   autoOpenChatUrls: boolean;
+  showSpeakingIndicator: boolean;
 }
 
 /** Shape of the participant metadata JSON we publish via LiveKit. */

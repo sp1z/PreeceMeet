@@ -36,6 +36,7 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
   const [prefCam,        setPrefCam]        = useState(settings.preferredCamDeviceId);
   const [prefSpeaker,    setPrefSpeaker]    = useState(settings.preferredSpeakerDeviceId);
   const [autoOpenUrls,   setAutoOpenUrls]   = useState(settings.autoOpenChatUrls);
+  const [showSpeaking,   setShowSpeaking]   = useState(settings.showSpeakingIndicator);
 
   useEffect(() => { void checkPerms(); }, []);
 
@@ -118,7 +119,7 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
   function cancelEditChannel() { setEditingName(null); }
 
   function save() {
-    onSave({ ...settings, displayName: displayName.trim(), avatarEmoji, serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin, preferredMicDeviceId: prefMic, preferredCamDeviceId: prefCam, preferredSpeakerDeviceId: prefSpeaker, autoOpenChatUrls: autoOpenUrls });
+    onSave({ ...settings, displayName: displayName.trim(), avatarEmoji, serverUrl: serverUrl.trim(), channels, autoJoinChannel: autoJoin, preferredMicDeviceId: prefMic, preferredCamDeviceId: prefCam, preferredSpeakerDeviceId: prefSpeaker, autoOpenChatUrls: autoOpenUrls, showSpeakingIndicator: showSpeaking });
     onClose();
   }
 
@@ -171,6 +172,15 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
                   Auto-open links from chat
                   <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                     When another participant pastes a URL, open it in your default browser. Your own messages are never auto-opened.
+                  </span>
+                </span>
+              </label>
+              <label className="checkbox-row" style={{ marginTop: 4 }}>
+                <input type="checkbox" checked={showSpeaking} onChange={e => setShowSpeaking(e.target.checked)} />
+                <span>
+                  Show speaking indicator
+                  <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Draw a green ring around tiles of whoever is currently speaking.
                   </span>
                 </span>
               </label>

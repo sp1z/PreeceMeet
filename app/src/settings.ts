@@ -17,6 +17,7 @@ const defaults: Settings = {
   preferredSpeakerDeviceId: '',
   sidebarWidth: 220,
   autoOpenChatUrls: false,
+  showSpeakingIndicator: true,
 };
 
 export function loadSettings(): Settings {

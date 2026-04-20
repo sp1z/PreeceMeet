@@ -706,6 +706,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 gameMode={gameMode}
                 gameSize={gameSize}
                 showSelf={showSelf}
+                showSpeakingIndicator={settings.showSpeakingIndicator}
                 onForceMicMute={handleForceMicMute}
               />
             </LiveKitRoom>
