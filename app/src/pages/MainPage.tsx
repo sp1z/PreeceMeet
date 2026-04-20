@@ -982,6 +982,24 @@ function RoomEventLogger({ onVideoReady, onParticipantsChanged }: RoomEventLogge
     };
     const onJoin  = (p: { identity: string; name?: string; sid: string }) => {
       callLog.info('participant connected', { identity: p.identity, name: p.name, sid: p.sid });
+      // Identity collision: same email already has a different sid in the
+      // room. That means a prior session of theirs never produced a clean
+      // disconnect (crashed app, missed event). Surface it so the
+      // server-side log shows we're rendering against a soon-to-be-stale
+      // participant — VideoGrid suppresses the older sid by joinedAt.
+      const existing: string[] = [];
+      room.remoteParticipants.forEach(other => {
+        if (other.identity === p.identity && other.sid !== p.sid) {
+          existing.push(other.sid);
+        }
+      });
+      if (existing.length > 0) {
+        callLog.warn('identity collision on join', {
+          identity:  p.identity,
+          newSid:    p.sid,
+          staleSids: existing,
+        });
+      }
       onParticipantsChanged();
     };
     const onLeave = (p: { identity: string; sid: string }) => {
@@ -1153,6 +1171,58 @@ function MediaController({
     }
     void applyPreferredDevices();
   }, [preferredMicDeviceId, preferredCamDeviceId, preferredSpeakerDeviceId, retryNonce, room, onDeviceFallback]);
+
+  // Self-heal mid-init device race: setCameraEnabled / setMicrophoneEnabled
+  // can publish a track sourced from the *previous* default device while
+  // applyPreferredDevices' switchActiveDevice is still in flight. The track
+  // ends up bound to the wrong camera/mic and never recovers on its own.
+  // (Observed Linux + Electron + multiple v4l2 cameras — Keith's session
+  // 2026-04-20 published Integrated Webcam ~500 ms after switching to C920.)
+  // Watch every LocalTrackPublished and re-issue switchActiveDevice when
+  // the actual device drifts from the user's preference. Cap to a single
+  // attempt per (source, expected) so we don't loop if the OS keeps
+  // falling back (preferred device gone, in-use, etc.).
+  const reswitchAttemptedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const handler = (pub: { source?: Track.Source; track?: { mediaStreamTrack?: MediaStreamTrack } } | undefined) => {
+      const source   = pub?.source;
+      const actualId = pub?.track?.mediaStreamTrack?.getSettings?.()?.deviceId;
+      if (!actualId) return;
+      let preferredId = '';
+      let mediaKind: 'audioinput' | 'videoinput' | null = null;
+      if (source === Track.Source.Camera) {
+        preferredId = preferredCamDeviceId;
+        mediaKind   = 'videoinput';
+      } else if (source === Track.Source.Microphone) {
+        preferredId = preferredMicDeviceId;
+        mediaKind   = 'audioinput';
+      }
+      if (!mediaKind || !preferredId || preferredId === actualId) return;
+      const attemptKey = `${source}:${preferredId}`;
+      if (reswitchAttemptedRef.current.has(attemptKey)) {
+        deviceLog.warn('publish mismatch persists after re-switch, leaving alone', {
+          source, expected: preferredId, actual: actualId,
+        });
+        return;
+      }
+      reswitchAttemptedRef.current.add(attemptKey);
+      deviceLog.warn('published track on wrong device, re-switching', {
+        source, expected: preferredId, actual: actualId,
+      });
+      room.switchActiveDevice(mediaKind, preferredId).then(() => {
+        deviceLog.info('re-switched after publish mismatch', { source, deviceId: preferredId });
+      }).catch(err => {
+        deviceLog.error('re-switch after publish mismatch failed', err);
+      });
+    };
+    room.on(RoomEvent.LocalTrackPublished, handler);
+    return () => { room.off(RoomEvent.LocalTrackPublished, handler); };
+  }, [room, preferredCamDeviceId, preferredMicDeviceId]);
+
+  // Forget the "already attempted" guard whenever the user picks a
+  // different preferred device (settings change, device unplugged), so a
+  // legitimate new mismatch can be repaired.
+  useEffect(() => { reswitchAttemptedRef.current.clear(); }, [preferredCamDeviceId, preferredMicDeviceId]);
 
   useEffect(() => {
     if (displayName) room.localParticipant.setName(displayName).catch(() => {});

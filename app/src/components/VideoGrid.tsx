@@ -160,7 +160,56 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
     }
   }, [contextMenu]);
 
-  const sortedTracks = [...tracks].sort((a, b) => {
+  // Defensive filter against phantom / zombie tiles. We've observed (see
+  // 2026-04-20 incident logs) cases where a remote participant's disconnect
+  // event arrives without a preceding connect, or where a crash-looping
+  // peer leaves multiple sids alive for the same identity. `useTracks` will
+  // happily render placeholder tiles for both, producing a "blank screen"
+  // the user can't interact with. We re-derive the live sid set from
+  // `room.remoteParticipants`, then for each identity prefer the
+  // most-recently-joined sid and drop the rest.
+  const liveSids = new Set<string>([room.localParticipant.sid]);
+  const newestByIdentity = new Map<string, { sid: string; joinedAt: number }>();
+  room.remoteParticipants.forEach(p => {
+    liveSids.add(p.sid);
+    const joinedAt = (p as RemoteParticipant).joinedAt?.getTime?.() ?? 0;
+    const prev = newestByIdentity.get(p.identity);
+    if (!prev || joinedAt > prev.joinedAt) {
+      newestByIdentity.set(p.identity, { sid: p.sid, joinedAt });
+    }
+  });
+  const supplantedSids = new Set<string>();
+  room.remoteParticipants.forEach(p => {
+    const winner = newestByIdentity.get(p.identity);
+    if (winner && winner.sid !== p.sid) supplantedSids.add(p.sid);
+  });
+
+  // Warn once per unique zombie-set so the upload pipeline doesn't get
+  // flooded on every render — the filter result above runs on every render
+  // but the log line should fire only when the set changes.
+  const warnedZombieKeyRef = useRef<string>('');
+  useEffect(() => {
+    const key = [...supplantedSids].sort().join(',');
+    if (key && key !== warnedZombieKeyRef.current) {
+      warnedZombieKeyRef.current = key;
+      vgLog.warn('suppressing zombie participant tiles', {
+        count: supplantedSids.size,
+        sids:  [...supplantedSids],
+      });
+    } else if (!key) {
+      warnedZombieKeyRef.current = '';
+    }
+  });
+
+  const liveTracks = tracks.filter(t => {
+    if (t.participant.isLocal) return true;
+    const sid = t.participant.sid;
+    if (!liveSids.has(sid)) return false;
+    if (supplantedSids.has(sid)) return false;
+    return true;
+  });
+
+  const sortedTracks = [...liveTracks].sort((a, b) => {
     const sidA = `${a.participant.sid}-${a.source}`;
     const sidB = `${b.participant.sid}-${b.source}`;
     const iA = order.indexOf(sidA);
