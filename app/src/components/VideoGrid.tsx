@@ -121,11 +121,17 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   }, [tracks, volumeOverrides, room]);
 
   // Clear the focus when the focused participant leaves / tile key changes.
+  // The synthetic `passthru` key stays valid as long as a passthru stream
+  // is active — cleared when the stream goes away.
   useEffect(() => {
     if (!focusKey) return;
+    if (focusKey === 'passthru') {
+      if (!passThruStream) setFocusKey(null);
+      return;
+    }
     const stillThere = tracks.some(t => `${t.participant.sid}-${t.source}` === focusKey);
     if (!stillThere) setFocusKey(null);
-  }, [focusKey, tracks]);
+  }, [focusKey, tracks, passThruStream]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -184,6 +190,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   }
 
   const passThruVisible = !!passThruStream && !gameMode;
+  const PASSTHRU_KEY = 'passthru';
   const renderedCount = visibleTracks.filter(t => !isHiddenInGame(t)).length + (passThruVisible ? 1 : 0);
   const count = renderedCount;
   const cols = count <= 1 ? 1 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
@@ -191,8 +198,12 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
 
   // Focus mode is a separate layout, not a grid variant: one big primary tile
   // on top, everything else as a horizontal thumbnail strip underneath. Game
-  // mode overrides focus (game-mode is a mutually-exclusive layout).
-  const focusActive = !gameMode && !!focusKey && visibleTracks.some(t => `${t.participant.sid}-${t.source}` === focusKey);
+  // mode overrides focus (game-mode is a mutually-exclusive layout). PassThru
+  // participates in focus via the synthetic `passthru` tile key.
+  const focusOnPassThru = !gameMode && focusKey === PASSTHRU_KEY && passThruVisible;
+  const focusOnTrack    = !gameMode && !!focusKey && focusKey !== PASSTHRU_KEY
+    && visibleTracks.some(t => `${t.participant.sid}-${t.source}` === focusKey);
+  const focusActive = focusOnTrack || focusOnPassThru;
 
   function handleDragStart(sid: string) { setDragSid(sid); }
 
@@ -362,16 +373,32 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
 
   return (
     <>
-      {focusActive && focusedTrack ? (
+      {focusActive ? (
         <div className={`video-focus-layout${!showSpeakingIndicator ? ' hide-speaking' : ''}`}>
           <div className="focus-main">
-            {renderTile(focusedTrack, 'focus-main')}
+            {focusOnPassThru
+              ? <PassThruTile
+                  stream={passThruStream!}
+                  variant="focus-main"
+                  scale={scaleOverrides[PASSTHRU_KEY] ?? null}
+                  onStop={onStopPassThru}
+                  onContextMenu={e => handleContextMenu(e, '', PASSTHRU_KEY, PASSTHRU_KEY, PASSTHRU_KEY, 'passthru')}
+                  onDoubleClick={() => handleFocus(PASSTHRU_KEY)}
+                />
+              : focusedTrack && renderTile(focusedTrack, 'focus-main')}
           </div>
-          {(thumbTracks.length > 0 || passThruVisible) && (
+          {(thumbTracks.length > 0 || (passThruVisible && !focusOnPassThru)) && (
             <div className="focus-strip">
               {thumbTracks.map(t => renderTile(t, 'focus-thumb'))}
-              {passThruVisible && (
-                <PassThruTile stream={passThruStream!} variant="focus-thumb" onStop={onStopPassThru} />
+              {passThruVisible && !focusOnPassThru && (
+                <PassThruTile
+                  stream={passThruStream!}
+                  variant="focus-thumb"
+                  scale={scaleOverrides[PASSTHRU_KEY] ?? null}
+                  onStop={onStopPassThru}
+                  onContextMenu={e => handleContextMenu(e, '', PASSTHRU_KEY, PASSTHRU_KEY, PASSTHRU_KEY, 'passthru')}
+                  onDoubleClick={() => handleFocus(PASSTHRU_KEY)}
+                />
               )}
             </div>
           )}
@@ -386,7 +413,14 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
       >
         {visibleTracks.map(track => renderTile(track, 'grid'))}
         {passThruVisible && (
-          <PassThruTile stream={passThruStream!} variant="grid" onStop={onStopPassThru} />
+          <PassThruTile
+            stream={passThruStream!}
+            variant="grid"
+            scale={scaleOverrides[PASSTHRU_KEY] ?? null}
+            onStop={onStopPassThru}
+            onContextMenu={e => handleContextMenu(e, '', PASSTHRU_KEY, PASSTHRU_KEY, PASSTHRU_KEY, 'passthru')}
+            onDoubleClick={() => handleFocus(PASSTHRU_KEY)}
+          />
         )}
       </div>
       )}
@@ -396,7 +430,11 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
       )}
 
       {contextMenu && (() => {
-        const isScreen = contextMenu.source === Track.Source.ScreenShare;
+        const isScreen   = contextMenu.source === Track.Source.ScreenShare;
+        const isPassThru = contextMenu.tileKey === PASSTHRU_KEY;
+        // PassThru defaults to Fit (same as a screen share) — it's usually
+        // a window capture where cropping the edges would lose detail.
+        const defaultContain = isScreen || isPassThru;
         const currentScale = scaleOverrides[contextMenu.scaleKey];
         return (
           <div
@@ -441,7 +479,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
                 )}
               </>
             )}
-            {!gameMode && (
+            {!gameMode && !isPassThru && (
               <button onClick={() => handlePinToTop(contextMenu.sid)}>
                 📌 Pin to top
               </button>
@@ -449,13 +487,13 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
             <div className="context-divider" />
             <div className="context-section-label">Scale</div>
             <button
-              className={currentScale === 'contain' || (!currentScale && isScreen) ? 'active' : ''}
+              className={currentScale === 'contain' || (!currentScale && defaultContain) ? 'active' : ''}
               onClick={() => setTileScale(contextMenu.scaleKey, 'contain')}
             >
               ⛶ Fit (no crop)
             </button>
             <button
-              className={currentScale === 'cover' || (!currentScale && !isScreen) ? 'active' : ''}
+              className={currentScale === 'cover' || (!currentScale && !defaultContain) ? 'active' : ''}
               onClick={() => setTileScale(contextMenu.scaleKey, 'cover')}
             >
               ▦ Fill (crop edges)
@@ -464,6 +502,14 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
               <button onClick={() => setTileScale(contextMenu.scaleKey, null)}>
                 ↺ Reset to default
               </button>
+            )}
+            {isPassThru && onStopPassThru && (
+              <>
+                <div className="context-divider" />
+                <button onClick={() => { setContextMenu(null); onStopPassThru(); }}>
+                  ✕ Stop PassThru
+                </button>
+              </>
             )}
           </div>
         );
@@ -477,12 +523,15 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
 // LiveKit — it exists purely in this client's DOM.
 
 interface PassThruTileProps {
-  stream:  MediaStream;
-  variant: 'grid' | 'focus-thumb';
-  onStop?: () => void;
+  stream:         MediaStream;
+  variant:        'grid' | 'focus-main' | 'focus-thumb';
+  scale:          TileScale | null;
+  onStop?:        () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+  onDoubleClick?: () => void;
 }
 
-function PassThruTile({ stream, variant, onStop }: PassThruTileProps) {
+function PassThruTile({ stream, variant, scale, onStop, onContextMenu, onDoubleClick }: PassThruTileProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     const el = videoRef.current;
@@ -492,13 +541,20 @@ function PassThruTile({ stream, variant, onStop }: PassThruTileProps) {
     return () => { if (el) el.srcObject = null; };
   }, [stream]);
 
+  // Default to `contain` (like screen share) unless the user picked `cover`.
+  const effectiveScale: TileScale = scale ?? 'contain';
+
   return (
     <div
       className={[
         'tile-wrapper',
         'passthru-tile',
+        variant === 'focus-main'  ? 'focus-main-tile'  : '',
         variant === 'focus-thumb' ? 'focus-thumb-tile' : '',
+        `scale-${effectiveScale}`,
       ].filter(Boolean).join(' ')}
+      onContextMenu={onContextMenu}
+      onDoubleClick={onDoubleClick}
     >
       <video ref={videoRef} autoPlay playsInline muted className="passthru-video" />
       <div className="passthru-label">PassThru (local only)</div>
