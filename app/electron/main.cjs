@@ -1,9 +1,46 @@
-const { app, BrowserWindow, shell, ipcMain, desktopCapturer, screen } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, desktopCapturer, screen, crashReporter } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const log  = require('electron-log/main');
 
-const IS_MAC = process.platform === 'darwin';
+const IS_MAC   = process.platform === 'darwin';
+const IS_LINUX = process.platform === 'linux';
+
+// ── Single-instance lock ────────────────────────────────────────────────────
+// Without this, opening the app a second time (terminal launch + activities
+// click on Linux, double-clicked .desktop, etc.) starts a second process
+// that fights the first for camera/mic and IPC. Each instance ends up with
+// its own renderer PID and shows up in the server-side logs as a separate
+// "session started" line — which we observed in the 2026-04-20 incident.
+// gotLock=false means another instance owns the lock; quit immediately and
+// let the original focus its window via the second-instance handler below.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  return;
+}
+
+// ── Optional hardware-acceleration opt-out ──────────────────────────────────
+// Some Linux GPU stacks (older Intel iGPU + Mesa, broken NVIDIA modules)
+// crash the GPU process repeatedly which then takes the renderer down too.
+// Set PREECEMEET_DISABLE_GPU=1 to fall back to software rendering. Must be
+// called before app.whenReady() to take effect.
+if (process.env.PREECEMEET_DISABLE_GPU === '1') {
+  app.disableHardwareAcceleration();
+}
+
+// ── Crash reporter ──────────────────────────────────────────────────────────
+// Captures native crashes (renderer, GPU, utility processes) as minidumps
+// in userData/Crashpad/pending. uploadToServer:false keeps them local —
+// users can find them via "Open Logs Folder" alongside main.log. Without
+// this, an Electron crash leaves no forensic trail and the user just sees
+// a blank window.
+crashReporter.start({
+  productName:    'PreeceMeet',
+  companyName:    'Russell Preece',
+  submitURL:      '',
+  uploadToServer: false,
+  ignoreSystemCrashHandler: false,
+});
 
 // ── Logging ─────────────────────────────────────────────────────────────────
 // Writes to userData/logs/main.log with rotation. Renderer goes through the
@@ -16,9 +53,26 @@ log.transports.file.maxSize  = 5 * 1024 * 1024; // 5 MB — autorotate
 log.info(`─── PreeceMeet v${app.getVersion()} starting on ${process.platform} (${process.arch}) ───`);
 log.info(`node=${process.versions.node} electron=${process.versions.electron} chromium=${process.versions.chrome}`);
 log.info(`log file: ${log.transports.file.getFile().path}`);
+if (IS_LINUX) {
+  // Help post-mortem the difference between X11 and Wayland sessions —
+  // they take very different paths through getDisplayMedia (XDG portal),
+  // device enumeration, and window decoration. Also surface gpu opt-out.
+  log.info(`linux session: type=${process.env.XDG_SESSION_TYPE || 'unknown'} ` +
+           `desktop=${process.env.XDG_CURRENT_DESKTOP || 'unknown'} ` +
+           `display=${process.env.WAYLAND_DISPLAY ? 'wayland' : (process.env.DISPLAY || 'none')} ` +
+           `gpu=${process.env.PREECEMEET_DISABLE_GPU === '1' ? 'disabled' : 'enabled'}`);
+}
 autoUpdater.logger = log;
 process.on('uncaughtException',  err => log.error('uncaughtException', err));
 process.on('unhandledRejection', err => log.error('unhandledRejection', err));
+
+// Focus the existing window when the user tries to launch a second copy.
+app.on('second-instance', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
 
 let mainWindow;
 let savedBounds = null;
@@ -106,11 +160,33 @@ function createWindow() {
     }
   });
 
+  // Renderer process died (OOM, GPU crash, etc.) → window is now blank with
+  // no recovery path. Auto-reload once per 60s window so a transient crash
+  // doesn't strand the user — but bail out of a crash loop rather than
+  // hammering reload. `clean-exit` reasons (normal close, user-killed) are
+  // skipped so we don't reload after a deliberate quit.
+  let lastRendererCrashAt = 0;
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
     log.error('render-process-gone', details);
+    const reason = details && details.reason;
+    if (reason === 'clean-exit' || reason === 'killed') return;
+    const now = Date.now();
+    if (now - lastRendererCrashAt < 60_000) {
+      log.error('renderer crashed twice within 60s — not auto-reloading');
+      return;
+    }
+    lastRendererCrashAt = now;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    log.warn('auto-reloading renderer after crash');
+    mainWindow.webContents.reload();
   });
   mainWindow.webContents.on('preload-error', (_e, preloadPath, err) => {
     log.error('preload-error', preloadPath, err);
+  });
+  // Surface utility-process failures (GPU, audio, network service) so we can
+  // correlate them with renderer symptoms in the uploaded logs.
+  app.on('child-process-gone', (_e, details) => {
+    log.error('child-process-gone', details);
   });
 
   // Open target=_blank / external links in the user's default browser.
