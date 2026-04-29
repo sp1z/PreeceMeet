@@ -63,13 +63,26 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
     } catch { return {}; }
   });
 
-  // Per-participant playback volume (0.0–1.5). Persisted by participant
+  // Per-participant playback volume (0.0–1.0). Persisted by participant
   // *identity* (email) so it survives reconnects and carries across rooms.
   // Absence = default (1.0).
+  //
+  // Why the clamp on read: HTMLMediaElement.volume only accepts [0, 1] —
+  // anything outside throws IndexSizeError synchronously inside attach()
+  // and tears down the room mount. v1.6.11 and earlier let the slider go
+  // to 1.5; any persisted >1 value would brick joins for that user. We
+  // self-heal those entries on load and write the cleaned map back.
   const [volumeOverrides, setVolumeOverrides] = useState<Record<string, number>>(() => {
     try {
       const raw = localStorage.getItem(TILE_VOLUME_KEY);
-      return raw ? JSON.parse(raw) : {};
+      const parsed = raw ? JSON.parse(raw) as Record<string, number> : {};
+      let dirty = false;
+      for (const id of Object.keys(parsed)) {
+        const clamped = Math.min(Math.max(parsed[id], 0), 1);
+        if (clamped !== parsed[id]) { parsed[id] = clamped; dirty = true; }
+      }
+      if (dirty) localStorage.setItem(TILE_VOLUME_KEY, JSON.stringify(parsed));
+      return parsed;
     } catch { return {}; }
   });
 
@@ -116,7 +129,8 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   useEffect(() => {
     room.remoteParticipants.forEach(p => {
       const v = volumeOverrides[p.identity];
-      (p as RemoteParticipant).setVolume(typeof v === 'number' ? v : 1);
+      const safe = typeof v === 'number' ? Math.min(Math.max(v, 0), 1) : 1;
+      (p as RemoteParticipant).setVolume(safe);
     });
   }, [tracks, volumeOverrides, room]);
 
@@ -298,7 +312,8 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
   function setParticipantVolume(identity: string, volume: number | null) {
     setVolumeOverrides(prev => {
       const next = { ...prev };
-      if (volume === null) delete next[identity]; else next[identity] = volume;
+      if (volume === null) delete next[identity];
+      else next[identity] = Math.min(Math.max(volume, 0), 1);
       localStorage.setItem(TILE_VOLUME_KEY, JSON.stringify(next));
       return next;
     });
@@ -515,7 +530,7 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
                   <input
                     type="range"
                     min={0}
-                    max={1.5}
+                    max={1}
                     step={0.05}
                     value={volumeOverrides[contextMenu.identity] ?? 1}
                     onChange={e => setParticipantVolume(contextMenu.identity, parseFloat(e.target.value))}
