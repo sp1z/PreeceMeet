@@ -85,6 +85,10 @@ function CallView({ roomName, onLeave, error }: { roomName: string; onLeave: () 
       </View>
 
       <FlatList
+        // RN crashes with "changing numColumns on the fly is not supported" if
+        // numColumns changes without a fresh key — which happens the moment a
+        // second participant joins. Re-key on column count to force a remount.
+        key={tracks.length > 1 ? 'grid-multi' : 'grid-single'}
         data={tracks}
         keyExtractor={(_, i) => String(i)}
         numColumns={tracks.length > 1 ? 2 : 1}
