@@ -25,6 +25,12 @@ function format(e: QueuedLine): string {
   return `${t} [${e.level.toUpperCase()}] ${e.line}`;
 }
 
+function stringify(v: unknown): string {
+  if (v instanceof Error) return v.stack ? `${v.message}\n${v.stack}` : v.message;
+  if (typeof v === 'string') return v;
+  try { return JSON.stringify(v); } catch { return String(v); }
+}
+
 let session: { serverUrl: string; sessionToken: string } | null = null;
 let flushing = false;
 
@@ -57,6 +63,21 @@ let installed = false;
 export function installGlobalErrorHandler() {
   if (installed) return;
   installed = true;
+
+  // Pipe console.warn / console.error into the upload queue too — RN's
+  // FlatList numColumns warning would have been here before it escalated
+  // to a thrown invariant violation. Keeps the original behaviour.
+  const origWarn  = console.warn.bind(console);
+  const origError = console.error.bind(console);
+  console.warn = (...args: unknown[]) => {
+    push('warn',  args.map(stringify).join(' '));
+    origWarn(...args);
+  };
+  console.error = (...args: unknown[]) => {
+    push('error', args.map(stringify).join(' '));
+    void flush();
+    origError(...args);
+  };
 
   const ErrorUtils = (globalThis as any).ErrorUtils;
   const previous = ErrorUtils?.getGlobalHandler?.();
