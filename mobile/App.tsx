@@ -5,6 +5,8 @@ import { registerGlobals } from '@livekit/react-native';
 import { theme } from './src/theme';
 import { loadSession, saveSession, clearSession, type Session } from './src/session';
 import { useDirectCalling } from './src/calling';
+import { setSessionForLogs } from './src/errorReporter';
+import { ErrorBoundary } from './src/errorBoundary';
 import LoginScreen from './src/screens/LoginScreen';
 import TotpScreen from './src/screens/TotpScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -45,6 +47,10 @@ export default function App() {
       else   { setPage('login'); }
     });
   }, []);
+
+  useEffect(() => {
+    setSessionForLogs(session ? { serverUrl: session.serverUrl, sessionToken: session.sessionToken } : null);
+  }, [session]);
 
   function handleLoginDone(serverUrl: string, email: string, result: LoginResult) {
     setPendingTotp({
@@ -180,12 +186,14 @@ function SignedIn({ session, page, setPage, activeCall, setActiveCall, joinChann
       )}
 
       {page === 'call' && activeCall && (
-        <CallScreen
-          url={activeCall.url}
-          token={activeCall.token}
-          roomName={activeCall.roomName}
-          onLeave={leaveCall}
-        />
+        <ErrorBoundary label="CallScreen" onReset={leaveCall}>
+          <CallScreen
+            url={activeCall.url}
+            token={activeCall.token}
+            roomName={activeCall.roomName}
+            onLeave={leaveCall}
+          />
+        </ErrorBoundary>
       )}
 
       {calling.incoming && (

@@ -69,6 +69,26 @@ export async function getRoomToken(serverUrl: string, sessionToken: string, room
   return resp.json() as Promise<{ livekitToken: string; livekitUrl: string }>;
 }
 
+export async function uploadLogs(
+  serverUrl:     string,
+  sessionToken:  string,
+  lines:         string[],
+  clientVersion: string,
+  platform:      string,
+): Promise<boolean> {
+  if (!lines.length) return true;
+  try {
+    const resp = await fetch(`${serverUrl}/api/logs/upload`, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ lines, clientVersion, platform }),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function getUsers(serverUrl: string, sessionToken: string): Promise<ContactUser[]> {
   const resp = await fetch(`${serverUrl}/api/users`, {
     headers: { Authorization: `Bearer ${sessionToken}` },
