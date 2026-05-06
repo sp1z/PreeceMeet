@@ -24,40 +24,12 @@ interface Props {
   onLeave:  () => void;
 }
 
-// Stable options reference so useLiveKitRoom's effect dep
-// (JSON.stringify(options, ...)) doesn't churn across renders.
-const ROOM_OPTIONS = {} as const;
-
 export default function CallScreen({ url, token, roomName, onLeave }: Props) {
   const [error, setError] = useState<string>('');
-  // Bail out if LiveKit doesn't connect within 15 s — better to throw the
-  // user back home than freeze on a black screen forever.
-  const [connectTimedOut, setConnectTimedOut] = useState(false);
   useEffect(() => {
-    console.warn(`[callscreen] mount room=${roomName}`);
     reportError(`callscreen mount room=${roomName}`);
-    const t = setTimeout(() => {
-      reportError(`callscreen connect-timeout 15s room=${roomName} url=${url} tokLen=${token?.length ?? 0}`);
-      setConnectTimedOut(true);
-    }, 15_000);
-    return () => {
-      clearTimeout(t);
-      console.warn(`[callscreen] unmount room=${roomName}`);
-      reportError(`callscreen unmount room=${roomName}`);
-    };
-  }, [roomName, url, token]);
-
-  if (connectTimedOut) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-        <Text style={styles.emptyRemoteText}>Couldn’t connect</Text>
-        <Text style={styles.emptyRemoteHint}>The room never came online. Try again.</Text>
-        <TouchableOpacity style={[styles.ctlBtn, { marginTop: 24 }]} onPress={onLeave}>
-          <Text style={styles.ctlText}>Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+    return () => reportError(`callscreen unmount room=${roomName}`);
+  }, [roomName]);
 
   return (
     <LiveKitRoom
@@ -66,9 +38,6 @@ export default function CallScreen({ url, token, roomName, onLeave }: Props) {
       connect
       audio
       video
-      options={ROOM_OPTIONS}
-      onConnected={() => reportError(`livekit onConnected room=${roomName}`)}
-      onDisconnected={() => reportError(`livekit onDisconnected room=${roomName}`)}
       onError={err => {
         const msg = err instanceof Error ? err.message : String(err);
         console.warn('[livekit]', err);
