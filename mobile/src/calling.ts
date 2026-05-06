@@ -27,7 +27,16 @@ export function useDirectCalling(session: Session) {
     const url = `${session.serverUrl.replace(/\/$/, '')}/hubs/call`;
     const conn = new HubConnectionBuilder()
       .withUrl(url, { accessTokenFactory: () => session.sessionToken })
-      .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+      .withAutomaticReconnect({
+        // Never give up — the array form caps at 5 retries (~47s) and then
+        // dies permanently. A short server outage (deploy, restart) would
+        // wipe out presence forever from the client's perspective until the
+        // app is killed and reopened. Linear backoff capped at 30s.
+        nextRetryDelayInMilliseconds: ctx => {
+          const wait = Math.min(2000 + ctx.previousRetryCount * 2000, 30000);
+          return wait;
+        },
+      })
       .configureLogging(LogLevel.Warning)
       .build();
 
@@ -41,9 +50,24 @@ export function useDirectCalling(session: Session) {
     conn.on('CallDeclined',  () => setOutgoing(null));
     conn.on('CallCancelled', () => setIncoming(null));
 
-    conn.onreconnecting(() => setState('connecting'));
-    conn.onreconnected (() => setState('connected'));
-    conn.onclose       (() => setState('disconnected'));
+    conn.onreconnecting(() => { console.warn('[calling] reconnecting'); setState('connecting'); });
+    conn.onreconnected (() => { console.warn('[calling] reconnected');  setState('connected');  });
+    conn.onclose       (err => {
+      // SignalR fires this after the retry policy gives up *or* if no policy
+      // accepted the delay. Our policy is infinite, but be defensive: if we
+      // somehow reach this state, kick a fresh start in 5s so presence
+      // doesn't stay broken forever after a long outage.
+      console.warn('[calling] connection closed', err);
+      setState('disconnected');
+      if (cancelled) return;
+      setTimeout(() => {
+        if (cancelled) return;
+        console.warn('[calling] manual restart after onclose');
+        conn.start()
+          .then(() => setState('connected'))
+          .catch(e => console.warn('[calling] manual restart failed', e));
+      }, 5000);
+    });
 
     connRef.current = conn;
     setState('connecting');

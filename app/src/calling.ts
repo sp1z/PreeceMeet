@@ -62,7 +62,16 @@ export function useDirectCalling(session: Session): DirectCalling {
 
     const conn = new HubConnectionBuilder()
       .withUrl(url, { accessTokenFactory: () => session.sessionToken })
-      .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+      .withAutomaticReconnect({
+        // Never give up — the array form caps at 5 retries (~47s) and dies
+        // permanently afterwards. A short server outage (deploy/restart)
+        // would wipe presence for the rest of the app's lifetime. Linear
+        // backoff capped at 30s.
+        nextRetryDelayInMilliseconds: ctx => {
+          const wait = Math.min(2000 + ctx.previousRetryCount * 2000, 30000);
+          return wait;
+        },
+      })
       .configureLogging(LogLevel.Warning)
       .build();
 
@@ -87,9 +96,23 @@ export function useDirectCalling(session: Session): DirectCalling {
       cancelledCbs.current.forEach(cb => cb(msg.callId));
     });
 
-    conn.onreconnecting(() => setState('connecting'));
-    conn.onreconnected (() => setState('connected'));
-    conn.onclose       (() => setState('disconnected'));
+    conn.onreconnecting(() => { console.warn('[calling] reconnecting'); setState('connecting'); });
+    conn.onreconnected (() => { console.warn('[calling] reconnected');  setState('connected');  });
+    conn.onclose       (err => {
+      // Fallback safety net: if the retry policy ever stops accepting (it
+      // shouldn't with the infinite policy above, but defensively), kick a
+      // fresh start in 5s so presence eventually recovers.
+      console.warn('[calling] connection closed', err);
+      setState('disconnected');
+      if (cancelled) return;
+      setTimeout(() => {
+        if (cancelled) return;
+        console.warn('[calling] manual restart after onclose');
+        conn.start()
+          .then(() => setState('connected'))
+          .catch(e => console.warn('[calling] manual restart failed', e));
+      }, 5000);
+    });
 
     connRef.current = conn;
     setState('connecting');
