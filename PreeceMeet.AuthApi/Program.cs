@@ -32,7 +32,19 @@ builder.Services.AddSingleton<PresenceService>();
 builder.Services.AddSingleton(new LiveKitTokenService(livekitApiKey, livekitSecret));
 builder.Services.AddSingleton(new SessionTokenService(livekitSecret));
 builder.Services.AddSingleton<ApnsPushService>();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(opts =>
+{
+    // Defaults are 15s server pings, 30s client-silence timeout — too tight
+    // for @microsoft/signalr on React Native, where the client's pings don't
+    // always reach the server in time and the connection gets recycled every
+    // ~30s. Loosen the timeout and ping a bit more often so brief silence
+    // doesn't kill the WS, and bump payload limits so the IncomingCall +
+    // CallAccepted blobs always fit.
+    opts.KeepAliveInterval      = TimeSpan.FromSeconds(8);
+    opts.ClientTimeoutInterval  = TimeSpan.FromMinutes(5);
+    opts.HandshakeTimeout       = TimeSpan.FromSeconds(30);
+    opts.MaximumReceiveMessageSize = 64 * 1024;
+});
 
 // SignalR + WebSocket needs SetIsOriginAllowed (not AllowAnyOrigin) when used
 // with credentials/cookies; we don't use cookies but Electron's file:// origin

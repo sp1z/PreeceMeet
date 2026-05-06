@@ -75,6 +75,11 @@ export function useDirectCalling(session: Session): DirectCalling {
       .configureLogging(LogLevel.Warning)
       .build();
 
+    // Match server keepalive (server pings every 8s, tolerates 5 min silence).
+    // Stops the every-30s "server timeout" reconnect cycle.
+    conn.serverTimeoutInMilliseconds     = 5 * 60 * 1000;
+    conn.keepAliveIntervalInMilliseconds = 10 * 1000;
+
     conn.on('PresenceChanged', (users: string[]) => {
       setOnline(new Set(users.map(u => u.toLowerCase())));
     });

@@ -47,6 +47,13 @@ export function useDirectCalling(session: Session) {
       .configureLogging(LogLevel.Warning)
       .build();
 
+    // Tune timeouts to match the server's loosened keepalive (server pings
+    // every 8s, tolerates 5 min of client silence). Without raising these,
+    // RN's WS sometimes batches the server pings and the client thinks the
+    // server has gone away after 30s — recycling the connection every cycle.
+    conn.serverTimeoutInMilliseconds   = 5 * 60 * 1000;   // 5 min
+    conn.keepAliveIntervalInMilliseconds = 10 * 1000;     // client→server ping every 10s
+
     conn.on('PresenceChanged', (users: string[]) => setOnline(new Set(users.map(u => u.toLowerCase()))));
     conn.on('IncomingCall', (msg: IncomingCall) => setIncoming(msg));
     conn.on('CallAccepted', (msg: AcceptedCall) => {
@@ -95,7 +102,12 @@ export function useDirectCalling(session: Session) {
       return { ok: false, error: 'Not connected to call server' };
     }
     try {
-      const result = await conn.invoke<{ ok: boolean; callId?: string; roomName?: string; error?: string }>('Call', toEmail);
+      // Server signature is Call(toEmail, fromDisplayName?). SignalR's argument
+      // binder rejects calls when arg count differs from the method signature
+      // (it does NOT honour C# default values), so always send both — null
+      // when we don't have a display name. Without this, invoke fails with
+      // "Cannot invoke 'Call' due to an error on the server".
+      const result = await conn.invoke<{ ok: boolean; callId?: string; roomName?: string; error?: string }>('Call', toEmail, null);
       if (result.ok && result.callId && result.roomName) {
         setOutgoing({ callId: result.callId, to: toEmail, roomName: result.roomName });
         return { ok: true };
