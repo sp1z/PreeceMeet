@@ -24,16 +24,41 @@ interface Props {
   onLeave:  () => void;
 }
 
+// Stable options reference so useLiveKitRoom's effect dep
+// (JSON.stringify(options, ...)) doesn't churn across renders.
+const ROOM_OPTIONS = {} as const;
+
 export default function CallScreen({ url, token, roomName, onLeave }: Props) {
   const [error, setError] = useState<string>('');
+  // Bail out if LiveKit doesn't connect within 15 s — better to throw the
+  // user back home than freeze on a black screen forever.
+  const [connectTimedOut, setConnectTimedOut] = useState(false);
   useEffect(() => {
     console.warn(`[callscreen] mount room=${roomName}`);
     reportError(`callscreen mount room=${roomName}`);
+    const t = setTimeout(() => {
+      reportError(`callscreen connect-timeout 15s room=${roomName} url=${url} tokLen=${token?.length ?? 0}`);
+      setConnectTimedOut(true);
+    }, 15_000);
     return () => {
+      clearTimeout(t);
       console.warn(`[callscreen] unmount room=${roomName}`);
       reportError(`callscreen unmount room=${roomName}`);
     };
-  }, [roomName]);
+  }, [roomName, url, token]);
+
+  if (connectTimedOut) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <Text style={styles.emptyRemoteText}>Couldn’t connect</Text>
+        <Text style={styles.emptyRemoteHint}>The room never came online. Try again.</Text>
+        <TouchableOpacity style={[styles.ctlBtn, { marginTop: 24 }]} onPress={onLeave}>
+          <Text style={styles.ctlText}>Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <LiveKitRoom
       serverUrl={url}
@@ -41,11 +66,13 @@ export default function CallScreen({ url, token, roomName, onLeave }: Props) {
       connect
       audio
       video
-      options={{ adaptiveStream: { pixelDensity: 'screen' } }}
+      options={ROOM_OPTIONS}
+      onConnected={() => reportError(`livekit onConnected room=${roomName}`)}
+      onDisconnected={() => reportError(`livekit onDisconnected room=${roomName}`)}
       onError={err => {
         const msg = err instanceof Error ? err.message : String(err);
         console.warn('[livekit]', err);
-        reportError('livekit room error', err);
+        reportError(`livekit room error room=${roomName}`, err);
         setError(msg);
       }}
     >
@@ -58,6 +85,15 @@ const SHOW_SELF_KEY = 'preecemeet.call.showSelf';
 type ObjectFit = 'cover' | 'contain';
 
 function CallView({ roomName, onLeave, error }: { roomName: string; onLeave: () => void; error: string }) {
+  // Top-of-render breadcrumb so the server log proves CallView at least
+  // begins rendering — separate from the useEffect-based connState log,
+  // which won't fire if rendering throws or the parent unmounts first.
+  const renderRef = useRef(false);
+  if (!renderRef.current) {
+    renderRef.current = true;
+    reportError(`callview first-render room=${roomName}`);
+  }
+
   const tracks = useTracks(
     [{ source: Track.Source.Camera, withPlaceholder: true }],
     { onlySubscribed: false },
@@ -87,9 +123,13 @@ function CallView({ roomName, onLeave, error }: { roomName: string; onLeave: () 
   useEffect(() => { localParticipant?.setMicrophoneEnabled(micOn).catch(() => {}); }, [micOn, localParticipant]);
   useEffect(() => { localParticipant?.setCameraEnabled    (camOn).catch(() => {}); }, [camOn, localParticipant]);
 
-  // Bounce home if room kicks us.
+  // Bounce home only if we were previously connected and then got kicked.
+  // Initial state is also Disconnected, so this gate avoids bouncing the user
+  // out before the first connect attempt has a chance to land.
+  const everConnectedRef = useRef(false);
   useEffect(() => {
-    if (connState !== ConnectionState.Disconnected) return;
+    if (connState === ConnectionState.Connected) everConnectedRef.current = true;
+    if (connState !== ConnectionState.Disconnected || !everConnectedRef.current) return;
     const t = setTimeout(onLeave, 2500);
     return () => clearTimeout(t);
   }, [connState, onLeave]);
