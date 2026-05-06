@@ -16,15 +16,16 @@ interface Props {
   inCall:         boolean;
   onJoinChannel:  (room: string, livekitUrl: string, livekitToken: string) => void;
   onCall:         (email: string) => Promise<{ ok: boolean; error?: string }>;
+  onOpenProfile:  () => void;
   onSignOut:      () => void;
 }
 
 type ChannelRow = { kind: 'channel'; name: string; displayName: string; emoji: string; numParticipants: number; participantNames: string[]; };
-type ContactRow = { kind: 'contact'; email: string; online: boolean; };
+type ContactRow = { kind: 'contact'; email: string; displayName: string | null; online: boolean; };
 type Row = ChannelRow | ContactRow;
 type Section = { title: 'Channels' | 'Direct'; data: Row[]; };
 
-export default function HomeScreen({ session, online, inCall, onJoinChannel, onCall, onSignOut }: Props) {
+export default function HomeScreen({ session, online, inCall, onJoinChannel, onCall, onOpenProfile, onSignOut }: Props) {
   const [rooms,      setRooms]      = useState<RoomInfo[]>([]);
   const [users,      setUsers]      = useState<ContactUser[]>([]);
   const [channels,   setChannels]   = useState<Channel[]>([]);
@@ -93,7 +94,12 @@ export default function HomeScreen({ session, online, inCall, onJoinChannel, onC
       };
     });
     const contacts: ContactRow[] = users
-      .map(u => ({ kind: 'contact' as const, email: u.email, online: online.has(u.email.toLowerCase()) }))
+      .map(u => ({
+        kind:        'contact' as const,
+        email:       u.email,
+        displayName: u.displayName ?? null,
+        online:      online.has(u.email.toLowerCase()),
+      }))
       .sort((a, b) => Number(b.online) - Number(a.online) || a.email.localeCompare(b.email));
     return [
       { title: 'Channels', data: channelRows },
@@ -105,9 +111,14 @@ export default function HomeScreen({ session, online, inCall, onJoinChannel, onC
     <View style={styles.container}>
       <View style={styles.topbar}>
         <Text style={styles.title}>PreeceMeet</Text>
-        <TouchableOpacity style={styles.iconBtn} onPress={onSignOut} accessibilityLabel="Sign out">
-          <Text style={styles.iconText}>⎋</Text>
-        </TouchableOpacity>
+        <View style={styles.topbarActions}>
+          <TouchableOpacity style={styles.iconBtn} onPress={onOpenProfile} accessibilityLabel="Profile">
+            <Text style={styles.iconText}>👤</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={onSignOut} accessibilityLabel="Sign out">
+            <Text style={styles.iconText}>⎋</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <Text style={styles.email}>{session.email}</Text>
@@ -164,8 +175,11 @@ export default function HomeScreen({ session, online, inCall, onJoinChannel, onC
               <View style={styles.contactRow}>
                 <View style={[styles.dot, { backgroundColor: item.online ? theme.success : theme.border }]} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>{item.email}</Text>
-                  <Text style={styles.rowMeta}>{item.online ? 'online' : 'offline'}</Text>
+                  <Text style={styles.rowTitle}>{item.displayName?.trim() || item.email}</Text>
+                  <Text style={styles.rowMeta}>
+                    {item.displayName?.trim() ? `${item.email} · ` : ''}
+                    {item.online ? 'online' : 'offline'}
+                  </Text>
                 </View>
                 <TouchableOpacity
                   style={[
@@ -192,6 +206,7 @@ export default function HomeScreen({ session, online, inCall, onJoinChannel, onC
 const styles = StyleSheet.create({
   container:    { flex: 1, backgroundColor: theme.bg, padding: 16, paddingTop: 50 },
   topbar:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  topbarActions:{ flexDirection: 'row', gap: 8 },
   title:        { color: theme.text, fontSize: 20, fontWeight: '700' },
   iconBtn:      { width: 36, height: 36, borderRadius: 8, backgroundColor: theme.bgPanel, justifyContent: 'center', alignItems: 'center' },
   iconText:     { fontSize: 18, color: theme.text },

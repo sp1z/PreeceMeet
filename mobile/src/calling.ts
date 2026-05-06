@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import type { Session } from './session';
 
-export interface IncomingCall { callId: string; from: string; roomName: string; }
+export interface IncomingCall { callId: string; from: string; fromDisplayName?: string | null; roomName: string; }
 export interface OutgoingCall { callId: string; to: string; roomName: string; }
 export interface AcceptedCall {
   callId: string; roomName: string;

@@ -26,7 +26,9 @@ export interface RoomInfo {
   participantNames: string[];
 }
 
-export interface ContactUser { email: string; online: boolean; }
+export interface ContactUser { email: string; displayName: string | null; online: boolean; }
+
+export interface Profile { email: string; displayName: string | null; isAdmin: boolean; }
 
 export interface Channel { name: string; displayName: string; emoji: string; }
 
@@ -98,6 +100,30 @@ export async function getChannels(serverUrl: string, sessionToken: string): Prom
   if (resp.status === 401) throw new UnauthorizedError();
   if (!resp.ok) return [];
   return resp.json();
+}
+
+export async function getProfile(serverUrl: string, sessionToken: string): Promise<Profile> {
+  const resp = await fetch(`${serverUrl}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${sessionToken}` },
+  });
+  if (resp.status === 401) throw new UnauthorizedError();
+  if (!resp.ok) throw new Error(`Failed to fetch profile (${resp.status})`);
+  const data = await resp.json();
+  return { email: data.email, displayName: data.displayName ?? null, isAdmin: !!data.isAdmin };
+}
+
+export async function updateProfile(
+  serverUrl: string, sessionToken: string, displayName: string | null,
+): Promise<Profile> {
+  const resp = await fetch(`${serverUrl}/api/auth/me`, {
+    method:  'PATCH',
+    headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ displayName }),
+  });
+  if (resp.status === 401) throw new UnauthorizedError();
+  if (!resp.ok) throw new Error(`Failed to update profile (${resp.status})`);
+  const data = await resp.json();
+  return { email: data.email, displayName: data.displayName ?? null, isAdmin: false };
 }
 
 export async function getUsers(serverUrl: string, sessionToken: string): Promise<ContactUser[]> {

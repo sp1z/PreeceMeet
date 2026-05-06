@@ -12,4 +12,6 @@ public class User
     /// <summary>True once the user has scanned the QR and verified their first TOTP code.</summary>
     public bool TotpConfigured { get; set; } = false;
     public bool IsAdmin { get; set; } = false;
+    /// <summary>User-chosen display name shown in contact lists and call tiles. Falls back to email.</summary>
+    public string? DisplayName { get; set; }
 }

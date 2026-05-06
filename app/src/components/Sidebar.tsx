@@ -87,7 +87,7 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
           </div>
         )}
         {roster.map(u => {
-          const label = formatUser(u.email);
+          const label = formatUser(u.email, u.displayName);
           const busy  = callingEmail === u.email;
           const disabled = !u.online || inCall || busy;
           const title = !u.online ? 'User offline' : inCall ? 'Already in a call' : `Call ${label}`;

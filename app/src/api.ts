@@ -105,8 +105,21 @@ export async function getRoomToken(
 // ── Users (contact list for direct calls) ─────────────────────────────────────
 
 export interface ContactUser {
-  email:  string;
-  online: boolean;
+  email:        string;
+  displayName:  string | null;
+  online:       boolean;
+}
+
+export async function updateProfile(
+  serverUrl: string, sessionToken: string, displayName: string | null,
+): Promise<void> {
+  const resp = await fetch(`${serverUrl}/api/auth/me`, {
+    method:  'PATCH',
+    headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ displayName }),
+  });
+  if (resp.status === 401) throw new UnauthorizedError();
+  if (!resp.ok) throw new Error(`Failed to update profile (${resp.status})`);
 }
 
 export async function getUsers(serverUrl: string, sessionToken: string): Promise<ContactUser[]> {

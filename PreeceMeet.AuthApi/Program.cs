@@ -77,6 +77,13 @@ using (var scope = app.Services.CreateScope())
     }
     catch { /* Column already exists — ignore. */ }
 
+    // Add DisplayName column (nullable) to existing DBs.
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN DisplayName TEXT NULL");
+    }
+    catch { /* Column already exists — ignore. */ }
+
     // EnsureCreated only creates tables on a fresh DB; for pre-existing DBs
     // we need to create the new DeviceTokens table explicitly.
     try
@@ -215,7 +222,29 @@ app.MapGet("/api/auth/me", async (HttpContext ctx, SessionTokenService session, 
     var isAdmin = user.IsAdmin ||
                   email.EndsWith("@russellpreece.com", StringComparison.OrdinalIgnoreCase);
 
-    return Results.Ok(new { email, isAdmin });
+    return Results.Ok(new { email, isAdmin, displayName = user.DisplayName });
+});
+
+// ── Profile: update display name ──────────────────────────────────────────────
+
+app.MapPatch("/api/auth/me", async (UpdateProfileRequest req, HttpContext ctx,
+    AppDbContext db, SessionTokenService session) =>
+{
+    var email = session.Validate(ctx.Request.Headers.Authorization);
+    if (email is null) return Results.Unauthorized();
+
+    var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email);
+    if (user is null) return Results.Unauthorized();
+
+    if (req.DisplayName is not null)
+    {
+        var trimmed = req.DisplayName.Trim();
+        if (trimmed.Length > 80) trimmed = trimmed[..80];
+        user.DisplayName = string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+    }
+
+    await db.SaveChangesAsync();
+    return Results.Ok(new { email, displayName = user.DisplayName });
 });
 
 // ── Channels: canonical list shared across all clients ───────────────────────
@@ -296,7 +325,8 @@ app.MapGet("/api/rooms", async (HttpContext ctx, SessionTokenService session) =>
 
 // ── Rooms: get token ──────────────────────────────────────────────────────────
 
-app.MapGet("/api/rooms/token", (HttpContext ctx, string? room, string? name, LiveKitTokenService livekit, SessionTokenService session) =>
+app.MapGet("/api/rooms/token", async (HttpContext ctx, string? room, string? name,
+    LiveKitTokenService livekit, SessionTokenService session, AppDbContext db) =>
 {
     var identity = session.Validate(ctx.Request.Headers.Authorization);
     if (identity is null)
@@ -305,7 +335,16 @@ app.MapGet("/api/rooms/token", (HttpContext ctx, string? room, string? name, Liv
     if (string.IsNullOrWhiteSpace(room))
         return Results.BadRequest(new { error = "room is required." });
 
-    var token = livekit.GenerateToken(identity, room, name.NullIfEmpty());
+    // Prefer the server-stored DisplayName as the LiveKit `name` claim so it's
+    // consistent across devices. Fall back to client-provided ?name= for
+    // back-compat with older desktop builds that didn't sync displayName.
+    var stored = await db.Users.AsNoTracking()
+        .Where(u => u.Email == identity)
+        .Select(u => u.DisplayName)
+        .FirstOrDefaultAsync();
+    var effectiveName = !string.IsNullOrWhiteSpace(stored) ? stored : name.NullIfEmpty();
+
+    var token = livekit.GenerateToken(identity, room, effectiveName);
     return Results.Ok(new { livekitToken = token, livekitUrl });
 });
 
@@ -440,10 +479,15 @@ app.MapGet("/api/users", async (HttpContext ctx, AppDbContext db,
     var users  = await db.Users
         .Where(u => u.Email != me)
         .OrderBy(u => u.Email)
-        .Select(u => u.Email)
+        .Select(u => new { u.Email, u.DisplayName })
         .ToListAsync();
 
-    return Results.Ok(users.Select(email => new { email, online = online.Contains(email) }));
+    return Results.Ok(users.Select(u => new
+    {
+        email       = u.Email,
+        displayName = u.DisplayName,
+        online      = online.Contains(u.Email),
+    }));
 });
 
 // ── Devices: register / unregister push token ─────────────────────────────────
@@ -604,6 +648,7 @@ record ChangePasswordRequest(string Password);
 record SetAdminRequest(bool IsAdmin);
 record UploadLogRequest(List<string>? Lines, string? ClientVersion, string? Platform);
 record RegisterDeviceRequest(string Token, string Platform);
+record UpdateProfileRequest(string? DisplayName);
 
 // ── String helper ─────────────────────────────────────────────────────────────
 

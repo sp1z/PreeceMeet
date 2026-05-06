@@ -13,13 +13,14 @@ import LoginScreen from './src/screens/LoginScreen';
 import TotpScreen from './src/screens/TotpScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import CallScreen from './src/screens/CallScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 import { IncomingCallModal, OutgoingCallModal } from './src/components/IncomingCallModal';
 import type { LoginResult } from './src/api';
 
 // One-time WebRTC global registration — required by @livekit/react-native.
 registerGlobals();
 
-type Page = 'loading' | 'login' | 'totp' | 'home' | 'call';
+type Page = 'loading' | 'login' | 'totp' | 'home' | 'call' | 'profile';
 
 interface PendingTotp {
   serverUrl:  string;
@@ -194,6 +195,15 @@ function SignedIn({ session, page, setPage, activeCall, setActiveCall, joinChann
           inCall={!!activeCall}
           onJoinChannel={joinChannel}
           onCall={calling.call}
+          onOpenProfile={() => setPage('profile')}
+          onSignOut={onSignOut}
+        />
+      )}
+
+      {page === 'profile' && (
+        <ProfileScreen
+          session={session}
+          onClose={() => setPage('home')}
           onSignOut={onSignOut}
         />
       )}

@@ -169,8 +169,19 @@ public class CallHub : Hub
                 return;
             }
 
-            var fromToken = _livekit.GenerateToken(call.From, call.RoomName);
-            var toToken   = _livekit.GenerateToken(call.To,   call.RoomName);
+            // Look up each side's display name from DB so the LiveKit token
+            // carries it as `name` — that's what the other party sees on tiles.
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var profiles = await db.Users
+                .Where(u => u.Email == call.From || u.Email == call.To)
+                .Select(u => new { u.Email, u.DisplayName })
+                .ToListAsync();
+            string? nameOf(string email) => profiles.FirstOrDefault(p =>
+                string.Equals(p.Email, email, StringComparison.OrdinalIgnoreCase))?.DisplayName;
+
+            var fromToken = _livekit.GenerateToken(call.From, call.RoomName, nameOf(call.From));
+            var toToken   = _livekit.GenerateToken(call.To,   call.RoomName, nameOf(call.To));
 
             await Clients.Clients(_presence.GetConnections(call.From)).SendAsync("CallAccepted", new
             {

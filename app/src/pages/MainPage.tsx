@@ -4,7 +4,7 @@ import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel, ChatMessage } from '../types';
 import { saveSettings, clearSession } from '../settings';
 import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl, displayShare, passThru, getPlatform, type DisplayShareSource, type Platform } from '../runtime';
-import { getRooms, getRoomToken, getUsers, getServerChannels, UnauthorizedError, type ContactUser } from '../api';
+import { getRooms, getRoomToken, getUsers, getServerChannels, updateProfile, UnauthorizedError, type ContactUser } from '../api';
 import { createLogger, setLocalLoggingEnabled } from '../logger';
 import { startLogUploader, stopLogUploader } from '../logUploader';
 import Sidebar from '../components/Sidebar';
@@ -599,6 +599,14 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   function handleSaveSettings(s: Settings) {
     onSettingsChange({ ...s, sidebarWidth: sidebarWidthRef.current });
     saveSettings({ ...s, sidebarWidth: sidebarWidthRef.current });
+    // Sync displayName to server so other clients (mobile, other desktops)
+    // see it in their contact lists. Best-effort — failure here doesn't
+    // block the local save.
+    if (s.displayName !== settingsRef.current.displayName) {
+      void updateProfile(session.serverUrl, session.sessionToken,
+        s.displayName.trim() || null)
+        .catch(e => uiLog.warn('updateProfile failed', { error: String(e) }));
+    }
   }
 
   const handleSignOut = useCallback(() => { clearSession(); onSignOut(); }, [onSignOut]);

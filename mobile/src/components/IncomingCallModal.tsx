@@ -18,7 +18,8 @@ export function IncomingCallModal({ call, onAccept, onDecline }: IncomingProps) 
     <View style={styles.backdrop} pointerEvents="auto">
       <View style={styles.card}>
         <Text style={styles.label}>Incoming call</Text>
-        <Text style={styles.from}>{call.from}</Text>
+        <Text style={styles.from}>{call.fromDisplayName?.trim() || call.from}</Text>
+        {call.fromDisplayName?.trim() ? <Text style={styles.fromEmail}>{call.from}</Text> : null}
         <View style={styles.row}>
           <TouchableOpacity style={[styles.btn, styles.decline]} onPress={onDecline}>
             <Text style={styles.btnText}>Decline</Text>
@@ -55,8 +56,9 @@ const styles = StyleSheet.create({
   backdrop:  { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', zIndex: 100, elevation: 100 },
   card:      { backgroundColor: theme.bgPanel, borderRadius: 14, padding: 28, alignItems: 'center', minWidth: 280, borderWidth: 1, borderColor: theme.border },
   label:     { color: theme.textMuted, fontSize: 13 },
-  from:      { color: theme.text, fontSize: 18, fontWeight: '700', marginVertical: 14, textAlign: 'center' },
-  row:       { flexDirection: 'row', gap: 12, marginTop: 8 },
+  from:      { color: theme.text, fontSize: 18, fontWeight: '700', marginTop: 14, textAlign: 'center' },
+  fromEmail: { color: theme.textMuted, fontSize: 12, marginTop: 4, textAlign: 'center' },
+  row:       { flexDirection: 'row', gap: 12, marginTop: 18 },
   btn:       { paddingHorizontal: 18, paddingVertical: 12, borderRadius: 8, alignItems: 'center', minWidth: 110 },
   accept:    { backgroundColor: theme.success },
   decline:   { backgroundColor: theme.danger },
