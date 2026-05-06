@@ -41,10 +41,16 @@ public class CallHub : Hub
     {
         try
         {
-            var token = Context.GetHttpContext()?.Request.Query["access_token"].ToString();
+            var http = Context.GetHttpContext();
+            var token = http?.Request.Query["access_token"].ToString();
             var email = _session.Validate(token);
-            _log.LogInformation("CallHub OnConnect cid={Cid} tokenLen={TLen} email={Email}",
-                Context.ConnectionId, token?.Length ?? 0, email ?? "<null>");
+            var preview = token == null ? "<null>"
+                : token.Length <= 20 ? token
+                : token[..15] + "…" + token[^15..] + $"({token.Length})";
+            var qcount = http?.Request.Query["access_token"].Count ?? 0;
+            var partsCount = token?.Split('.').Length ?? 0;
+            _log.LogInformation("CallHub OnConnect cid={Cid} tokenPreview={Prev} qCount={QC} parts={P} email={Email}",
+                Context.ConnectionId, preview, qcount, partsCount, email ?? "<null>");
             if (email is null) { Context.Abort(); return; }
 
             Context.Items[EmailKey] = email;
