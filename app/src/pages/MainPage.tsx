@@ -762,7 +762,12 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               onError={err => { callLog.error('livekit error', err); setError(err.message); }}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%' }}
             >
-              <RoomEventLogger onVideoReady={handleVideoReady} onParticipantsChanged={handleParticipantsChanged} />
+              <RoomEventLogger
+                onVideoReady={handleVideoReady}
+                onParticipantsChanged={handleParticipantsChanged}
+                onPeerLeftDirect={handleHangup}
+                isDirect={isDirectRoomName(connection.roomName)}
+              />
               <MediaController
                 micMuted={micMuted}
                 camMuted={camMuted}
@@ -816,10 +821,12 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           screenSharing={screenSharing}
           screenShareDisabled={remoteSharing}
           passThruActive={!!passThruStream}
+          showSelf={showSelf}
           onToggleMic={() => setMicMuted(m => !m)}
           onToggleCam={() => setCamMuted(c => !c)}
           onToggleScreenShare={() => setScreenSharing(s => !s)}
           onTogglePassThru={() => void handleTogglePassThru()}
+          onToggleSelf={() => setShowSelf(s => !s)}
           onHangup={handleHangup}
         />
       )}
@@ -978,12 +985,18 @@ function GameModeAutoSize({ gameSize, showSelf }: { gameSize: GameSize; showSelf
 
 const VIDEO_READY_FALLBACK_MS = 4000;
 
+function isDirectRoomName(name: string | undefined): boolean {
+  return !!name && name.startsWith('direct-');
+}
+
 interface RoomEventLoggerProps {
   onVideoReady:    () => void;
   onParticipantsChanged: () => void;
+  onPeerLeftDirect:      () => void;
+  isDirect:              boolean;
 }
 
-function RoomEventLogger({ onVideoReady, onParticipantsChanged }: RoomEventLoggerProps) {
+function RoomEventLogger({ onVideoReady, onParticipantsChanged, onPeerLeftDirect, isDirect }: RoomEventLoggerProps) {
   const room = useRoomContext();
 
   useEffect(() => {
@@ -1027,6 +1040,12 @@ function RoomEventLogger({ onVideoReady, onParticipantsChanged }: RoomEventLogge
     const onLeave = (p: { identity: string; sid: string }) => {
       callLog.info('participant disconnected', { identity: p.identity, sid: p.sid });
       onParticipantsChanged();
+      // Direct call etiquette: if the peer left, drop us out too. Channel/group
+      // calls deliberately do NOT auto-leave so others can join later.
+      if (isDirect && room.remoteParticipants.size === 0) {
+        callLog.info('direct-call peer left, hanging up');
+        onPeerLeftDirect();
+      }
     };
     const onLocalPub = (pub: { kind: string; source?: string; track?: { mediaStreamTrack?: MediaStreamTrack } }) => {
       // Surface what the OS actually selected so we can spot mismatches with

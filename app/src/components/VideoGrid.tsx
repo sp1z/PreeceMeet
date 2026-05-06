@@ -248,8 +248,12 @@ export default function VideoGrid({ gameMode, gameSize = 'medium', showSelf = fa
     ? sortedTracks.filter(t => t.source !== Track.Source.ScreenShare)
     : sortedTracks;
 
+  // Local camera tile is rendered-but-hidden when showSelf is off (in any
+  // mode). Same reason as before: unmounting the local ParticipantTile races
+  // the v4l2 capture handoff on Linux and leaves the local track black.
   function isHiddenInGame(track: typeof visibleTracks[number]): boolean {
-    return !!gameMode && !showSelf && track.participant.isLocal;
+    if (!showSelf && track.participant.isLocal && track.source === Track.Source.Camera) return true;
+    return false;
   }
 
   const passThruVisible = !!passThruStream && !gameMode;

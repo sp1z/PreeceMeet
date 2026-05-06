@@ -5,10 +5,12 @@ interface Props {
   screenSharing:       boolean;
   screenShareDisabled: boolean;
   passThruActive:      boolean;
+  showSelf:            boolean;
   onToggleMic:         () => void;
   onToggleCam:         () => void;
   onToggleScreenShare: () => void;
   onTogglePassThru:    () => void;
+  onToggleSelf:        () => void;
   onHangup:            () => void;
 }
 
@@ -89,6 +91,25 @@ function PassThruIcon() {
   );
 }
 
+function SelfShowIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>
+  );
+}
+
+function SelfHideIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+      <line x1="2" y1="2" x2="22" y2="22"/>
+    </svg>
+  );
+}
+
 function HangupIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -105,10 +126,12 @@ export default function CallControls({
   screenSharing,
   screenShareDisabled,
   passThruActive,
+  showSelf,
   onToggleMic,
   onToggleCam,
   onToggleScreenShare,
   onTogglePassThru,
+  onToggleSelf,
   onHangup,
 }: Props) {
   const shareDisabled = !connected || (screenShareDisabled && !screenSharing);
@@ -151,6 +174,14 @@ export default function CallControls({
         title={passThruActive ? 'Stop PassThru (local view)' : 'PassThru — show a window or screen only to you'}
       >
         <PassThruIcon />
+      </button>
+      <button
+        className={`control-btn${showSelf ? ' active' : ''}`}
+        onClick={onToggleSelf}
+        disabled={!connected}
+        title={showSelf ? 'Hide self preview' : 'Show self preview'}
+      >
+        {showSelf ? <SelfShowIcon /> : <SelfHideIcon />}
       </button>
       <button
         className="control-btn hangup"

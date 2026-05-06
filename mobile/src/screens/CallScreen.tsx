@@ -114,6 +114,18 @@ function CallView({ roomName, onLeave, error }: { roomName: string; onLeave: () 
     return { selfTrack: self, remoteTracks: remote };
   }, [tracks]);
 
+  // Direct-call etiquette: when the only other peer leaves a 1:1 call, drop
+  // out automatically. Channel/group calls deliberately do NOT do this so
+  // participants can come and go.
+  const isDirect = roomName.startsWith('direct-');
+  const hadRemoteRef = useRef(false);
+  useEffect(() => {
+    if (remoteTracks.length > 0) hadRemoteRef.current = true;
+    if (isDirect && hadRemoteRef.current && remoteTracks.length === 0) {
+      onLeave();
+    }
+  }, [isDirect, remoteTracks.length, onLeave]);
+
   const trackKey = useCallback((t: TrackReferenceOrPlaceholder) =>
     (isTrackReference(t) ? t.publication.trackSid : (t.participant?.identity ?? '')) || 'unknown',
   []);
