@@ -4,7 +4,7 @@ import {
   ActionSheetIOS, useWindowDimensions, PanResponder, Animated,
 } from 'react-native';
 import {
-  LiveKitRoom,
+  RoomContext,
   useTracks,
   useLocalParticipant,
   useConnectionState,
@@ -12,7 +12,7 @@ import {
   isTrackReference,
   type TrackReferenceOrPlaceholder,
 } from '@livekit/react-native';
-import { Track, ConnectionState } from 'livekit-client';
+import { Room, RoomEvent, Track, ConnectionState } from 'livekit-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme';
 import { reportError } from '../errorReporter';
@@ -26,27 +26,60 @@ interface Props {
 
 export default function CallScreen({ url, token, roomName, onLeave }: Props) {
   const [error, setError] = useState<string>('');
+
+  // Imperative Room construction. The components-react LiveKitRoom wrapper
+  // gates rendering of children on a useState<Room | undefined>() that's
+  // populated inside a useEffect — for direct calls (brand-new rooms) that
+  // first render → useEffect → setRoom → re-render → render children path
+  // hung silently and CallView never mounted. Constructing the Room with
+  // a useState lazy initializer puts a real Room in place from the very
+  // first render, so RoomContext.Provider has a value immediately and
+  // CallView's hooks have something to bind to.
+  const [room] = useState(() => new Room());
+
   useEffect(() => {
     reportError(`callscreen mount room=${roomName}`);
-    return () => reportError(`callscreen unmount room=${roomName}`);
-  }, [roomName]);
+    let cancelled = false;
+
+    const onConnected    = () => reportError(`livekit onConnected room=${roomName}`);
+    const onDisconnected = (reason?: unknown) =>
+      reportError(`livekit onDisconnected room=${roomName} reason=${String(reason)}`);
+    const onSignalConnected = async () => {
+      try {
+        await Promise.all([
+          room.localParticipant.setMicrophoneEnabled(true),
+          room.localParticipant.setCameraEnabled(true),
+        ]);
+      } catch (e) {
+        reportError(`media enable failed room=${roomName}`, e);
+      }
+    };
+
+    room.on(RoomEvent.Connected,        onConnected);
+    room.on(RoomEvent.Disconnected,     onDisconnected);
+    room.on(RoomEvent.SignalConnected,  onSignalConnected);
+
+    room.connect(url, token).catch(e => {
+      if (cancelled) return;
+      const msg = e instanceof Error ? e.message : String(e);
+      reportError(`livekit connect failed room=${roomName}`, e);
+      setError(msg);
+    });
+
+    return () => {
+      cancelled = true;
+      reportError(`callscreen unmount room=${roomName}`);
+      room.off(RoomEvent.Connected,       onConnected);
+      room.off(RoomEvent.Disconnected,    onDisconnected);
+      room.off(RoomEvent.SignalConnected, onSignalConnected);
+      room.disconnect().catch(() => { /* swallow */ });
+    };
+  }, [room, url, token, roomName]);
 
   return (
-    <LiveKitRoom
-      serverUrl={url}
-      token={token}
-      connect
-      audio
-      video
-      onError={err => {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn('[livekit]', err);
-        reportError(`livekit room error room=${roomName}`, err);
-        setError(msg);
-      }}
-    >
+    <RoomContext.Provider value={room}>
       <CallView roomName={roomName} onLeave={onLeave} error={error} />
-    </LiveKitRoom>
+    </RoomContext.Provider>
   );
 }
 

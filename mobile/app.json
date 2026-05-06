@@ -15,7 +15,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.russellpreece.preecemeet",
-      "buildNumber":      "15",
+      "buildNumber":      "16",
       "supportsTablet":   true,
       "infoPlist": {
         "NSCameraUsageDescription":      "PreeceMeet needs the camera to share your video on calls.",
