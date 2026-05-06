@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
   ActionSheetIOS, useWindowDimensions, PanResponder, Animated,
@@ -26,16 +26,24 @@ interface Props {
 
 export default function CallScreen({ url, token, roomName, onLeave }: Props) {
   const [error, setError] = useState<string>('');
-
-  // Imperative Room construction. The components-react LiveKitRoom wrapper
-  // gates rendering of children on a useState<Room | undefined>() that's
-  // populated inside a useEffect — for direct calls (brand-new rooms) that
-  // first render → useEffect → setRoom → re-render → render children path
-  // hung silently and CallView never mounted. Constructing the Room with
-  // a useState lazy initializer puts a real Room in place from the very
-  // first render, so RoomContext.Provider has a value immediately and
-  // CallView's hooks have something to bind to.
   const [room] = useState(() => new Room());
+
+  // Render-phase log so we can see how many times CallScreen renders even if
+  // useEffects never commit. Pairs with first-render in CallView to detect
+  // the case where parent re-renders and unmounts CallScreen before commit.
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  if (renderCountRef.current <= 5) {
+    reportError(`callscreen render#${renderCountRef.current} room=${roomName}`);
+  }
+
+  // useLayoutEffect commits BEFORE useEffect and BEFORE the browser paints —
+  // if we see render#N but not mount-layout, CallScreen never finished
+  // committing (i.e., parent unmounted us mid-render).
+  useLayoutEffect(() => {
+    reportError(`callscreen mount-layout room=${roomName}`);
+    return () => reportError(`callscreen unmount-layout room=${roomName}`);
+  }, [roomName]);
 
   useEffect(() => {
     reportError(`callscreen mount room=${roomName}`);
