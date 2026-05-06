@@ -24,7 +24,14 @@ export function useDirectCalling(session: Session) {
 
   useEffect(() => {
     let cancelled = false;
-    const url = `${session.serverUrl.replace(/\/$/, '')}/hubs/call`;
+    // Pre-append access_token to the base URL because @microsoft/signalr's
+    // WebSocketTransport on React Native does not call accessTokenFactory
+    // when constructing the WS upgrade URL (Electron + browser do). Without
+    // this, OnConnectedAsync receives no token and aborts the connection,
+    // which loops forever. Keep accessTokenFactory too so the negotiate
+    // POST gets an Authorization header.
+    const url = `${session.serverUrl.replace(/\/$/, '')}/hubs/call`
+              + `?access_token=${encodeURIComponent(session.sessionToken)}`;
     const conn = new HubConnectionBuilder()
       .withUrl(url, { accessTokenFactory: () => session.sessionToken })
       .withAutomaticReconnect({

@@ -39,45 +39,31 @@ public class CallHub : Hub
 
     public override async Task OnConnectedAsync()
     {
-        try
+        var token = Context.GetHttpContext()?.Request.Query["access_token"].ToString();
+        var email = _session.Validate(token);
+        if (email is null)
         {
-            var http = Context.GetHttpContext();
-            var token = http?.Request.Query["access_token"].ToString();
-            var email = _session.Validate(token);
-            var preview = token == null ? "<null>"
-                : token.Length <= 20 ? token
-                : token[..15] + "…" + token[^15..] + $"({token.Length})";
-            var qcount = http?.Request.Query["access_token"].Count ?? 0;
-            var partsCount = token?.Split('.').Length ?? 0;
-            _log.LogInformation("CallHub OnConnect cid={Cid} tokenPreview={Prev} qCount={QC} parts={P} email={Email}",
-                Context.ConnectionId, preview, qcount, partsCount, email ?? "<null>");
-            if (email is null) { Context.Abort(); return; }
+            _log.LogWarning("CallHub aborting — invalid/missing token cid={Cid} tokenLen={TLen}",
+                Context.ConnectionId, token?.Length ?? 0);
+            Context.Abort();
+            return;
+        }
 
-            Context.Items[EmailKey] = email;
-            _presence.Add(email, Context.ConnectionId);
-            _log.LogInformation("CallHub presence.Add {Email} cid={Cid} online={Count}",
-                email, Context.ConnectionId, _presence.OnlineUsers().Count);
-            await BroadcastPresence();
-            _log.LogInformation("CallHub OnConnect complete {Email} cid={Cid}", email, Context.ConnectionId);
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "CallHub OnConnectedAsync threw cid={Cid}", Context.ConnectionId);
-            throw;
-        }
+        Context.Items[EmailKey] = email;
+        _presence.Add(email, Context.ConnectionId);
+        _log.LogInformation("CallHub connected {Email} cid={Cid} online={Count}",
+            email, Context.ConnectionId, _presence.OnlineUsers().Count);
+        await BroadcastPresence();
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var email = Context.Items[EmailKey] as string ?? "<unknown>";
-        _log.LogInformation("CallHub OnDisconnect cid={Cid} email={Email} ex={ExType} exMsg={ExMsg}",
-            Context.ConnectionId, email,
-            exception?.GetType().Name ?? "none",
-            exception?.Message ?? "");
-        if (Context.Items[EmailKey] is string e)
+        if (Context.Items[EmailKey] is string email)
         {
-            _presence.Remove(e, Context.ConnectionId);
+            _presence.Remove(email, Context.ConnectionId);
+            _log.LogInformation("CallHub disconnected {Email} cid={Cid} online={Count}",
+                email, Context.ConnectionId, _presence.OnlineUsers().Count);
             await BroadcastPresence();
         }
         await base.OnDisconnectedAsync(exception);
