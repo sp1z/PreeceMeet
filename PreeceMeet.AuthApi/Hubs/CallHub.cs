@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using PreeceMeet.AuthApi.Data;
 using PreeceMeet.AuthApi.Services;
 
 namespace PreeceMeet.AuthApi.Hubs;
@@ -14,17 +16,25 @@ public class CallHub : Hub
     private readonly PresenceService     _presence;
     private readonly SessionTokenService _session;
     private readonly LiveKitTokenService _livekit;
+    private readonly ApnsPushService     _apns;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<CallHub>    _log;
     private readonly string              _livekitUrl;
 
     public CallHub(PresenceService presence, SessionTokenService session,
-                   LiveKitTokenService livekit, IConfiguration config)
+                   LiveKitTokenService livekit, ApnsPushService apns,
+                   IServiceScopeFactory scopeFactory, ILogger<CallHub> log,
+                   IConfiguration config)
     {
-        _presence   = presence;
-        _session    = session;
-        _livekit    = livekit;
-        _livekitUrl = config["LIVEKIT_URL"]
-                   ?? Environment.GetEnvironmentVariable("LIVEKIT_URL")
-                   ?? "wss://meet.russellpreece.com";
+        _presence     = presence;
+        _session      = session;
+        _livekit      = livekit;
+        _apns         = apns;
+        _scopeFactory = scopeFactory;
+        _log          = log;
+        _livekitUrl   = config["LIVEKIT_URL"]
+                     ?? Environment.GetEnvironmentVariable("LIVEKIT_URL")
+                     ?? "wss://meet.russellpreece.com";
     }
 
     public override async Task OnConnectedAsync()
@@ -78,7 +88,50 @@ public class CallHub : Hub
             at = DateTimeOffset.UtcNow,
         });
 
+        // Fire-and-forget APNs push so we don't block the SignalR call when
+        // the recipient's phone is asleep. Failures are logged inside.
+        _ = SendPushAsync(toEmail, from, safeDisplayName, callId, roomName);
+
         return new { ok = true, callId, roomName };
+    }
+
+    private async Task SendPushAsync(string toEmail, string fromEmail, string? fromDisplayName,
+                                     string callId, string roomName)
+    {
+        if (!_apns.IsConfigured) return;
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var tokens = await db.DeviceTokens
+                .Where(d => d.Email == toEmail.ToLower() && d.Platform == "ios")
+                .Select(d => d.Token)
+                .ToListAsync();
+            if (tokens.Count == 0) return;
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            var sends = tokens.Select(t =>
+                _apns.SendIncomingCallAsync(t, fromEmail, fromDisplayName, callId, roomName, cts.Token));
+            var results = await Task.WhenAll(sends);
+
+            // 410 Gone = device unregistered → drop from DB.
+            for (var i = 0; i < tokens.Count; i++)
+            {
+                if (results[i] == 410)
+                {
+                    var stale = await db.DeviceTokens
+                        .Where(d => d.Token == tokens[i])
+                        .ToListAsync();
+                    db.DeviceTokens.RemoveRange(stale);
+                    _log.LogInformation("Pruned stale device token (410) for {Email}", toEmail);
+                }
+            }
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Push send failed for call {CallId} to {To}", callId, toEmail);
+        }
     }
 
     public async Task Accept(string callId)

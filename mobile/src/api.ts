@@ -97,3 +97,33 @@ export async function getUsers(serverUrl: string, sessionToken: string): Promise
   if (!resp.ok) throw new Error(`Failed to list users (${resp.status})`);
   return resp.json();
 }
+
+export async function registerDevice(
+  serverUrl:    string,
+  sessionToken: string,
+  token:        string,
+  platform:     'ios' | 'android',
+): Promise<boolean> {
+  try {
+    const resp = await fetch(`${serverUrl}/api/devices`, {
+      method:  'POST',
+      headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ token, platform }),
+    });
+    return resp.ok;
+  } catch { return false; }
+}
+
+export async function unregisterDevice(
+  serverUrl:    string,
+  sessionToken: string,
+  token:        string,
+): Promise<boolean> {
+  try {
+    const resp = await fetch(`${serverUrl}/api/devices/${encodeURIComponent(token)}`, {
+      method:  'DELETE',
+      headers: { Authorization: `Bearer ${sessionToken}` },
+    });
+    return resp.ok;
+  } catch { return false; }
+}

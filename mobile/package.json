@@ -16,6 +16,8 @@
     "@react-native-async-storage/async-storage": "1.24.0",
     "expo":                           "~54.0.33",
     "expo-build-properties":          "~0.13.2",
+    "expo-device":                    "~8.0.10",
+    "expo-notifications":             "~0.32.13",
     "expo-secure-store":              "~14.0.1",
     "expo-status-bar":                "~3.0.9",
     "livekit-client":                 "^2.5.0",

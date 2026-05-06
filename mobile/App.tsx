@@ -5,12 +5,13 @@ import { registerGlobals } from '@livekit/react-native';
 import { theme } from './src/theme';
 import { loadSession, saveSession, clearSession, type Session } from './src/session';
 import { useDirectCalling } from './src/calling';
-import { setSessionForLogs } from './src/errorReporter';
+import { setSessionForLogs, reportError } from './src/errorReporter';
 import { ErrorBoundary } from './src/errorBoundary';
+import { registerForPushNotifications } from './src/notifications';
+import { registerDevice } from './src/api';
 import LoginScreen from './src/screens/LoginScreen';
 import TotpScreen from './src/screens/TotpScreen';
 import HomeScreen from './src/screens/HomeScreen';
-import ContactsScreen from './src/screens/ContactsScreen';
 import CallScreen from './src/screens/CallScreen';
 import { IncomingCallModal, OutgoingCallModal } from './src/components/IncomingCallModal';
 import type { LoginResult } from './src/api';
@@ -18,7 +19,7 @@ import type { LoginResult } from './src/api';
 // One-time WebRTC global registration — required by @livekit/react-native.
 registerGlobals();
 
-type Page = 'loading' | 'login' | 'totp' | 'home' | 'contacts' | 'call';
+type Page = 'loading' | 'login' | 'totp' | 'home' | 'call';
 
 interface PendingTotp {
   serverUrl:  string;
@@ -50,6 +51,21 @@ export default function App() {
 
   useEffect(() => {
     setSessionForLogs(session ? { serverUrl: session.serverUrl, sessionToken: session.sessionToken } : null);
+  }, [session]);
+
+  // Register for APNs push and post the token to the server so /hubs/call can
+  // wake the device when someone direct-calls us. Best-effort — failure here
+  // shouldn't block sign-in.
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    (async () => {
+      const reg = await registerForPushNotifications();
+      if (!reg || cancelled) return;
+      const ok = await registerDevice(session.serverUrl, session.sessionToken, reg.token, reg.platform);
+      if (!ok) reportError('device push registration failed');
+    })().catch(e => reportError('push setup threw', e));
+    return () => { cancelled = true; };
   }, [session]);
 
   function handleLoginDone(serverUrl: string, email: string, result: LoginResult) {
@@ -168,19 +184,10 @@ function SignedIn({ session, page, setPage, activeCall, setActiveCall, joinChann
       {page === 'home' && (
         <HomeScreen
           session={session}
-          onJoinChannel={joinChannel}
-          onOpenContacts={() => setPage('contacts')}
-          onSignOut={onSignOut}
-        />
-      )}
-
-      {page === 'contacts' && (
-        <ContactsScreen
-          session={session}
           online={calling.online}
           inCall={!!activeCall}
+          onJoinChannel={joinChannel}
           onCall={calling.call}
-          onClose={() => setPage('home')}
           onSignOut={onSignOut}
         />
       )}

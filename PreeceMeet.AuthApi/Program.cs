@@ -31,6 +31,7 @@ builder.Services.AddSingleton<TempTokenStore>();
 builder.Services.AddSingleton<PresenceService>();
 builder.Services.AddSingleton(new LiveKitTokenService(livekitApiKey, livekitSecret));
 builder.Services.AddSingleton(new SessionTokenService(livekitSecret));
+builder.Services.AddSingleton<ApnsPushService>();
 builder.Services.AddSignalR();
 
 // SignalR + WebSocket needs SetIsOriginAllowed (not AllowAnyOrigin) when used
@@ -63,6 +64,28 @@ using (var scope = app.Services.CreateScope())
             "ALTER TABLE Users ADD COLUMN IsAdmin INTEGER NOT NULL DEFAULT 0");
     }
     catch { /* Column already exists — ignore. */ }
+
+    // EnsureCreated only creates tables on a fresh DB; for pre-existing DBs
+    // we need to create the new DeviceTokens table explicitly.
+    try
+    {
+        db.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS DeviceTokens (
+                Id INTEGER NOT NULL CONSTRAINT PK_DeviceTokens PRIMARY KEY AUTOINCREMENT,
+                Email TEXT NOT NULL,
+                Platform TEXT NOT NULL,
+                Token TEXT NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                LastSeenAt TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS IX_DeviceTokens_Email_Token ON DeviceTokens(Email, Token);
+            CREATE INDEX IF NOT EXISTS IX_DeviceTokens_Email ON DeviceTokens(Email);
+        ");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"DeviceTokens table create skipped: {ex.Message}");
+    }
 
     // Auto-promote existing @russellpreece.com users to admin.
     var domainUsers = await db.Users
@@ -395,6 +418,66 @@ app.MapGet("/api/users", async (HttpContext ctx, AppDbContext db,
     return Results.Ok(users.Select(email => new { email, online = online.Contains(email) }));
 });
 
+// ── Devices: register / unregister push token ─────────────────────────────────
+
+app.MapPost("/api/devices", async (RegisterDeviceRequest req, HttpContext ctx,
+    AppDbContext db, SessionTokenService session) =>
+{
+    var email = session.Validate(ctx.Request.Headers.Authorization);
+    if (email is null) return Results.Unauthorized();
+
+    if (string.IsNullOrWhiteSpace(req.Token) || string.IsNullOrWhiteSpace(req.Platform))
+        return Results.BadRequest(new { error = "token and platform required" });
+
+    var token    = req.Token.Trim();
+    var platform = req.Platform.Trim().ToLowerInvariant();
+    if (platform != "ios" && platform != "android")
+        return Results.BadRequest(new { error = "platform must be ios or android" });
+
+    // Reassign existing token rows (same token, possibly different user) and
+    // upsert this user/token pair. Simple approach: delete same-token rows
+    // for *other* users (token belongs to a single device/account at a time)
+    // then upsert the row for this user.
+    var others = await db.DeviceTokens
+        .Where(d => d.Token == token && d.Email != email)
+        .ToListAsync();
+    if (others.Count > 0) db.DeviceTokens.RemoveRange(others);
+
+    var existing = await db.DeviceTokens
+        .FirstOrDefaultAsync(d => d.Email == email && d.Token == token);
+    if (existing is null)
+    {
+        db.DeviceTokens.Add(new Models.DeviceToken
+        {
+            Email      = email,
+            Platform   = platform,
+            Token      = token,
+            CreatedAt  = DateTimeOffset.UtcNow,
+            LastSeenAt = DateTimeOffset.UtcNow,
+        });
+    }
+    else
+    {
+        existing.Platform   = platform;
+        existing.LastSeenAt = DateTimeOffset.UtcNow;
+    }
+    await db.SaveChangesAsync();
+    return Results.Ok(new { ok = true });
+});
+
+app.MapDelete("/api/devices/{token}", async (string token, HttpContext ctx,
+    AppDbContext db, SessionTokenService session) =>
+{
+    var email = session.Validate(ctx.Request.Headers.Authorization);
+    if (email is null) return Results.Unauthorized();
+
+    var rows = await db.DeviceTokens.Where(d => d.Email == email && d.Token == token).ToListAsync();
+    if (rows.Count == 0) return Results.NotFound();
+    db.DeviceTokens.RemoveRange(rows);
+    await db.SaveChangesAsync();
+    return Results.Ok(new { deleted = rows.Count });
+});
+
 // ── Client diagnostic log upload ──────────────────────────────────────────────
 // Authenticated clients POST batches of log lines here; we append them to
 // /data/logs/{safeEmail}-{yyyy-MM-dd}.log. Intentionally simple: no parsing,
@@ -492,6 +575,7 @@ record CreateUserRequest(string Email, string Password);
 record ChangePasswordRequest(string Password);
 record SetAdminRequest(bool IsAdmin);
 record UploadLogRequest(List<string>? Lines, string? ClientVersion, string? Platform);
+record RegisterDeviceRequest(string Token, string Platform);
 
 // ── String helper ─────────────────────────────────────────────────────────────
 
