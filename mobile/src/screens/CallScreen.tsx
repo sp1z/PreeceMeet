@@ -26,6 +26,14 @@ interface Props {
 
 export default function CallScreen({ url, token, roomName, onLeave }: Props) {
   const [error, setError] = useState<string>('');
+  useEffect(() => {
+    console.warn(`[callscreen] mount room=${roomName}`);
+    reportError(`callscreen mount room=${roomName}`);
+    return () => {
+      console.warn(`[callscreen] unmount room=${roomName}`);
+      reportError(`callscreen unmount room=${roomName}`);
+    };
+  }, [roomName]);
   return (
     <LiveKitRoom
       serverUrl={url}
@@ -63,6 +71,12 @@ function CallView({ roomName, onLeave, error }: { roomName: string; onLeave: () 
   const [camOn,    setCamOn]    = useState(true);
   const [showSelf, setShowSelf] = useState(false);
   const [fits,     setFits]     = useState<Record<string, ObjectFit>>({});
+
+  // Log every connection-state transition so we can see in server logs whether
+  // CallScreen makes it past 'connecting' on iOS (the call-screen freeze report).
+  useEffect(() => {
+    reportError(`callview connState=${connState} room=${roomName} tracks=${tracks.length}`);
+  }, [connState, roomName, tracks.length]);
 
   // Remember show-self preference across calls.
   useEffect(() => {
