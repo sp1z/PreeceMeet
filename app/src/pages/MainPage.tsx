@@ -4,7 +4,7 @@ import { Track, RoomEvent, ConnectionState } from 'livekit-client';
 import type { Session, Settings, RoomConnection, RoomInfo, Channel, ChatMessage } from '../types';
 import { saveSettings, clearSession } from '../settings';
 import { openExternal, installUpdate as runtimeInstallUpdate, windowCtl, displayShare, passThru, getPlatform, type DisplayShareSource, type Platform } from '../runtime';
-import { getRooms, getRoomToken, getUsers, UnauthorizedError, type ContactUser } from '../api';
+import { getRooms, getRoomToken, getUsers, getServerChannels, UnauthorizedError, type ContactUser } from '../api';
 import { createLogger, setLocalLoggingEnabled } from '../logger';
 import { startLogUploader, stopLogUploader } from '../logUploader';
 import Sidebar from '../components/Sidebar';
@@ -63,6 +63,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [installing,     setInstalling]     = useState(false);
   const [isFullscreen,   setIsFullscreen]   = useState(false);
   const [users,          setUsers]          = useState<ContactUser[]>([]);
+  const [serverChannels, setServerChannels] = useState<Channel[] | null>(null);
   const [shareSources,   setShareSources]   = useState<DisplayShareSource[] | null>(null);
   const [passThruSources, setPassThruSources] = useState<DisplayShareSource[] | null>(null);
   const [passThruStream,  setPassThruStream]  = useState<MediaStream | null>(null);
@@ -185,6 +186,27 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     }
   }, [session, onSignOut]);
 
+  // Fetch the server's canonical channel list. This is the source of truth
+  // shared across all clients — local settings.channels stays as a UX
+  // fallback only (e.g. if the server is unreachable on first load).
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const list = await getServerChannels(session.serverUrl, session.sessionToken);
+        if (!cancelled && list.length) setServerChannels(list);
+      } catch (e) {
+        if (e instanceof UnauthorizedError) { clearSession(); onSignOut(); }
+      }
+    };
+    void load();
+    const t = setInterval(() => void load(), 30_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [session, onSignOut]);
+
+  // Effective channel list: server takes precedence over local settings.
+  const effectiveChannels: Channel[] = serverChannels ?? settings.channels;
+
   useEffect(() => {
     pollRoomsRef.current = pollRooms;
     void pollRooms();
@@ -194,7 +216,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
 
   useEffect(() => {
     if (settings.autoJoinChannel) {
-      const ch = settings.channels.find(c => c.name === settings.autoJoinChannel);
+      const ch = effectiveChannels.find(c => c.name === settings.autoJoinChannel);
       if (ch) void joinChannel(ch);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -664,7 +686,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       >
         {sidebarOn && (
           <Sidebar
-            channels={settings.channels}
+            channels={effectiveChannels}
             rooms={rooms}
             activeRoom={activeRoomName}
             email={session.email || ''}

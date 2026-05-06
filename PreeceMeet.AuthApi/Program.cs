@@ -206,6 +206,22 @@ app.MapGet("/api/auth/me", async (HttpContext ctx, SessionTokenService session, 
     return Results.Ok(new { email, isAdmin });
 });
 
+// ── Channels: canonical list shared across all clients ───────────────────────
+// Each entry: name = LiveKit room name (must match between clients to dial
+// in the same room); displayName = what users see; emoji = sidebar icon.
+// Hardcoded for now; later this becomes admin-configurable.
+
+app.MapGet("/api/channels", (HttpContext ctx, SessionTokenService session) =>
+{
+    if (session.Validate(ctx.Request.Headers.Authorization) is null)
+        return Results.Unauthorized();
+    return Results.Ok(new[]
+    {
+        new { name = "preecemeet", displayName = "General", emoji = "💬" },
+        new { name = "dnd",        displayName = "DND",     emoji = "🚫" },
+    });
+});
+
 // ── Rooms: list ───────────────────────────────────────────────────────────────
 
 app.MapGet("/api/rooms", async (HttpContext ctx, SessionTokenService session) =>

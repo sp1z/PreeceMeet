@@ -28,6 +28,8 @@ export interface RoomInfo {
 
 export interface ContactUser { email: string; online: boolean; }
 
+export interface Channel { name: string; displayName: string; emoji: string; }
+
 export async function login(serverUrl: string, email: string, password: string): Promise<LoginResult> {
   const resp = await fetch(`${serverUrl}/api/auth/login`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -87,6 +89,15 @@ export async function uploadLogs(
   } catch {
     return false;
   }
+}
+
+export async function getChannels(serverUrl: string, sessionToken: string): Promise<Channel[]> {
+  const resp = await fetch(`${serverUrl}/api/channels`, {
+    headers: { Authorization: `Bearer ${sessionToken}` },
+  });
+  if (resp.status === 401) throw new UnauthorizedError();
+  if (!resp.ok) return [];
+  return resp.json();
 }
 
 export async function getUsers(serverUrl: string, sessionToken: string): Promise<ContactUser[]> {

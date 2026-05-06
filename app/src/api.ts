@@ -118,6 +118,17 @@ export async function getUsers(serverUrl: string, sessionToken: string): Promise
   return resp.json();
 }
 
+export async function getServerChannels(
+  serverUrl: string, sessionToken: string,
+): Promise<{ name: string; displayName: string; emoji: string }[]> {
+  const resp = await fetch(`${serverUrl}/api/channels`, {
+    headers: { Authorization: `Bearer ${sessionToken}` },
+  });
+  if (resp.status === 401) throw new UnauthorizedError();
+  if (!resp.ok) return [];
+  return resp.json();
+}
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 
 function adminHeaders(sessionToken: string) {

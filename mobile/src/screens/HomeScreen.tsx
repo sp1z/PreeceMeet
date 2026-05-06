@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import { theme } from '../theme';
 import {
-  getRooms, getRoomToken, getUsers,
-  RoomInfo, ContactUser, UnauthorizedError,
+  getRooms, getRoomToken, getUsers, getChannels,
+  RoomInfo, ContactUser, Channel, UnauthorizedError,
 } from '../api';
 import type { Session } from '../session';
 
@@ -19,7 +19,7 @@ interface Props {
   onSignOut:      () => void;
 }
 
-type ChannelRow = { kind: 'channel'; name: string; numParticipants: number; participantNames: string[]; };
+type ChannelRow = { kind: 'channel'; name: string; displayName: string; emoji: string; numParticipants: number; participantNames: string[]; };
 type ContactRow = { kind: 'contact'; email: string; online: boolean; };
 type Row = ChannelRow | ContactRow;
 type Section = { title: 'Channels' | 'Direct'; data: Row[]; };
@@ -27,6 +27,7 @@ type Section = { title: 'Channels' | 'Direct'; data: Row[]; };
 export default function HomeScreen({ session, online, inCall, onJoinChannel, onCall, onSignOut }: Props) {
   const [rooms,      setRooms]      = useState<RoomInfo[]>([]);
   const [users,      setUsers]      = useState<ContactUser[]>([]);
+  const [channels,   setChannels]   = useState<Channel[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busy,       setBusy]       = useState('');   // channel name or contact email
@@ -34,12 +35,14 @@ export default function HomeScreen({ session, online, inCall, onJoinChannel, onC
 
   const refresh = useCallback(async () => {
     try {
-      const [r, u] = await Promise.all([
-        getRooms(session.serverUrl, session.sessionToken),
-        getUsers(session.serverUrl, session.sessionToken).catch(() => [] as ContactUser[]),
+      const [r, u, c] = await Promise.all([
+        getRooms   (session.serverUrl, session.sessionToken),
+        getUsers   (session.serverUrl, session.sessionToken).catch(() => [] as ContactUser[]),
+        getChannels(session.serverUrl, session.sessionToken).catch(() => [] as Channel[]),
       ]);
       setRooms(r);
       setUsers(u);
+      if (c.length) setChannels(c);   // keep last good list if endpoint blips
       setError('');
     } catch (e) {
       if (e instanceof UnauthorizedError) { onSignOut(); return; }
@@ -75,22 +78,28 @@ export default function HomeScreen({ session, online, inCall, onJoinChannel, onC
   }
 
   const sections: Section[] = useMemo(() => {
-    const presetChannels = ['preecemeet', 'general'];
-    const liveNames = new Set(rooms.map(r => r.name));
-    const channels: ChannelRow[] = [
-      ...rooms.map(r => ({ kind: 'channel' as const, name: r.name, numParticipants: r.numParticipants, participantNames: r.participantNames })),
-      ...presetChannels
-        .filter(n => !liveNames.has(n))
-        .map(n => ({ kind: 'channel' as const, name: n, numParticipants: 0, participantNames: [] })),
-    ];
+    // Canonical channel list comes from the server. Fold live-room participant
+    // counts into each entry by matching `name`.
+    const liveByName = new Map(rooms.map(r => [r.name, r] as const));
+    const channelRows: ChannelRow[] = channels.map(c => {
+      const live = liveByName.get(c.name);
+      return {
+        kind:             'channel' as const,
+        name:             c.name,
+        displayName:      c.displayName,
+        emoji:            c.emoji,
+        numParticipants:  live?.numParticipants  ?? 0,
+        participantNames: live?.participantNames ?? [],
+      };
+    });
     const contacts: ContactRow[] = users
       .map(u => ({ kind: 'contact' as const, email: u.email, online: online.has(u.email.toLowerCase()) }))
       .sort((a, b) => Number(b.online) - Number(a.online) || a.email.localeCompare(b.email));
     return [
-      { title: 'Channels', data: channels },
+      { title: 'Channels', data: channelRows },
       { title: 'Direct',   data: contacts },
     ];
-  }, [rooms, users, online]);
+  }, [rooms, users, channels, online]);
 
   return (
     <View style={styles.container}>
@@ -138,8 +147,9 @@ export default function HomeScreen({ session, online, inCall, onJoinChannel, onC
                 onPress={() => void joinRoom(item.name)}
                 disabled={!!busy}
               >
+                <Text style={styles.channelEmoji}>{item.emoji}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle}>#{item.name}</Text>
+                  <Text style={styles.rowTitle}>{item.displayName}</Text>
                   <Text style={styles.rowMeta}>
                     {item.numParticipants > 0
                       ? `${item.numParticipants} online${item.participantNames.length ? ': ' + item.participantNames.join(', ') : ''}`
@@ -187,7 +197,8 @@ const styles = StyleSheet.create({
   iconText:     { fontSize: 18, color: theme.text },
   email:        { color: theme.textMuted, fontSize: 12, marginBottom: 16 },
   sectionLabel: { color: theme.textMuted, fontSize: 11, marginTop: 16, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-  row:          { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.bgPanel, padding: 14, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: theme.border },
+  row:          { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.bgPanel, padding: 14, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: theme.border, gap: 12 },
+  channelEmoji: { fontSize: 22 },
   contactRow:   { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.bgPanel, padding: 14, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: theme.border, gap: 10 },
   dot:          { width: 8, height: 8, borderRadius: 4 },
   rowTitle:     { color: theme.text, fontSize: 15, fontWeight: '600' },
