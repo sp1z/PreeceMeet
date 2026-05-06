@@ -39,21 +39,39 @@ public class CallHub : Hub
 
     public override async Task OnConnectedAsync()
     {
-        var token = Context.GetHttpContext()?.Request.Query["access_token"].ToString();
-        var email = _session.Validate(token);
-        if (email is null) { Context.Abort(); return; }
+        try
+        {
+            var token = Context.GetHttpContext()?.Request.Query["access_token"].ToString();
+            var email = _session.Validate(token);
+            _log.LogInformation("CallHub OnConnect cid={Cid} tokenLen={TLen} email={Email}",
+                Context.ConnectionId, token?.Length ?? 0, email ?? "<null>");
+            if (email is null) { Context.Abort(); return; }
 
-        Context.Items[EmailKey] = email;
-        _presence.Add(email, Context.ConnectionId);
-        await BroadcastPresence();
+            Context.Items[EmailKey] = email;
+            _presence.Add(email, Context.ConnectionId);
+            _log.LogInformation("CallHub presence.Add {Email} cid={Cid} online={Count}",
+                email, Context.ConnectionId, _presence.OnlineUsers().Count);
+            await BroadcastPresence();
+            _log.LogInformation("CallHub OnConnect complete {Email} cid={Cid}", email, Context.ConnectionId);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "CallHub OnConnectedAsync threw cid={Cid}", Context.ConnectionId);
+            throw;
+        }
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        if (Context.Items[EmailKey] is string email)
+        var email = Context.Items[EmailKey] as string ?? "<unknown>";
+        _log.LogInformation("CallHub OnDisconnect cid={Cid} email={Email} ex={ExType} exMsg={ExMsg}",
+            Context.ConnectionId, email,
+            exception?.GetType().Name ?? "none",
+            exception?.Message ?? "");
+        if (Context.Items[EmailKey] is string e)
         {
-            _presence.Remove(email, Context.ConnectionId);
+            _presence.Remove(e, Context.ConnectionId);
             await BroadcastPresence();
         }
         await base.OnDisconnectedAsync(exception);
