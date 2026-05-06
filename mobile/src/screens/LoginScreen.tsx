@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ScrollView,
+} from 'react-native';
 import { theme } from '../theme';
 import { login, LoginResult } from '../api';
 import { loadServerUrl, saveServerUrl } from '../session';
@@ -36,6 +39,11 @@ export default function LoginScreen({ onLoginDone }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
     >
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
+      >
       <View style={styles.card}>
         <Text style={styles.title}>PreeceMeet</Text>
         <Text style={styles.subtitle}>Sign in to continue</Text>
@@ -80,12 +88,14 @@ export default function LoginScreen({ onLoginDone }: Props) {
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign in</Text>}
         </TouchableOpacity>
       </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.bg, justifyContent: 'center', padding: 20 },
+  container: { flex: 1, backgroundColor: theme.bg },
+  scroll:    { flexGrow: 1, justifyContent: 'flex-start', padding: 20, paddingTop: 60 },
   card:      { backgroundColor: theme.bgPanel, borderRadius: 12, padding: 24, borderWidth: 1, borderColor: theme.border },
   title:     { color: theme.text, fontSize: 28, fontWeight: '700', textAlign: 'center' },
   subtitle:  { color: theme.textMuted, fontSize: 14, textAlign: 'center', marginBottom: 20, marginTop: 4 },
