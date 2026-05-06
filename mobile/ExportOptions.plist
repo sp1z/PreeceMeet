@@ -11,7 +11,7 @@
     <key>provisioningProfiles</key>
     <dict>
         <key>com.russellpreece.preecemeet</key>
-        <string>com.russellpreece.preecemeet AppStore</string>
+        <string>com.russellpreece.preecemeet AppStore 1778047979</string>
     </dict>
     <key>uploadSymbols</key>
     <true/>

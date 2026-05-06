@@ -447,7 +447,7 @@ app.MapPost("/api/devices", async (RegisterDeviceRequest req, HttpContext ctx,
         .FirstOrDefaultAsync(d => d.Email == email && d.Token == token);
     if (existing is null)
     {
-        db.DeviceTokens.Add(new Models.DeviceToken
+        db.DeviceTokens.Add(new DeviceToken
         {
             Email      = email,
             Platform   = platform,
