@@ -164,12 +164,18 @@ interface SignedInProps {
 function SignedIn({ session, page, setPage, activeCall, setActiveCall, joinChannel, onSignOut }: SignedInProps) {
   const calling = useDirectCalling(session);
 
-  // When a direct call is accepted (either side), drop into the LiveKit room.
+  // Drop into the LiveKit room when a direct call is accepted (either side).
+  // Reads `calling.accepted` (plain React state) instead of subscribing via a
+  // callback — going through React's batching means the setActiveCall+setPage
+  // update lands in the same commit as the SignalR-triggered state changes,
+  // so CallScreen mounts and commits normally instead of rendering-without-
+  // committing the way it did with the ref-callback path.
   useEffect(() => {
-    return calling.onAccepted(({ roomName, livekitToken, livekitUrl }) => {
-      setActiveCall({ url: livekitUrl, token: livekitToken, roomName });
-      setPage('call');
-    });
+    if (!calling.accepted) return;
+    const { roomName, livekitToken, livekitUrl } = calling.accepted;
+    setActiveCall({ url: livekitUrl, token: livekitToken, roomName });
+    setPage('call');
+    calling.consumeAccepted();
   }, [calling, setActiveCall, setPage]);
 
   function leaveCall() {

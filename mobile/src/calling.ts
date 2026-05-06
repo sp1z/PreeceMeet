@@ -18,9 +18,15 @@ export function useDirectCalling(session: Session) {
   const [online,   setOnline]   = useState<Set<string>>(new Set());
   const [incoming, setIncoming] = useState<IncomingCall | null>(null);
   const [outgoing, setOutgoing] = useState<OutgoingCall | null>(null);
+  // accepted is plain React state. Callers observe transitions via useEffect
+  // and clear it after consuming. Previously this was a ref-based Set of
+  // callbacks invoked synchronously in the SignalR handler — that caused
+  // CallScreen to render-then-not-commit for direct calls (the parent
+  // re-render evidently never fully landed). State + useEffect goes through
+  // React's normal batching and the call screen mounts cleanly.
+  const [accepted, setAccepted] = useState<AcceptedCall | null>(null);
 
-  const connRef     = useRef<HubConnection | null>(null);
-  const acceptedCbs = useRef<Set<(a: AcceptedCall) => void>>(new Set());
+  const connRef = useRef<HubConnection | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +65,7 @@ export function useDirectCalling(session: Session) {
     conn.on('CallAccepted', (msg: AcceptedCall) => {
       setIncoming(null);
       setOutgoing(null);
-      acceptedCbs.current.forEach(cb => cb(msg));
+      setAccepted(msg);
     });
     conn.on('CallDeclined',  () => setOutgoing(null));
     conn.on('CallCancelled', () => setIncoming(null));
@@ -136,10 +142,7 @@ export function useDirectCalling(session: Session) {
     try { await connRef.current.invoke('Cancel', id); } catch { /* ignore */ }
   }, [outgoing]);
 
-  const onAccepted = useCallback((cb: (a: AcceptedCall) => void) => {
-    acceptedCbs.current.add(cb);
-    return () => { acceptedCbs.current.delete(cb); };
-  }, []);
+  const consumeAccepted = useCallback(() => setAccepted(null), []);
 
-  return { state, online, incoming, outgoing, call, accept, decline, cancel, onAccepted };
+  return { state, online, incoming, outgoing, accepted, call, accept, decline, cancel, consumeAccepted };
 }

@@ -1,10 +1,10 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
   ActionSheetIOS, useWindowDimensions, PanResponder, Animated,
 } from 'react-native';
 import {
-  RoomContext,
+  LiveKitRoom,
   useTracks,
   useLocalParticipant,
   useConnectionState,
@@ -12,7 +12,7 @@ import {
   isTrackReference,
   type TrackReferenceOrPlaceholder,
 } from '@livekit/react-native';
-import { Room, RoomEvent, Track, ConnectionState } from 'livekit-client';
+import { Track, ConnectionState } from 'livekit-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme';
 import { reportError } from '../errorReporter';
@@ -26,68 +26,26 @@ interface Props {
 
 export default function CallScreen({ url, token, roomName, onLeave }: Props) {
   const [error, setError] = useState<string>('');
-  const [room] = useState(() => new Room());
-
-  // Render-phase log so we can see how many times CallScreen renders even if
-  // useEffects never commit. Pairs with first-render in CallView to detect
-  // the case where parent re-renders and unmounts CallScreen before commit.
-  const renderCountRef = useRef(0);
-  renderCountRef.current += 1;
-  if (renderCountRef.current <= 5) {
-    reportError(`callscreen render#${renderCountRef.current} room=${roomName}`);
-  }
-
-  // useLayoutEffect commits BEFORE useEffect and BEFORE the browser paints —
-  // if we see render#N but not mount-layout, CallScreen never finished
-  // committing (i.e., parent unmounted us mid-render).
-  useLayoutEffect(() => {
-    reportError(`callscreen mount-layout room=${roomName}`);
-    return () => reportError(`callscreen unmount-layout room=${roomName}`);
-  }, [roomName]);
-
   useEffect(() => {
     reportError(`callscreen mount room=${roomName}`);
-    let cancelled = false;
-
-    const onConnected    = () => reportError(`livekit onConnected room=${roomName}`);
-    const onDisconnected = (reason?: unknown) =>
-      reportError(`livekit onDisconnected room=${roomName} reason=${String(reason)}`);
-    const onSignalConnected = async () => {
-      try {
-        await Promise.all([
-          room.localParticipant.setMicrophoneEnabled(true),
-          room.localParticipant.setCameraEnabled(true),
-        ]);
-      } catch (e) {
-        reportError(`media enable failed room=${roomName}`, e);
-      }
-    };
-
-    room.on(RoomEvent.Connected,        onConnected);
-    room.on(RoomEvent.Disconnected,     onDisconnected);
-    room.on(RoomEvent.SignalConnected,  onSignalConnected);
-
-    room.connect(url, token).catch(e => {
-      if (cancelled) return;
-      const msg = e instanceof Error ? e.message : String(e);
-      reportError(`livekit connect failed room=${roomName}`, e);
-      setError(msg);
-    });
-
-    return () => {
-      cancelled = true;
-      reportError(`callscreen unmount room=${roomName}`);
-      room.off(RoomEvent.Connected,       onConnected);
-      room.off(RoomEvent.Disconnected,    onDisconnected);
-      room.off(RoomEvent.SignalConnected, onSignalConnected);
-      room.disconnect().catch(() => { /* swallow */ });
-    };
-  }, [room, url, token, roomName]);
-
+    return () => reportError(`callscreen unmount room=${roomName}`);
+  }, [roomName]);
   return (
-    <RoomContext.Provider value={room}>
+    <LiveKitRoom
+      serverUrl={url}
+      token={token}
+      connect
+      audio
+      video
+      onError={err => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn('[livekit]', err);
+        reportError(`livekit room error room=${roomName}`, err);
+        setError(msg);
+      }}
+    >
       <CallView roomName={roomName} onLeave={onLeave} error={error} />
-    </RoomContext.Provider>
+    </LiveKitRoom>
   );
 }
 
