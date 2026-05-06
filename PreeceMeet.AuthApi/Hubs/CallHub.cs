@@ -72,37 +72,47 @@ public class CallHub : Hub
     public async Task<object> Call(string toEmail, string? fromDisplayName = null)
     {
         var from = (string?)Context.Items[EmailKey];
-        if (from is null) return new { ok = false, error = "Not authenticated" };
-        if (string.Equals(from, toEmail, StringComparison.OrdinalIgnoreCase))
-            return new { ok = false, error = "Cannot call yourself" };
-        if (!_presence.IsOnline(toEmail))
-            return new { ok = false, error = "User offline" };
-
-        var callId   = Guid.NewGuid().ToString("N");
-        var roomName = $"direct-{callId}";
-        _presence.RegisterCall(callId, from, toEmail, roomName);
-
-        // Pass along the caller's display name so the incoming ring modal can
-        // show it instead of an email address. Server does not trust or store
-        // this string beyond the current ring.
-        var safeDisplayName = string.IsNullOrWhiteSpace(fromDisplayName)
-            ? null
-            : (fromDisplayName.Length > 80 ? fromDisplayName[..80] : fromDisplayName);
-
-        await Clients.Clients(_presence.GetConnections(toEmail)).SendAsync("IncomingCall", new
+        _log.LogInformation("Call invoked from={From} to={To} cid={Cid}", from ?? "<null>", toEmail, Context.ConnectionId);
+        try
         {
-            callId,
-            from,
-            fromDisplayName = safeDisplayName,
-            roomName,
-            at = DateTimeOffset.UtcNow,
-        });
+            if (from is null) return new { ok = false, error = "Not authenticated" };
+            if (string.Equals(from, toEmail, StringComparison.OrdinalIgnoreCase))
+                return new { ok = false, error = "Cannot call yourself" };
+            if (!_presence.IsOnline(toEmail))
+                return new { ok = false, error = "User offline" };
 
-        // Fire-and-forget APNs push so we don't block the SignalR call when
-        // the recipient's phone is asleep. Failures are logged inside.
-        _ = SendPushAsync(toEmail, from, safeDisplayName, callId, roomName);
+            var callId   = Guid.NewGuid().ToString("N");
+            var roomName = $"direct-{callId}";
+            _presence.RegisterCall(callId, from, toEmail, roomName);
 
-        return new { ok = true, callId, roomName };
+            // Pass along the caller's display name so the incoming ring modal can
+            // show it instead of an email address. Server does not trust or store
+            // this string beyond the current ring.
+            var safeDisplayName = string.IsNullOrWhiteSpace(fromDisplayName)
+                ? null
+                : (fromDisplayName.Length > 80 ? fromDisplayName[..80] : fromDisplayName);
+
+            await Clients.Clients(_presence.GetConnections(toEmail)).SendAsync("IncomingCall", new
+            {
+                callId,
+                from,
+                fromDisplayName = safeDisplayName,
+                roomName,
+                at = DateTimeOffset.UtcNow,
+            });
+
+            // Fire-and-forget APNs push so we don't block the SignalR call when
+            // the recipient's phone is asleep. Failures are logged inside.
+            _ = SendPushAsync(toEmail, from, safeDisplayName, callId, roomName);
+
+            _log.LogInformation("Call ringing callId={CallId} from={From} to={To}", callId, from, toEmail);
+            return new { ok = true, callId, roomName };
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Call threw from={From} to={To}", from, toEmail);
+            return new { ok = false, error = $"Server error: {ex.GetType().Name}: {ex.Message}" };
+        }
     }
 
     private async Task SendPushAsync(string toEmail, string fromEmail, string? fromDisplayName,
@@ -146,45 +156,62 @@ public class CallHub : Hub
 
     public async Task Accept(string callId)
     {
-        var me   = (string?)Context.Items[EmailKey];
-        var call = _presence.TakeCall(callId);
-        if (me is null || call is null || !string.Equals(call.To, me, StringComparison.OrdinalIgnoreCase))
-            return;
-
-        var fromToken = _livekit.GenerateToken(call.From, call.RoomName);
-        var toToken   = _livekit.GenerateToken(call.To,   call.RoomName);
-
-        await Clients.Clients(_presence.GetConnections(call.From)).SendAsync("CallAccepted", new
+        var me = (string?)Context.Items[EmailKey];
+        _log.LogInformation("Accept invoked me={Me} callId={CallId} cid={Cid}", me ?? "<null>", callId, Context.ConnectionId);
+        try
         {
-            callId,
-            roomName     = call.RoomName,
-            livekitToken = fromToken,
-            livekitUrl   = _livekitUrl,
-            peer         = call.To,
-        });
+            var call = _presence.TakeCall(callId);
+            if (me is null || call is null || !string.Equals(call.To, me, StringComparison.OrdinalIgnoreCase))
+            {
+                _log.LogWarning("Accept rejected — me={Me} call={Has} matchTo={Match}",
+                    me ?? "<null>", call is null ? "null" : "ok",
+                    call != null && me != null ? string.Equals(call.To, me, StringComparison.OrdinalIgnoreCase) : false);
+                return;
+            }
 
-        await Clients.Caller.SendAsync("CallAccepted", new
+            var fromToken = _livekit.GenerateToken(call.From, call.RoomName);
+            var toToken   = _livekit.GenerateToken(call.To,   call.RoomName);
+
+            await Clients.Clients(_presence.GetConnections(call.From)).SendAsync("CallAccepted", new
+            {
+                callId,
+                roomName     = call.RoomName,
+                livekitToken = fromToken,
+                livekitUrl   = _livekitUrl,
+                peer         = call.To,
+            });
+
+            await Clients.Caller.SendAsync("CallAccepted", new
+            {
+                callId,
+                roomName     = call.RoomName,
+                livekitToken = toToken,
+                livekitUrl   = _livekitUrl,
+                peer         = call.From,
+            });
+            _log.LogInformation("Accept handled callId={CallId} from={From} to={To}", callId, call.From, call.To);
+        }
+        catch (Exception ex)
         {
-            callId,
-            roomName     = call.RoomName,
-            livekitToken = toToken,
-            livekitUrl   = _livekitUrl,
-            peer         = call.From,
-        });
+            _log.LogError(ex, "Accept threw me={Me} callId={CallId}", me, callId);
+            throw;
+        }
     }
 
     public async Task Decline(string callId)
     {
+        _log.LogInformation("Decline invoked callId={CallId} cid={Cid}", callId, Context.ConnectionId);
         var call = _presence.TakeCall(callId);
-        if (call is null) return;
+        if (call is null) { _log.LogWarning("Decline — call missing callId={CallId}", callId); return; }
         await Clients.Clients(_presence.GetConnections(call.From))
             .SendAsync("CallDeclined", new { callId });
     }
 
     public async Task Cancel(string callId)
     {
+        _log.LogInformation("Cancel invoked callId={CallId} cid={Cid}", callId, Context.ConnectionId);
         var call = _presence.TakeCall(callId);
-        if (call is null) return;
+        if (call is null) { _log.LogWarning("Cancel — call missing callId={CallId}", callId); return; }
         await Clients.Clients(_presence.GetConnections(call.To))
             .SendAsync("CallCancelled", new { callId });
     }
