@@ -258,8 +258,9 @@ app.MapGet("/api/channels", (HttpContext ctx, SessionTokenService session) =>
         return Results.Unauthorized();
     return Results.Ok(new[]
     {
-        new { name = "preecemeet", displayName = "General", emoji = "💬" },
-        new { name = "dnd",        displayName = "DND",     emoji = "🚫" },
+        new { name = "preecemeet", displayName = "General",    emoji = "💬" },
+        new { name = "dnd",        displayName = "DND",        emoji = "🚫" },
+        new { name = "eurovision", displayName = "Eurovision", emoji = "🎤" },
     });
 });
 
