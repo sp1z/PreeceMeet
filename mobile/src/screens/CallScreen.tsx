@@ -1,13 +1,16 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList,
-  ActionSheetIOS, useWindowDimensions, PanResponder, Animated,
+  ActionSheetIOS, useWindowDimensions, PanResponder, Animated, Platform,
 } from 'react-native';
 import {
+  AudioSession,
   LiveKitRoom,
   useTracks,
   useLocalParticipant,
   useConnectionState,
+  useRoomContext,
+  useIOSAudioManagement,
   VideoTrack,
   isTrackReference,
   type TrackReferenceOrPlaceholder,
@@ -26,10 +29,30 @@ interface Props {
 
 export default function CallScreen({ url, token, roomName, onLeave }: Props) {
   const [error, setError] = useState<string>('');
+
+  // Start a proper AVAudioSession (playAndRecord + voiceChat mode via
+  // useIOSAudioManagement below) so iOS turns on hardware echo cancellation
+  // when audio routes through the loudspeaker. Without this, the speaker
+  // feeds back into the mic.
   useEffect(() => {
     reportError(`callscreen mount room=${roomName}`);
-    return () => reportError(`callscreen unmount room=${roomName}`);
+    let cancelled = false;
+    (async () => {
+      try {
+        await AudioSession.configureAudio({ ios: { defaultOutput: 'speaker' } });
+        if (cancelled) return;
+        await AudioSession.startAudioSession();
+      } catch (e) {
+        reportError('audio session start failed', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      AudioSession.stopAudioSession().catch(() => {});
+      reportError(`callscreen unmount room=${roomName}`);
+    };
   }, [roomName]);
+
   return (
     <LiveKitRoom
       serverUrl={url}
@@ -49,7 +72,8 @@ export default function CallScreen({ url, token, roomName, onLeave }: Props) {
   );
 }
 
-const SHOW_SELF_KEY = 'preecemeet.call.showSelf';
+const SHOW_SELF_KEY     = 'preecemeet.call.showSelf';
+const PREFER_SPEAKER_KEY = 'preecemeet.call.preferSpeaker';
 type ObjectFit = 'cover' | 'contain';
 
 function CallView({ roomName, onLeave, error }: { roomName: string; onLeave: () => void; error: string }) {
@@ -68,13 +92,20 @@ function CallView({ roomName, onLeave, error }: { roomName: string; onLeave: () 
   );
   const { localParticipant } = useLocalParticipant();
   const connState = useConnectionState();
+  const room      = useRoomContext();
   const window    = useWindowDimensions();
   const isLandscape = window.width > window.height;
 
-  const [micOn,    setMicOn]    = useState(true);
-  const [camOn,    setCamOn]    = useState(true);
-  const [showSelf, setShowSelf] = useState(false);
-  const [fits,     setFits]     = useState<Record<string, ObjectFit>>({});
+  const [micOn,         setMicOn]         = useState(true);
+  const [camOn,         setCamOn]         = useState(true);
+  const [showSelf,      setShowSelf]      = useState(false);
+  const [preferSpeaker, setPreferSpeaker] = useState(true);
+  const [fits,          setFits]          = useState<Record<string, ObjectFit>>({});
+
+  // Keep AVAudioSession category/mode aligned with the room's mic/speaker
+  // state (sets voiceChat mode → hardware AEC). Re-runs when preferSpeaker
+  // flips so the route follows the user's preference.
+  useIOSAudioManagement(room, preferSpeaker);
 
   // Log every connection-state transition so we can see in server logs whether
   // CallScreen makes it past 'connecting' on iOS (the call-screen freeze report).
@@ -82,11 +113,21 @@ function CallView({ roomName, onLeave, error }: { roomName: string; onLeave: () 
     reportError(`callview connState=${connState} room=${roomName} tracks=${tracks.length}`);
   }, [connState, roomName, tracks.length]);
 
-  // Remember show-self preference across calls.
+  // Remember show-self / speaker preferences across calls.
   useEffect(() => {
     AsyncStorage.getItem(SHOW_SELF_KEY).then(v => { if (v === 'true') setShowSelf(true); }).catch(() => {});
+    AsyncStorage.getItem(PREFER_SPEAKER_KEY).then(v => { if (v === 'false') setPreferSpeaker(false); }).catch(() => {});
   }, []);
-  useEffect(() => { AsyncStorage.setItem(SHOW_SELF_KEY, String(showSelf)).catch(() => {}); }, [showSelf]);
+  useEffect(() => { AsyncStorage.setItem(SHOW_SELF_KEY,      String(showSelf)).catch(() => {});      }, [showSelf]);
+  useEffect(() => { AsyncStorage.setItem(PREFER_SPEAKER_KEY, String(preferSpeaker)).catch(() => {}); }, [preferSpeaker]);
+
+  // Apply the chosen iOS audio route. force_speaker keeps it on the loudspeaker
+  // even if the system would otherwise prefer earpiece; 'default' lets iOS
+  // route to whatever's plugged in (earpiece / wired / Bluetooth).
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    AudioSession.selectAudioOutput(preferSpeaker ? 'force_speaker' : 'default').catch(() => {});
+  }, [preferSpeaker]);
 
   useEffect(() => { localParticipant?.setMicrophoneEnabled(micOn).catch(() => {}); }, [micOn, localParticipant]);
   useEffect(() => { localParticipant?.setCameraEnabled    (camOn).catch(() => {}); }, [camOn, localParticipant]);
@@ -185,21 +226,61 @@ function CallView({ roomName, onLeave, error }: { roomName: string; onLeave: () 
       )}
 
       <View style={styles.controls}>
-        <CtlBtn label={micOn ? 'Mic on' : 'Mic off'} active={micOn} onPress={() => setMicOn(v => !v)} />
-        <CtlBtn label={camOn ? 'Cam on' : 'Cam off'} active={camOn} onPress={() => setCamOn(v => !v)} />
-        <CtlBtn label={showSelf ? 'Hide me' : 'Show me'} active={true} onPress={() => setShowSelf(v => !v)} />
-        <TouchableOpacity style={[styles.ctlBtn, styles.hangup]} onPress={onLeave} accessibilityLabel="Leave call">
-          <Text style={[styles.ctlText, styles.hangupText]}>Leave</Text>
+        <View style={styles.ctlRow}>
+          <CtlBtn
+            state={micOn ? 'on' : 'off'}
+            stateLabel={micOn ? 'Mic on' : 'Muted'}
+            actionLabel={micOn ? 'Mute' : 'Unmute'}
+            onPress={() => setMicOn(v => !v)}
+          />
+          <CtlBtn
+            state={camOn ? 'on' : 'off'}
+            stateLabel={camOn ? 'Camera on' : 'Camera off'}
+            actionLabel={camOn ? 'Stop video' : 'Start video'}
+            onPress={() => setCamOn(v => !v)}
+          />
+          <CtlBtn
+            state="neutral"
+            stateLabel={preferSpeaker ? 'Speaker' : 'Earpiece'}
+            actionLabel={preferSpeaker ? 'Use earpiece' : 'Use speaker'}
+            onPress={() => setPreferSpeaker(v => !v)}
+            onLongPress={() => AudioSession.showAudioRoutePicker().catch(() => {})}
+          />
+          <CtlBtn
+            state="neutral"
+            stateLabel={showSelf ? 'Self view on' : 'Self view off'}
+            actionLabel={showSelf ? 'Hide self' : 'Show self'}
+            onPress={() => setShowSelf(v => !v)}
+          />
+        </View>
+        <TouchableOpacity style={styles.hangup} onPress={onLeave} accessibilityLabel="End call">
+          <Text style={styles.hangupText}>End call</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-function CtlBtn({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+interface CtlBtnProps {
+  state:       'on' | 'off' | 'neutral';
+  stateLabel:  string;
+  actionLabel: string;
+  onPress:     () => void;
+  onLongPress?: () => void;
+}
+
+function CtlBtn({ state, stateLabel, actionLabel, onPress, onLongPress }: CtlBtnProps) {
   return (
-    <TouchableOpacity style={[styles.ctlBtn, !active && styles.ctlBtnOff]} onPress={onPress} accessibilityLabel={label}>
-      <Text style={styles.ctlText}>{label}</Text>
+    <TouchableOpacity
+      style={[styles.ctlBtn, state === 'off' && styles.ctlBtnOff]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={400}
+      accessibilityLabel={actionLabel}
+      accessibilityHint={stateLabel}
+    >
+      <Text style={[styles.ctlState, state === 'off' && styles.ctlStateOff]} numberOfLines={1}>{stateLabel}</Text>
+      <Text style={styles.ctlAction} numberOfLines={1}>{actionLabel}</Text>
     </TouchableOpacity>
   );
 }
@@ -366,10 +447,13 @@ const styles = StyleSheet.create({
 
   pip:             { position: 'absolute', backgroundColor: theme.bgPanel, borderRadius: 10, overflow: 'hidden', borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)', zIndex: 10 },
 
-  controls:        { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', padding: 12, paddingBottom: 28, backgroundColor: theme.bg, borderTopWidth: 1, borderTopColor: theme.border, flexWrap: 'wrap', gap: 8 },
-  ctlBtn:          { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: theme.bgPanel, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: theme.border, minWidth: 80 },
+  controls:        { padding: 12, paddingBottom: 28, backgroundColor: theme.bg, borderTopWidth: 1, borderTopColor: theme.border, gap: 12 },
+  ctlRow:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'stretch', gap: 6 },
+  ctlBtn:          { flex: 1, paddingHorizontal: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: theme.bgPanel, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: theme.border, minHeight: 52 },
   ctlBtnOff:       { backgroundColor: '#3a2222', borderColor: theme.danger },
-  hangup:          { backgroundColor: theme.danger, borderColor: theme.danger },
-  ctlText:         { fontSize: 13, color: theme.text, fontWeight: '600' },
-  hangupText:      { color: '#fff' },
+  ctlState:        { fontSize: 11, color: theme.textMuted, fontWeight: '500', marginBottom: 2 },
+  ctlStateOff:     { color: theme.danger },
+  ctlAction:       { fontSize: 13, color: theme.text, fontWeight: '600' },
+  hangup:          { backgroundColor: theme.danger, borderRadius: 10, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' },
+  hangupText:      { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 0.5 },
 });
