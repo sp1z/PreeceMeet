@@ -1,0 +1,46 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PreeceMeet">
+  <defs>
+    <linearGradient id="iosBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0A0E2E"/>
+      <stop offset="1" stop-color="#04061A"/>
+    </linearGradient>
+    <linearGradient id="iosBorder" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"  stop-color="#38D8FF"/>
+      <stop offset=".5" stop-color="#4488FF"/>
+      <stop offset="1"  stop-color="#3355DD"/>
+    </linearGradient>
+    <linearGradient id="iosLens" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"  stop-color="#A8EEFF"/>
+      <stop offset=".5" stop-color="#5599FF"/>
+      <stop offset="1"  stop-color="#3366EE"/>
+    </linearGradient>
+    <clipPath id="iosHex"><path d="M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z"/></clipPath>
+  </defs>
+
+  <!-- opaque background — iOS requires no transparency -->
+  <rect width="512" height="512" fill="url(#iosBg)"/>
+
+  <!-- hex cell -->
+  <path d="M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z" fill="#0A0E2E"/>
+
+  <!-- circuit trails inside hex -->
+  <g clip-path="url(#iosHex)" fill="none" stroke="#38D8FF">
+    <path d="M104 300 H150 V132" stroke-width="2.6" opacity=".32"/>
+    <path d="M408 214 H360 V344" stroke-width="2.6" opacity=".32"/>
+    <circle cx="150" cy="132" r="6" fill="#38D8FF" opacity=".8"/>
+    <circle cx="360" cy="344" r="6" fill="#4488FF" opacity=".8"/>
+  </g>
+
+  <!-- camera glyph -->
+  <rect x="150" y="196" width="150" height="120" rx="26" fill="url(#iosLens)"/>
+  <path d="M312 226 L372 196 L372 316 L312 286 Z" fill="url(#iosLens)"/>
+  <circle cx="200" cy="256" r="30" fill="none" stroke="#0A1230" stroke-width="10" opacity=".4"/>
+
+  <!-- hex border -->
+  <path d="M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z" fill="none" stroke="url(#iosBorder)" stroke-width="5"/>
+
+  <!-- top notch dots -->
+  <circle cx="212" cy="83" r="7" fill="#38D8FF"/>
+  <circle cx="256" cy="83" r="7" fill="#4488FF"/>
+  <circle cx="300" cy="83" r="7" fill="#3355DD"/>
+</svg>

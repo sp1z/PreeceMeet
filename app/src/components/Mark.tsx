@@ -1,6 +1,5 @@
 // React component: PreeceMeet brand mark.
-// Drop into your codebase and style with your token system.
-// The mark is viewBox 0 0 256 256 — wrap it at any size via width/height props.
+// Hexagon cell + circuit field + video-lens glyph. 512 viewBox.
 
 import React from "react";
 
@@ -9,111 +8,162 @@ type Variant = "primary" | "mono" | "onBlue" | "onDark";
 export interface PreeceMeetMarkProps {
   size?: number | string;
   variant?: Variant;
-  /** Render a rounded tile background */
+  /** Render a rounded tile background behind the hex (e.g. macOS dock squircle) */
   tile?: boolean;
-  /** Border radius of the tile as a fraction of the 256 viewBox. 56 = default (≈ macOS squircle). */
+  /** Border radius of the tile as a fraction of the 512 viewBox. 112 = default (~macOS squircle). */
   tileRadius?: number;
-  /** Show the small live-signal dot */
+  /** Show the small tally light on the camera body */
   showDot?: boolean;
   className?: string;
   title?: string;
 }
 
-const PALETTES: Record<Variant, { stem: string; bowl: string; bubble: string; dot: string; tile?: string }> = {
+interface Palette {
+  cell:   string;
+  lens:   string;
+  border: string;
+  circuit: string;
+  circuitSoft: string;
+  tally:  string;
+  tile?:  string;
+  notchA: string;
+  notchB: string;
+  notchC: string;
+}
+
+const PALETTES: Record<Variant, Palette> = {
   primary: {
-    stem:   "url(#pm-stem)",
-    bowl:   "url(#pm-bowl)",
-    bubble: "#FFFFFF",
-    dot:    "#2563EB",
-    tile:   "url(#pm-tile)",
+    cell:        "url(#pm-cell)",
+    lens:        "url(#pm-lens)",
+    border:      "url(#pm-border)",
+    circuit:     "#38D8FF",
+    circuitSoft: "#4488FF",
+    tally:       "#0A1230",
+    tile:        "url(#pm-tile)",
+    notchA:      "#38D8FF",
+    notchB:      "#4488FF",
+    notchC:      "#3355DD",
   },
   mono: {
-    stem:   "currentColor",
-    bowl:   "currentColor",
-    bubble: "#FFFFFF",
-    dot:    "currentColor",
+    cell:        "currentColor",
+    lens:        "#FFFFFF",
+    border:      "currentColor",
+    circuit:     "currentColor",
+    circuitSoft: "currentColor",
+    tally:       "currentColor",
+    notchA:      "currentColor",
+    notchB:      "currentColor",
+    notchC:      "currentColor",
   },
   onBlue: {
-    stem:   "#0B1220",
-    bowl:   "#FFFFFF",
-    bubble: "#2563EB",
-    dot:    "#FFFFFF",
-    tile:   "#2563EB",
+    cell:        "#3856D6",
+    lens:        "#FFFFFF",
+    border:      "#FFFFFF",
+    circuit:     "#FFFFFF",
+    circuitSoft: "#FFFFFF",
+    tally:       "#3856D6",
+    tile:        "#4263EB",
+    notchA:      "#FFFFFF",
+    notchB:      "#FFFFFF",
+    notchC:      "#FFFFFF",
   },
   onDark: {
-    stem:   "#60A5FA",
-    bowl:   "#2563EB",
-    bubble: "#0B1220",
-    dot:    "#60A5FA",
-    tile:   "#0B1220",
+    cell:        "#0A0E2E",
+    lens:        "url(#pm-lens)",
+    border:      "url(#pm-border)",
+    circuit:     "#38D8FF",
+    circuitSoft: "#4488FF",
+    tally:       "#0A1230",
+    tile:        "#0A0E2E",
+    notchA:      "#38D8FF",
+    notchB:      "#4488FF",
+    notchC:      "#3355DD",
   },
 };
+
+const HEX_PATH =
+  "M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z";
 
 export function PreeceMeetMark({
   size = 64,
   variant = "primary",
-  tile = true,
-  tileRadius = 56,
+  tile = false,
+  tileRadius = 112,
   showDot = true,
   className,
   title = "PreeceMeet",
 }: PreeceMeetMarkProps) {
   const p = PALETTES[variant];
   const uid = React.useId();
+  const hexClipId = `pm-hexclip-${uid}`;
 
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 256 256"
+      viewBox="0 0 512 512"
       role="img"
       aria-label={title}
       className={className}
       xmlns="http://www.w3.org/2000/svg"
     >
-      {variant === "primary" && (
-        <defs>
-          <clipPath id={`clip-${uid}`}>
-            <rect width="256" height="256" rx={tileRadius} />
-          </clipPath>
-          <linearGradient id="pm-stem" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1E3A8A" />
-            <stop offset="100%" stopColor="#0F2463" />
-          </linearGradient>
-          <linearGradient id="pm-bowl" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#60A5FA" />
-            <stop offset="100%" stopColor="#2563EB" />
-          </linearGradient>
-          <linearGradient id="pm-tile" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#F5F7FB" />
-            <stop offset="100%" stopColor="#DFE4EE" />
-          </linearGradient>
-        </defs>
-      )}
+      <defs>
+        <linearGradient id="pm-cell" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#05091F" />
+          <stop offset="1" stopColor="#0A0E2E" />
+        </linearGradient>
+        <linearGradient id="pm-border" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0"   stopColor="#38D8FF" />
+          <stop offset=".5"  stopColor="#4488FF" />
+          <stop offset="1"   stopColor="#3355DD" />
+        </linearGradient>
+        <linearGradient id="pm-lens" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0"   stopColor="#A8EEFF" />
+          <stop offset=".5"  stopColor="#5599FF" />
+          <stop offset="1"   stopColor="#3366EE" />
+        </linearGradient>
+        <linearGradient id="pm-tile" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#F5F7FB" />
+          <stop offset="1" stopColor="#DFE4EE" />
+        </linearGradient>
+        <clipPath id={hexClipId}><path d={HEX_PATH} /></clipPath>
+      </defs>
 
       {tile && p.tile && (
-        <g clipPath={variant === "primary" ? `url(#clip-${uid})` : undefined}>
-          <rect width="256" height="256" rx={tileRadius} fill={p.tile} />
-        </g>
+        <rect width="512" height="512" rx={tileRadius} fill={p.tile} />
       )}
 
-      {/* Stem — square top-right, rounded bottom corners */}
-      <path
-        d="M 66 52 H 100 V 202 a 6 6 0 0 1 -6 6 H 72 a 6 6 0 0 1 -6 -6 Z"
-        fill={p.stem}
-      />
-      {/* Bowl of the P */}
-      <path
-        d="M 66 52 H 140 a 48 48 0 0 1 48 48 v 8 a 48 48 0 0 1 -48 48 H 100 V 52 Z"
-        fill={p.bowl}
-      />
-      {/* Speech-bubble counter (white, tail points down-right) */}
-      <path
-        d="M 100 76 H 138 a 24 24 0 0 1 24 24 v 2 a 24 24 0 0 1 -24 24 H 134 L 114 150 L 120 124 H 100 Z"
-        fill={p.bubble}
-      />
-      {/* Signal / live dot */}
-      {showDot && <circle cx="138" cy="100" r="9" fill={p.dot} />}
+      {/* hex cell body */}
+      <path d={HEX_PATH} fill={p.cell} />
+
+      {/* circuit field (clipped to hex) */}
+      <g clipPath={`url(#${hexClipId})`} fill="none" stroke={p.circuit}>
+        <path d="M180 70 V452" strokeWidth="1" opacity=".07" />
+        <path d="M256 60 V452" strokeWidth="1" opacity=".07" />
+        <path d="M332 70 V452" strokeWidth="1" opacity=".07" />
+        <path d="M60 180 H452" strokeWidth="1" opacity=".05" />
+        <path d="M60 332 H452" strokeWidth="1" opacity=".05" />
+        <path d="M104 300 H150 V132" strokeWidth="2.6" opacity=".32" />
+        <path d="M408 214 H360 V344" strokeWidth="2.6" opacity=".32" stroke={p.circuitSoft} />
+        <circle cx="150" cy="132" r="6" fill={p.circuit} opacity=".8" />
+        <circle cx="360" cy="344" r="6" fill={p.circuitSoft} opacity=".8" />
+        <circle cx="214" cy="372" r="5" fill={p.circuit} opacity=".65" />
+        <circle cx="304" cy="372" r="5" fill={p.circuitSoft} opacity=".65" />
+      </g>
+
+      {/* video camera glyph */}
+      <rect x="150" y="196" width="150" height="120" rx="26" fill={p.lens} />
+      <path d="M312 226 L372 196 L372 316 L312 286 Z" fill={p.lens} />
+      <circle cx="200" cy="256" r="30" fill="none" stroke={p.tally} strokeWidth="10" opacity=".4" />
+      {showDot && <circle cx="272" cy="228" r="7" fill={p.tally} opacity=".55" />}
+
+      {/* hex border */}
+      <path d={HEX_PATH} fill="none" stroke={p.border} strokeWidth="5" />
+
+      {/* top notch dots */}
+      <circle cx="212" cy="83" r="7" fill={p.notchA} />
+      <circle cx="256" cy="83" r="7" fill={p.notchB} />
+      <circle cx="300" cy="83" r="7" fill={p.notchC} />
     </svg>
   );
 }
@@ -133,16 +183,16 @@ export function PreeceMeetWordmark({
     <span
       className={className}
       style={{
-        fontFamily: '"Space Grotesk", system-ui, sans-serif',
-        fontWeight: 600,
-        letterSpacing: "-0.8px",
+        fontFamily: '"Manrope", system-ui, -apple-system, sans-serif',
+        fontWeight: 800,
+        letterSpacing: "-0.03em",
         fontSize: size,
         lineHeight: 1,
-        color: onDark ? "#FFFFFF" : "#0B1220",
+        color: onDark ? "#F4F7FF" : "#0A0E2E",
       }}
     >
       Preece
-      <span style={{ color: onDark ? "#60A5FA" : "#2563EB" }}>Meet</span>
+      <span style={{ color: onDark ? "#5599FF" : "#4263EB" }}>Meet</span>
     </span>
   );
 }

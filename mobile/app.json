@@ -11,7 +11,7 @@
     "splash": {
       "image":           "./assets/splash-icon.png",
       "resizeMode":      "cover",
-      "backgroundColor": "#0B1220"
+      "backgroundColor": "#06091E"
     },
     "ios": {
       "bundleIdentifier": "com.russellpreece.preecemeet",
@@ -27,7 +27,7 @@
       "package": "com.russellpreece.preecemeet",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#12121e"
+        "backgroundColor": "#06091E"
       },
       "permissions": [
         "android.permission.CAMERA",

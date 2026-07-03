@@ -1,51 +1,61 @@
-/* PreeceMeet design tokens — CSS custom properties
-   Drop this into your app's global stylesheet, or map into Tailwind config / your framework's token system. */
+/* PreeceMeet design tokens — CSS custom properties.
+   Aligned with the Preece house system (indigo/cyan, hexagon cell, Manrope + Plex Mono).
+   Drop into your app's global stylesheet or map into your framework's token system. */
 
 :root {
-  /* Brand */
-  --pm-primary:        #2563EB;
-  --pm-primary-dark:   #1E3A8A;
-  --pm-primary-light:  #60A5FA;
-  --pm-primary-deep:   #0F2463;
+  /* Brand — light-context canonicals (matches sibling Preece apps) */
+  --pm-primary:        #4263EB;
+  --pm-primary-dark:   #3856D6;
+  --pm-primary-light:  #5599FF;
+  --pm-primary-deep:   #3355DD;
 
-  --pm-ink:            #0B1220;
-  --pm-paper:          #F0EEE9;
+  /* Cyan accent — used for micro-detail, keylines, dot indicators */
+  --pm-accent-cyan:    #38D8FF;
+  --pm-accent-blue:    #4488FF;
+
+  /* Ink / paper */
+  --pm-ink:            #06091E;
+  --pm-ink-2:          #0A0E2E;
+  --pm-paper:          #EEF2F8;
   --pm-signal:         #22C55E;
 
   /* Surfaces */
   --pm-surface-white:  #FFFFFF;
-  --pm-surface-subtle: #FAFBFC;
+  --pm-surface-subtle: #F4F6FB;
   --pm-tile-top:       #F5F7FB;
   --pm-tile-bot:       #DFE4EE;
 
-  /* Text */
-  --pm-text-primary:   #1A1815;
-  --pm-text-secondary: rgba(60, 50, 40, 0.70);
-  --pm-text-muted:     rgba(60, 50, 40, 0.55);
-  --pm-text-faint:     rgba(60, 50, 40, 0.50);
+  /* Text (light) */
+  --pm-text-primary:   #0A0E2E;
+  --pm-text-secondary: rgba(10, 14, 46, 0.72);
+  --pm-text-muted:     rgba(10, 14, 46, 0.55);
+  --pm-text-faint:     rgba(10, 14, 46, 0.42);
 
-  /* Gradients */
-  --pm-grad-stem: linear-gradient(180deg, #1E3A8A 0%, #0F2463 100%);
-  --pm-grad-bowl: linear-gradient(135deg, #60A5FA 0%, #2563EB 100%);
-  --pm-grad-tile: linear-gradient(135deg, #F5F7FB 0%, #DFE4EE 100%);
+  /* Gradients — hex + lens language */
+  --pm-grad-cell:   linear-gradient(180deg, #05091F 0%, #0A0E2E 100%);
+  --pm-grad-lens:   linear-gradient(180deg, #A8EEFF 0%, #5599FF 50%, #3366EE 100%);
+  --pm-grad-border: linear-gradient(135deg, #38D8FF 0%, #4488FF 50%, #3355DD 100%);
+  --pm-grad-tile:   linear-gradient(135deg, #F5F7FB 0%, #DFE4EE 100%);
+  --pm-grad-cta:    linear-gradient(90deg, #4F63FF 0%, #6B3FF0 100%);
 
   /* Type */
-  --pm-font-display: "Space Grotesk", system-ui, sans-serif;
-  --pm-font-body:    "Space Grotesk", system-ui, sans-serif;
-  --pm-font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --pm-font-display: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --pm-font-body:    "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --pm-font-mono:    "IBM Plex Mono", ui-monospace, SFMono-Regular, "JetBrains Mono", monospace;
 
   /* Radii */
   --pm-radius-sm:   6px;
   --pm-radius-md:   8px;
   --pm-radius-lg:   10px;
   --pm-radius-xl:   12px;
-  --pm-radius-2xl:  14px;
+  --pm-radius-2xl:  16px;
   --pm-radius-pill: 999px;
 
   /* Shadows */
-  --pm-shadow-card:    0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06);
-  --pm-shadow-float:   0 2px 6px rgba(0,0,0,0.08), 0 24px 60px rgba(0,0,0,0.08);
-  --pm-shadow-toolbar: 0 8px 30px rgba(0,0,0,0.18);
+  --pm-shadow-card:    0 1px 3px rgba(6, 9, 30, 0.10), 0 8px 24px rgba(6, 9, 30, 0.08);
+  --pm-shadow-float:   0 2px 6px rgba(6, 9, 30, 0.12), 0 24px 60px rgba(6, 9, 30, 0.12);
+  --pm-shadow-toolbar: 0 8px 30px rgba(6, 9, 30, 0.24);
+  --pm-shadow-glow:    0 0 0 1px rgba(56, 216, 255, 0.14), 0 20px 44px rgba(6, 9, 30, 0.55);
 
   /* Spacing (4px base) */
   --pm-space-1:  4px;
@@ -62,15 +72,18 @@
   --pm-ease-pop: cubic-bezier(0.5, 1.5, 0.5, 1);
 }
 
-/* Dark mode overrides */
+/* Dark mode / on-dark surfaces override text + surface tokens.
+   The house palette is already dark-forward, so most brand tokens stay put. */
 [data-theme="dark"], .dark {
-  --pm-text-primary:   #FFFFFF;
-  --pm-text-secondary: rgba(255, 255, 255, 0.70);
-  --pm-text-muted:     rgba(255, 255, 255, 0.55);
-  --pm-surface-white:  #0B1220;
-  --pm-surface-subtle: #111827;
+  --pm-text-primary:   #F4F7FF;
+  --pm-text-secondary: rgba(244, 247, 255, 0.72);
+  --pm-text-muted:     rgba(244, 247, 255, 0.55);
+  --pm-text-faint:     rgba(244, 247, 255, 0.42);
+  --pm-surface-white:  #0A0E2E;
+  --pm-surface-subtle: #0C1430;
+  --pm-primary:        #5599FF;
 }
 
 /* Google Fonts — add to <head>:
-   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 */

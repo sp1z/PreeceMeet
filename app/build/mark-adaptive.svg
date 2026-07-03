@@ -1,0 +1,24 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PreeceMeet">
+  <defs>
+    <linearGradient id="adBorder" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"  stop-color="#38D8FF"/>
+      <stop offset=".5" stop-color="#4488FF"/>
+      <stop offset="1"  stop-color="#3355DD"/>
+    </linearGradient>
+    <linearGradient id="adLens" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"  stop-color="#A8EEFF"/>
+      <stop offset=".5" stop-color="#5599FF"/>
+      <stop offset="1"  stop-color="#3366EE"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Scale + translate the mark into the ~66% safe zone (fits within a 340px inner circle
+       centered on 256,256). Source mark is 380px wide (74→438) — scale 0.72. -->
+  <g transform="translate(256 256) scale(0.72) translate(-256 -256)">
+    <path d="M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z" fill="#0A0E2E"/>
+    <rect x="150" y="196" width="150" height="120" rx="26" fill="url(#adLens)"/>
+    <path d="M312 226 L372 196 L372 316 L312 286 Z" fill="url(#adLens)"/>
+    <circle cx="200" cy="256" r="30" fill="none" stroke="#0A1230" stroke-width="10" opacity=".4"/>
+    <path d="M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z" fill="none" stroke="url(#adBorder)" stroke-width="5"/>
+  </g>
+</svg>

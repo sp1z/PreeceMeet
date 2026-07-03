@@ -13,7 +13,7 @@
          already on-brand. CSP allows 'unsafe-inline' style which we already
          use throughout the app. -->
     <style>
-      html, body { margin: 0; background: #0B1220; color: #fff; }
+      html, body { margin: 0; background: #06091e; color: #f4f7ff; }
       #root { height: 100vh; }
 
       /* ── Boot splash (inline so it paints with the HTML) ───────────────── */
@@ -26,9 +26,12 @@
         align-items: center;
         justify-content: center;
         gap: 22px;
-        background: radial-gradient(ellipse at 50% 40%, #1a2a5a 0%, #0b1220 70%);
-        font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
-        color: #fff;
+        background:
+          radial-gradient(1100px 700px at 50% -8%, #15205a55, transparent 60%),
+          radial-gradient(900px 600px at 88% 18%, #0e3a6633, transparent 55%),
+          linear-gradient(170deg, #05091f, #0a0e2e 60%, #070b22);
+        font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+        color: #f4f7ff;
         opacity: 1;
         visibility: visible;
         transition: opacity 0.45s ease, visibility 0.45s ease;
@@ -40,76 +43,116 @@
       }
       #pm-boot-splash svg { display: block; }
 
-      .pm-bs-stem {
-        opacity: 0;
-        transform: translateY(8px);
-        animation: pmBsStemIn 0.5s 0.1s ease-out forwards;
-      }
-      .pm-bs-bowl {
-        opacity: 0;
-        transform-origin: 66px 128px;
-        transform: scaleX(0);
-        animation: pmBsBowlIn 0.5s 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-      }
-      .pm-bs-bubble {
-        opacity: 0;
-        transform-origin: 120px 110px;
-        transform: scale(0.4);
-        animation: pmBsBubblePop 0.4s 0.75s cubic-bezier(0.5, 1.5, 0.5, 1) forwards;
-      }
-      .pm-bs-dot {
-        opacity: 0;
-        transform-origin: 138px 100px;
-        transform: scale(0);
-        animation: pmBsDotPop 0.35s 0.95s cubic-bezier(0.4, 1.8, 0.5, 1) forwards;
-      }
-      .pm-bs-halo {
-        opacity: 0;
-        transform-origin: 138px 100px;
-        animation: pmBsHalo 1.5s 1.1s ease-out infinite;
-      }
-      @keyframes pmBsStemIn    { to { opacity: 1; transform: translateY(0); } }
-      @keyframes pmBsBowlIn    { to { opacity: 1; transform: scaleX(1); } }
-      @keyframes pmBsBubblePop {
-        0%   { opacity: 0; transform: scale(0.4); }
-        60%  { opacity: 1; transform: scale(1.05); }
-        100% { opacity: 1; transform: scale(1); }
-      }
-      @keyframes pmBsDotPop    { to { opacity: 1; transform: scale(1); } }
-      @keyframes pmBsHalo {
-        0%   { opacity: 0.5; transform: scale(0.6); }
-        100% { opacity: 0;   transform: scale(2.2); }
+      /* Subtle circuit-grid overlay behind the mark, matches identity board. */
+      #pm-boot-splash::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.5;
+        pointer-events: none;
+        background-image:
+          linear-gradient(#ffffff08 1px, transparent 1px),
+          linear-gradient(90deg, #ffffff08 1px, transparent 1px);
+        background-size: 54px 54px;
+        -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 72%);
+                mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 72%);
       }
 
+      .pm-bs-mark-wrap {
+        position: relative;
+        width: 180px;
+        height: 180px;
+        z-index: 1;
+      }
+      .pm-bs-halo {
+        position: absolute;
+        inset: -26%;
+        background: radial-gradient(circle, #38d8ff5e, transparent 64%);
+        filter: blur(14px);
+        animation: pmBsPulse 5s ease-in-out infinite;
+      }
+      @keyframes pmBsPulse {
+        0%, 100% { opacity: .4; transform: scale(1); }
+        50%      { opacity: .78; transform: scale(1.07); }
+      }
+
+      .pm-bs-hex-body {
+        opacity: 0;
+        transform-origin: 256px 256px;
+        transform: scale(.85);
+        animation: pmBsHexIn 0.55s 0.1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      }
+      .pm-bs-circuit {
+        opacity: 0;
+        animation: pmBsFadeIn 0.6s 0.4s ease-out forwards;
+      }
+      .pm-bs-lens {
+        opacity: 0;
+        transform-origin: 240px 256px;
+        transform: scale(.4);
+        animation: pmBsLensPop 0.5s 0.55s cubic-bezier(0.5, 1.5, 0.5, 1) forwards;
+      }
+      .pm-bs-hex-border {
+        opacity: 0;
+        stroke-dasharray: 1600;
+        stroke-dashoffset: 1600;
+        animation: pmBsBorderDraw 0.9s 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      }
+      .pm-bs-notch {
+        opacity: 0;
+        transform-origin: center;
+        transform: scale(0);
+        animation: pmBsNotchPop 0.35s cubic-bezier(0.4, 1.8, 0.5, 1) forwards;
+      }
+      .pm-bs-notch-1 { animation-delay: 1.05s; transform-origin: 212px 83px; }
+      .pm-bs-notch-2 { animation-delay: 1.15s; transform-origin: 256px 83px; }
+      .pm-bs-notch-3 { animation-delay: 1.25s; transform-origin: 300px 83px; }
+
+      @keyframes pmBsHexIn      { to { opacity: 1; transform: scale(1); } }
+      @keyframes pmBsFadeIn     { to { opacity: 1; } }
+      @keyframes pmBsLensPop {
+        0%   { opacity: 0; transform: scale(.4); }
+        60%  { opacity: 1; transform: scale(1.06); }
+        100% { opacity: 1; transform: scale(1); }
+      }
+      @keyframes pmBsBorderDraw { to { opacity: .95; stroke-dashoffset: 0; } }
+      @keyframes pmBsNotchPop   { to { opacity: 1; transform: scale(1); } }
+
       .pm-bs-wordmark {
-        font-size: 36px;
-        font-weight: 600;
-        letter-spacing: -0.8px;
+        font-size: 42px;
+        font-weight: 800;
+        letter-spacing: -0.035em;
         line-height: 1;
+        color: #f4f7ff;
         opacity: 0;
         transform: translateY(8px);
-        animation: pmBsWordIn 0.5s 1.15s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        animation: pmBsWordIn 0.5s 1.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        z-index: 1;
       }
-      .pm-bs-blue { color: #60A5FA; }
+      .pm-bs-blue { color: #5599ff; }
       @keyframes pmBsWordIn { to { opacity: 1; transform: translateY(0); } }
 
       .pm-bs-tagline {
-        font-size: 14px;
-        color: rgba(255,255,255,0.55);
-        font-style: italic;
-        font-weight: 500;
+        font-family: 'IBM Plex Mono', ui-monospace, monospace;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #38d8ff;
         opacity: 0;
-        animation: pmBsFadeIn 0.5s 1.55s ease-out forwards;
+        animation: pmBsFadeIn 0.5s 1.7s ease-out forwards;
+        z-index: 1;
       }
       .pm-bs-loader {
-        width: 160px;
+        width: 150px;
         height: 3px;
         background: rgba(255,255,255,0.08);
         border-radius: 999px;
         overflow: hidden;
         position: relative;
         opacity: 0;
-        animation: pmBsFadeIn 0.4s 1.8s ease-out forwards;
+        animation: pmBsFadeIn 0.4s 1.9s ease-out forwards;
+        z-index: 1;
       }
       .pm-bs-loader span {
         position: absolute;
@@ -117,21 +160,20 @@
         left: 0;
         height: 100%;
         width: 40%;
-        background: linear-gradient(90deg, #60A5FA, #2563EB);
+        background: linear-gradient(90deg, #38d8ff, #4f63ff);
         border-radius: 999px;
-        animation: pmBsSlide 1.5s 1.9s ease-in-out infinite;
+        animation: pmBsSlide 1.6s 2.0s ease-in-out infinite;
       }
-      @keyframes pmBsFadeIn { to { opacity: 1; } }
       @keyframes pmBsSlide {
         0%   { transform: translateX(-120%); }
-        100% { transform: translateX(350%); }
+        100% { transform: translateX(360%); }
       }
     </style>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Color+Emoji&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Color+Emoji&display=swap"
       rel="stylesheet"
     />
   </head>
@@ -140,39 +182,74 @@
          Ensures the user can't see the React app until we explicitly fade
          the splash out. -->
     <div id="pm-boot-splash" aria-label="PreeceMeet">
-      <svg width="180" height="180" viewBox="0 0 256 256" aria-hidden="true">
-        <defs>
-          <linearGradient id="pmBsStemGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#1E3A8A" />
-            <stop offset="100%" stop-color="#0F2463" />
-          </linearGradient>
-          <linearGradient id="pmBsBowlGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stop-color="#60A5FA" />
-            <stop offset="100%" stop-color="#2563EB" />
-          </linearGradient>
-          <linearGradient id="pmBsTileGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stop-color="#F5F7FB" />
-            <stop offset="100%" stop-color="#DFE4EE" />
-          </linearGradient>
-          <clipPath id="pmBsClip"><rect width="256" height="256" rx="56" /></clipPath>
-        </defs>
-        <g clip-path="url(#pmBsClip)">
-          <rect width="256" height="256" fill="url(#pmBsTileGrad)" />
-        </g>
-        <path class="pm-bs-stem"
-          d="M 66 52 H 100 V 202 a 6 6 0 0 1 -6 6 H 72 a 6 6 0 0 1 -6 -6 Z"
-          fill="url(#pmBsStemGrad)" />
-        <path class="pm-bs-bowl"
-          d="M 66 52 H 140 a 48 48 0 0 1 48 48 v 8 a 48 48 0 0 1 -48 48 H 100 V 52 Z"
-          fill="url(#pmBsBowlGrad)" />
-        <path class="pm-bs-bubble"
-          d="M 100 76 H 138 a 24 24 0 0 1 24 24 v 2 a 24 24 0 0 1 -24 24 H 134 L 114 150 L 120 124 H 100 Z"
-          fill="#ffffff" />
-        <circle class="pm-bs-halo" cx="138" cy="100" r="9" fill="#60A5FA" />
-        <circle class="pm-bs-dot"  cx="138" cy="100" r="9" fill="#2563EB" />
-      </svg>
+      <div class="pm-bs-mark-wrap">
+        <div class="pm-bs-halo"></div>
+        <svg width="180" height="180" viewBox="0 0 512 512" aria-hidden="true" style="position:relative;filter:drop-shadow(0 18px 38px #0008)">
+          <defs>
+            <linearGradient id="pmBsCell" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0"  stop-color="#05091f" />
+              <stop offset="1"  stop-color="#0a0e2e" />
+            </linearGradient>
+            <linearGradient id="pmBsBorder" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0"   stop-color="#38d8ff" />
+              <stop offset=".5"  stop-color="#4488ff" />
+              <stop offset="1"   stop-color="#3355dd" />
+            </linearGradient>
+            <linearGradient id="pmBsLens" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0"   stop-color="#a8eeff" />
+              <stop offset=".5"  stop-color="#5599ff" />
+              <stop offset="1"   stop-color="#3366ee" />
+            </linearGradient>
+            <filter id="pmBsGlow"  x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter>
+            <filter id="pmBsBloom" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="7"/></filter>
+            <clipPath id="pmBsHexClip"><path d="M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z"/></clipPath>
+          </defs>
+
+          <path class="pm-bs-hex-body"
+                d="M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z"
+                fill="url(#pmBsCell)" />
+
+          <g class="pm-bs-circuit" clip-path="url(#pmBsHexClip)" fill="none" stroke="#38d8ff">
+            <path d="M180 70 V452" stroke-width="1" opacity=".07"/>
+            <path d="M256 60 V452" stroke-width="1" opacity=".07"/>
+            <path d="M332 70 V452" stroke-width="1" opacity=".07"/>
+            <path d="M60 180 H452" stroke-width="1" opacity=".05"/>
+            <path d="M60 332 H452" stroke-width="1" opacity=".05"/>
+            <path d="M104 300 H150 V132" stroke-width="2.6" opacity=".34"/>
+            <path d="M408 214 H360 V344" stroke-width="2.6" opacity=".34"/>
+            <path d="M150 372 H214" stroke-width="2.6" opacity=".3"/>
+            <path d="M362 372 H304" stroke-width="2.6" opacity=".28"/>
+            <circle cx="150" cy="132" r="6" fill="#38d8ff" opacity=".85"/>
+            <circle cx="360" cy="344" r="6" fill="#4488ff" opacity=".85"/>
+            <circle cx="214" cy="372" r="5" fill="#38d8ff" opacity=".7"/>
+            <circle cx="304" cy="372" r="5" fill="#4488ff" opacity=".7"/>
+          </g>
+
+          <g class="pm-bs-lens">
+            <g filter="url(#pmBsBloom)" opacity=".55">
+              <rect x="150" y="196" width="150" height="120" rx="26" fill="url(#pmBsLens)"/>
+              <path d="M312 226 L372 196 L372 316 L312 286 Z" fill="url(#pmBsLens)"/>
+            </g>
+            <rect x="150" y="196" width="150" height="120" rx="26" fill="url(#pmBsLens)"/>
+            <path d="M312 226 L372 196 L372 316 L312 286 Z" fill="url(#pmBsLens)"/>
+            <circle cx="200" cy="256" r="30" fill="none" stroke="#0a1230" stroke-width="10" opacity=".4"/>
+            <circle cx="272" cy="228" r="7" fill="#0a1230" opacity=".45"/>
+          </g>
+
+          <path class="pm-bs-hex-border"
+                d="M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z"
+                fill="none" stroke="url(#pmBsBorder)" stroke-width="12" filter="url(#pmBsGlow)" opacity=".8" />
+          <path class="pm-bs-hex-border"
+                d="M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z"
+                fill="none" stroke="url(#pmBsBorder)" stroke-width="5" />
+
+          <circle class="pm-bs-notch pm-bs-notch-1" cx="212" cy="83" r="7" fill="#38d8ff"/>
+          <circle class="pm-bs-notch pm-bs-notch-2" cx="256" cy="83" r="7" fill="#4488ff"/>
+          <circle class="pm-bs-notch pm-bs-notch-3" cx="300" cy="83" r="7" fill="#3355dd"/>
+        </svg>
+      </div>
       <div class="pm-bs-wordmark">Preece<span class="pm-bs-blue">Meet</span></div>
-      <div class="pm-bs-tagline">You can't beat PreeceMeet.</div>
+      <div class="pm-bs-tagline">Joining room</div>
       <div class="pm-bs-loader"><span></span></div>
     </div>
 
