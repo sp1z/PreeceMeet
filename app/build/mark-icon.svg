@@ -1,0 +1,33 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PreeceMeet">
+  <defs>
+    <linearGradient id="icnCell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0A0E2E"/>
+      <stop offset="1" stop-color="#050820"/>
+    </linearGradient>
+    <linearGradient id="icnBorder" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"  stop-color="#38D8FF"/>
+      <stop offset=".5" stop-color="#4488FF"/>
+      <stop offset="1"  stop-color="#3355DD"/>
+    </linearGradient>
+    <linearGradient id="icnLens" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"  stop-color="#A8EEFF"/>
+      <stop offset=".5" stop-color="#5599FF"/>
+      <stop offset="1"  stop-color="#3366EE"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Hex scaled up ~1.28x from mark.svg so it fills the viewBox for taskbar/dock rendering -->
+  <g transform="translate(256 256) scale(1.28) translate(-256 -256)">
+    <!-- hex cell -->
+    <path d="M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z" fill="url(#icnCell)"/>
+    <!-- bold gradient border -->
+    <path d="M438 225 L374 114 Q356 83 320 83 L192 83 Q156 83 138 114 L74 225 Q56 256 74 287 L138 398 Q156 429 192 429 L320 429 Q356 429 374 398 L438 287 Q456 256 438 225 Z"
+          fill="none" stroke="url(#icnBorder)" stroke-width="14"/>
+  </g>
+
+  <!-- Camera glyph slightly enlarged so it reads at 16-32px -->
+  <g transform="translate(256 256) scale(1.15) translate(-256 -256)">
+    <rect x="150" y="196" width="150" height="120" rx="26" fill="url(#icnLens)"/>
+    <path d="M312 226 L372 196 L372 316 L312 286 Z" fill="url(#icnLens)"/>
+  </g>
+</svg>

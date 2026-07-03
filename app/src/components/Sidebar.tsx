@@ -71,7 +71,7 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
     <aside className="sidebar" style={{ position: 'relative' }}>
       <div className="sidebar-header">
         <div className="sidebar-lockup">
-          <PreeceMeetMark size={26} tileRadius={46} />
+          <PreeceMeetMark size={32} variant="onDark" showDot={false} />
           <PreeceMeetWordmark size={18} onDark />
         </div>
         <button className="icon-btn" onClick={onAddChannel} title="Add channel" style={{ width: 28, height: 28, fontSize: 20 }}>

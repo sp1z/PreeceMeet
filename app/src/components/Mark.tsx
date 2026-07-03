@@ -68,13 +68,14 @@ const PALETTES: Record<Variant, Palette> = {
     notchC:      "#FFFFFF",
   },
   onDark: {
-    cell:        "#0A0E2E",
+    // Transparent cell: the surrounding dark surface shows through, so the
+    // hex border + bright lens gradient carry the identity at every size.
+    cell:        "transparent",
     lens:        "url(#pm-lens)",
     border:      "url(#pm-border)",
     circuit:     "#38D8FF",
     circuitSoft: "#4488FF",
     tally:       "#0A1230",
-    tile:        "#0A0E2E",
     notchA:      "#38D8FF",
     notchB:      "#4488FF",
     notchC:      "#3355DD",
