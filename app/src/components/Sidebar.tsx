@@ -14,9 +14,12 @@ interface Props {
   users:           ContactUser[];
   online:          Set<string>;
   inCall:          boolean;
+  isAdmin:         boolean;
   onCall:          (email: string) => Promise<{ ok: boolean; error?: string }>;
   onJoin:          (channel: Channel) => void;
   onSettings:      () => void;
+  onOpenAdmin:     () => void;
+  onEnterGameMode: () => void;
   onSignOut:       () => void;
   onAddChannel:    () => void;
   onDeleteChannel: (channelName: string) => void;
@@ -25,7 +28,7 @@ interface Props {
 
 interface ChannelMenu { name: string; x: number; y: number; }
 
-export default function Sidebar({ channels, rooms, activeRoom, email, displayName, avatarEmoji, users, online, inCall, onCall, onJoin, onSettings, onSignOut, onAddChannel, onDeleteChannel, visible }: Props) {
+export default function Sidebar({ channels, rooms, activeRoom, email, displayName, avatarEmoji, users, online, inCall, isAdmin, onCall, onJoin, onSettings, onOpenAdmin, onEnterGameMode, onSignOut, onAddChannel, onDeleteChannel, visible }: Props) {
   const [callingEmail, setCallingEmail] = useState('');
   const [footerMenuOpen, setFooterMenuOpen] = useState(false);
   const [channelMenu,    setChannelMenu]    = useState<ChannelMenu | null>(null);
@@ -195,9 +198,17 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
             <button onClick={() => { setFooterMenuOpen(false); onSettings(); }}>
               <SettingsIcon /> Settings
             </button>
+            <button onClick={() => { setFooterMenuOpen(false); onEnterGameMode(); }}>
+              <GameModeMenuIcon /> Game mode
+            </button>
+            {isAdmin && (
+              <button onClick={() => { setFooterMenuOpen(false); onOpenAdmin(); }}>
+                <AdminMenuIcon /> Admin panel
+              </button>
+            )}
             <div className="separator" />
             <button className="sign-out" onClick={() => { setFooterMenuOpen(false); onSignOut(); }}>
-              <SignOutIcon /> Sign Out
+              <SignOutIcon /> Sign out
             </button>
           </div>
         </>
@@ -234,6 +245,24 @@ function SignOutIcon() {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
       <polyline points="16 17 21 12 16 7"/>
       <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+  );
+}
+
+function GameModeMenuIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="14" rx="2"/>
+      <rect x="12" y="11" width="8" height="6" rx="1.2"/>
+    </svg>
+  );
+}
+
+function AdminMenuIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="3.5"/>
+      <path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/>
     </svg>
   );
 }

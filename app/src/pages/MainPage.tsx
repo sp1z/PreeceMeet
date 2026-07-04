@@ -16,7 +16,6 @@ import SettingsModal from '../components/SettingsModal';
 import AdminPanel from '../components/AdminPanel';
 import ChatPanel from '../components/ChatPanel';
 import ScreenSharePicker from '../components/ScreenSharePicker';
-import WindowControls from '../components/WindowControls';
 import TopBar from '../components/TopBar';
 import RoomStateReporter from '../components/RoomStateReporter';
 import IdlePanel from '../components/IdlePanel';
@@ -653,15 +652,11 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           installing={installing}
           onInstallUpdate={installUpdate}
           onToggleSidebar={toggleSidebar}
-          onEnterGameMode={() => void enterGameMode()}
           onToggleFullscreen={() => void toggleFullscreen()}
           isFullscreen={isFullscreen}
-          isAdmin={!!session.isAdmin}
-          onOpenAdmin={() => setAdminOpen(true)}
           chatVisible={chatVisible}
           chatUnread={chatUnread}
           onToggleChat={toggleChat}
-          onOpenSettings={() => setSettingsOpen(true)}
           showWinControls={showWinControls}
           callStartedAt={callStartedAt}
           connQuality={connQuality}
@@ -684,9 +679,12 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
             users={users}
             online={calling.online}
             inCall={!!connection}
+            isAdmin={!!session.isAdmin}
             onCall={email => calling.call(email, settings.displayName || undefined)}
             onJoin={joinChannel}
             onSettings={() => openSettingsAt('profile')}
+            onOpenAdmin={() => setAdminOpen(true)}
+            onEnterGameMode={() => void enterGameMode()}
             onSignOut={handleSignOut}
             onAddChannel={() => openSettingsAt('channels')}
             onDeleteChannel={handleDeleteChannel}
@@ -698,6 +696,14 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
         )}
 
         <div className={`video-area${gameMode ? ' game-video-area' : ''}`}>
+          {settingsOpen && !gameMode && (
+            <SettingsModal
+              settings={settings}
+              onSave={handleSaveSettings}
+              onClose={() => setSettingsOpen(false)}
+              initialTab={settingsInitialTab}
+            />
+          )}
           {!gameMode && connection && deviceFallbacks.length > 0 && (
             <DeviceFallbackBanner
               failures={deviceFallbacks}
@@ -823,14 +829,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       </div>
 
       {/* ── Modals ───────────────────────────────────────────────── */}
-      {settingsOpen && (
-        <SettingsModal
-          settings={settings}
-          onSave={handleSaveSettings}
-          onClose={() => setSettingsOpen(false)}
-          initialTab={settingsInitialTab}
-        />
-      )}
       {adminOpen && (
         <AdminPanel
           session={session}
@@ -907,10 +905,24 @@ function GameTitleBar({ gameSize, onSizeChange, hasConnection, onRestore, showWi
           </button>
         ))}
       </div>
-      <button className="game-exit-btn nodrag" onClick={onRestore} title="Exit game mode" aria-label="Exit game mode">
+      {showWinControls && (
+        <button
+          className="game-win-min nodrag"
+          onClick={() => void windowCtl.minimize()}
+          title="Minimize"
+          aria-label="Minimize"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="5" x2="9" y2="5" stroke="currentColor" strokeWidth="1"/></svg>
+        </button>
+      )}
+      <button
+        className="game-win-close nodrag"
+        onClick={onRestore}
+        title="Exit game mode — return to main window"
+        aria-label="Exit game mode"
+      >
         <CloseIcon size={14} />
       </button>
-      {showWinControls && <WindowControls />}
     </div>
   );
 }

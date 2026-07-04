@@ -1,16 +1,14 @@
 // PreeceMeet top bar — comp 1b/1c chrome.
 // Room icon + #name + live dot + mono timer + spacer + status/update pill,
-// then right-side: fullscreen, chat toggle w/ unread dot, admin kebab, settings.
+// then right-side: fullscreen + chat toggle w/ unread dot. Settings/Admin/
+// Game-mode all live in the sidebar-footer avatar menu — top bar stays lean.
 // Traffic-light left-inset on mac. Draggable region between the buttons.
 
 import { useEffect, useState } from 'react';
 import {
   BurgerIcon,
-  GameModeIcon,
   FullscreenIcon,
-  AdminIcon,
   ChatIcon,
-  SettingsIcon,
   ConnQualityIcon,
 } from './icons';
 import WindowControls from './WindowControls';
@@ -26,18 +24,12 @@ interface Props {
   onInstallUpdate: () => void;
 
   onToggleSidebar: () => void;
-  onEnterGameMode: () => void;
   onToggleFullscreen: () => void;
   isFullscreen:    boolean;
-
-  isAdmin:         boolean;
-  onOpenAdmin:     () => void;
 
   chatVisible:     boolean;
   chatUnread:      number;
   onToggleChat:    () => void;
-
-  onOpenSettings:  () => void;
 
   showWinControls: boolean;
   callStartedAt:   number | null;
@@ -83,10 +75,8 @@ function qualityClass(q: Quality): string {
 export default function TopBar({
   roomName, inCall, error,
   updateVersion, installing, onInstallUpdate,
-  onToggleSidebar, onEnterGameMode, onToggleFullscreen, isFullscreen,
-  isAdmin, onOpenAdmin,
+  onToggleSidebar, onToggleFullscreen, isFullscreen,
   chatVisible, chatUnread, onToggleChat,
-  onOpenSettings,
   showWinControls,
   callStartedAt, connQuality,
 }: Props) {
@@ -124,17 +114,6 @@ export default function TopBar({
         </span>
       ) : null}
 
-      <button className="tb-icon nodrag" onClick={onEnterGameMode} title="Game mode" aria-label="Game mode">
-        <GameModeIcon size={18} />
-      </button>
-      <button className={`tb-icon nodrag${isFullscreen ? ' active' : ''}`} onClick={onToggleFullscreen} title={isFullscreen ? 'Exit fullscreen (F11)' : 'Fullscreen (F11)'} aria-label="Fullscreen">
-        <FullscreenIcon exit={isFullscreen} size={18} />
-      </button>
-      {isAdmin && (
-        <button className="tb-icon nodrag" onClick={onOpenAdmin} title="Admin panel" aria-label="Admin panel">
-          <AdminIcon size={18} />
-        </button>
-      )}
       {inCall && (
         <button
           className={`tb-icon nodrag${chatVisible ? ' active' : ''}`}
@@ -146,8 +125,8 @@ export default function TopBar({
           {chatUnread > 0 && !chatVisible && <span className="tb-unread" aria-hidden />}
         </button>
       )}
-      <button className="tb-icon nodrag" onClick={onOpenSettings} title="Settings" aria-label="Settings">
-        <SettingsIcon size={18} />
+      <button className={`tb-icon nodrag${isFullscreen ? ' active' : ''}`} onClick={onToggleFullscreen} title={isFullscreen ? 'Exit fullscreen (F11)' : 'Fullscreen (F11)'} aria-label="Fullscreen">
+        <FullscreenIcon exit={isFullscreen} size={18} />
       </button>
 
       {showWinControls && <WindowControls />}

@@ -43,6 +43,25 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* Brand-styled scrollbars everywhere. Thin, dark, cyan hover — never OS-default. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 216, 255, 0.14) transparent;
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(56, 216, 255, 0.12);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 216, 255, 0.28);
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-corner { background: transparent; }
+
 /* Utility: anywhere we render an emoji that must be color on every platform. */
 .emoji {
   font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
@@ -601,7 +620,7 @@ input::placeholder { color: var(--text-muted); }
 .sidebar {
   background: var(--pm-surface-sidebar);
   display: grid;
-  grid-template-rows: 52px auto 1fr 56px;
+  grid-template-rows: 52px auto 1fr 64px;
   border-right: 1px solid var(--pm-border-hairline);
   overflow: hidden;
   min-width: 0;
@@ -783,18 +802,22 @@ input::placeholder { color: var(--text-muted); }
   min-width: 0;
   display: flex;
   flex-direction: column;
-  line-height: 1.15;
+  gap: 2px;
+  line-height: 1.2;
 }
 .footer-name {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--pm-text-strong);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .footer-sub {
-  font-size: 12px;
-  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--pm-text-muted-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -815,22 +838,24 @@ input::placeholder { color: var(--text-muted); }
   background: var(--pm-surface-titlebar);
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 8px 12px;
   gap: 10px;
   cursor: pointer;
   border-top: 1px solid var(--pm-border-hairline);
+  min-width: 0;
 }
 .sidebar-footer:hover { background: #0C1230; }
 .avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--accent);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(150deg, #1C2C58, #131A3A);
+  border: 1px solid var(--pm-border-card);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
   color: #fff;
   flex-shrink: 0;
 }
@@ -843,8 +868,9 @@ input::placeholder { color: var(--text-muted); }
 }
 .footer-menu {
   position: absolute;
-  bottom: 64px;
+  bottom: 72px;
   left: 12px;
+  right: 12px;
   background: #0C1230;
   border: 1px solid var(--pm-border-modal);
   border-radius: 12px;
@@ -1655,11 +1681,13 @@ input::placeholder { color: var(--text-muted); }
   background: var(--pm-accent-cyan);
   color: var(--pm-ink-2);
 }
-.game-exit-btn {
-  width: 22px;
+.game-win-min,
+.game-win-close {
+  width: 24px;
   height: 20px;
   border-radius: 5px;
   background: transparent;
+  border: 0;
   color: var(--pm-text-muted-3);
   display: inline-flex;
   align-items: center;
@@ -1667,7 +1695,8 @@ input::placeholder { color: var(--text-muted); }
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
-.game-exit-btn:hover { background: rgba(229,72,77,0.14); color: #FF9099; }
+.game-win-min:hover { background: rgba(56,216,255,0.08); color: var(--pm-text-body); }
+.game-win-close:hover { background: rgba(229,72,77,0.14); color: #FF9099; }
 
 .game-empty {
   display: flex;
@@ -1956,6 +1985,114 @@ input::placeholder { color: var(--text-muted); }
   gap: 10px;
   padding: 12px 18px;
   border-top: 1px solid var(--border);
+}
+
+/* ── Settings page (inline, replaces video-area) ─────────────────────────── */
+.settings-page {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: var(--pm-surface-window);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.settings-page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 32px 16px;
+  border-bottom: 1px solid var(--pm-border-hairline);
+  flex-shrink: 0;
+}
+.settings-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid var(--pm-border-input);
+  color: var(--pm-text-mid);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.settings-back-btn:hover {
+  background: rgba(56,216,255,0.06);
+  border-color: rgba(56,216,255,0.35);
+  color: var(--pm-text-strong);
+}
+.settings-page-title {
+  flex: 1;
+  font-family: var(--font-ui);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--pm-text-strong);
+  margin: 0 8px;
+}
+.settings-header-action {
+  padding: 8px 18px !important;
+}
+.settings-save {
+  background: var(--pm-primary);
+  color: #fff;
+  font-weight: 700;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 22px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.settings-save:hover { background: #3856D6; }
+
+.settings-page-tabs {
+  display: flex;
+  gap: 24px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--pm-border-hairline);
+  flex-shrink: 0;
+}
+.settings-page-tab {
+  padding: 12px 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--pm-text-muted-2);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.settings-page-tab:hover { color: var(--pm-text-mid); }
+.settings-page-tab.active {
+  color: var(--pm-primary-light);
+  border-bottom-color: var(--pm-accent-cyan);
+  font-weight: 700;
+}
+
+.settings-page-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 32px 40px;
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.settings-page-footer-note {
+  margin-top: 32px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  color: var(--pm-text-faint-2);
+  text-transform: uppercase;
+  text-align: center;
 }
 
 /* ── Settings modal — comp 1h ────────────────────────────────────────────── */

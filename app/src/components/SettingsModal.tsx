@@ -130,23 +130,28 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
   const permLabel = (s: PermState) => s === 'granted' ? '✓ Granted' : s === 'denied' ? '✕ Denied' : '? Unknown';
 
   return (
-    <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal-box">
+    <div className="settings-page">
+      <div className="settings-page-header">
+        <button className="settings-back-btn" onClick={onClose} title="Back" aria-label="Back">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+          Back
+        </button>
+        <h1 className="settings-page-title">Settings</h1>
+        <button className="btn-secondary settings-header-action" onClick={onClose}>Cancel</button>
+        <button className="btn-primary settings-header-action settings-save" onClick={save}>Save</button>
+      </div>
 
-        <div className="modal-header">
-          <span>Settings</span>
-          <button className="icon-btn" onClick={onClose} style={{ fontSize: 14 }}>✕</button>
-        </div>
+      <div className="settings-page-tabs">
+        {(['profile', 'channels', 'permissions', 'debug'] as Tab[]).map(t => (
+          <button key={t} className={`settings-page-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
+            {t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </div>
 
-        <div className="modal-tabs">
-          {(['profile', 'channels', 'permissions', 'debug'] as Tab[]).map(t => (
-            <button key={t} className={`modal-tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        <div className="modal-body">
+      <div className="settings-page-body">
 
           {tab === 'profile' && (
             <>
@@ -377,16 +382,9 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
             </div>
           )}
 
+        <div className="settings-page-footer-note mono">
+          PreeceMeet v{pkg.version} · meet.russellpreece.com
         </div>
-
-        <div className="modal-footer">
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 'auto' }}>
-            PreeceMeet v{pkg.version}
-          </span>
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" style={{ width: 'auto', margin: 0, padding: '8px 24px' }} onClick={save}>Save</button>
-        </div>
-
       </div>
     </div>
   );
