@@ -7,7 +7,6 @@
 import { useEffect, useState } from 'react';
 import {
   BurgerIcon,
-  FullscreenIcon,
   ChatIcon,
   ConnQualityIcon,
 } from './icons';
@@ -24,8 +23,6 @@ interface Props {
   onInstallUpdate: () => void;
 
   onToggleSidebar: () => void;
-  onToggleFullscreen: () => void;
-  isFullscreen:    boolean;
 
   chatVisible:     boolean;
   chatUnread:      number;
@@ -75,7 +72,7 @@ function qualityClass(q: Quality): string {
 export default function TopBar({
   roomName, inCall, error,
   updateVersion, installing, onInstallUpdate,
-  onToggleSidebar, onToggleFullscreen, isFullscreen,
+  onToggleSidebar,
   chatVisible, chatUnread, onToggleChat,
   showWinControls,
   callStartedAt, connQuality,
@@ -125,9 +122,6 @@ export default function TopBar({
           {chatUnread > 0 && !chatVisible && <span className="tb-unread" aria-hidden />}
         </button>
       )}
-      <button className={`tb-icon nodrag${isFullscreen ? ' active' : ''}`} onClick={onToggleFullscreen} title={isFullscreen ? 'Exit fullscreen (F11)' : 'Fullscreen (F11)'} aria-label="Fullscreen">
-        <FullscreenIcon exit={isFullscreen} size={18} />
-      </button>
 
       {showWinControls && <WindowControls />}
     </div>

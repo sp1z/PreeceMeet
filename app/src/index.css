@@ -17,7 +17,7 @@
   --bg-sidebar-active: rgba(85,153,255,0.16); /* brand pm-primary-light @ 16% */
   --bg-card:           #0F1738;
   --text-primary:      #F4F7FF;
-  --text-muted:        rgba(244,247,255,0.55);
+  --text-muted:        rgba(244,247,255,0.72);
   --accent:            #5599FF;              /* brand pm-primary-light (on-dark) */
   --accent-strong:     #4263EB;              /* brand pm-primary (for CTAs) */
   --accent-cyan:       #38D8FF;              /* brand pm-accent-cyan */
@@ -533,7 +533,7 @@ input::placeholder { color: var(--text-muted); }
   font-family: var(--font-mono);
   font-size: 15px;
   font-weight: 500;
-  color: var(--pm-text-muted-3);
+  color: var(--pm-text-2nd);
 }
 .tb-name {
   font-size: 15px;
@@ -638,14 +638,22 @@ input::placeholder { color: var(--text-muted); }
   gap: 10px;
   min-width: 0;
 }
+.sidebar-mark-glow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  filter:
+    drop-shadow(0 0 10px rgba(56, 216, 255, 0.35))
+    drop-shadow(0 0 4px rgba(85, 153, 255, 0.35));
+}
 .sidebar-section-label {
   padding: 14px 14px 6px;
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--pm-text-faint-2);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--pm-text-2nd);
   text-transform: uppercase;
-  letter-spacing: 0.20em;
+  letter-spacing: 0.18em;
 }
 .channel-list {
   overflow-y: auto;
@@ -815,9 +823,9 @@ input::placeholder { color: var(--text-muted); }
 }
 .footer-sub {
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-  color: var(--pm-text-muted-3);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--pm-text-2nd);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -922,8 +930,10 @@ input::placeholder { color: var(--text-muted); }
 .idle-panel {
   position: relative;
   height: 100%;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--pm-surface-window);
+  container-type: inline-size;
 }
 .idle-watermark {
   position: absolute;
@@ -935,45 +945,46 @@ input::placeholder { color: var(--text-muted); }
 }
 .idle-inner {
   position: relative;
-  max-width: 980px;
-  padding: 44px 48px 60px;
+  max-width: 1080px;
+  padding: 28px 32px 40px;
   display: flex;
   flex-direction: column;
-  gap: 30px;
+  gap: 22px;
 }
 .idle-stamp {
   font-family: var(--font-mono);
   font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--pm-text-faint-2);
+  color: var(--pm-text-2nd);
 }
 .idle-greeting {
   font-family: var(--font-ui);
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--pm-text-strong);
-  margin: 2px 0 4px;
+  margin: 2px 0 2px;
 }
 .idle-subline {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--pm-text-2nd);
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
 .idle-section {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 .idle-label {
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.20em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--pm-text-muted-3);
+  color: var(--pm-text-2nd);
 }
 
 /* People strip */
@@ -983,15 +994,15 @@ input::placeholder { color: var(--text-muted); }
   gap: 12px;
 }
 .idle-person {
-  width: 118px;
-  padding: 14px 12px 12px;
+  width: 108px;
+  padding: 12px 10px 10px;
   background: var(--pm-surface-card);
   border: 1px solid var(--pm-border-card);
-  border-radius: 14px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   cursor: pointer;
   text-align: center;
   transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
@@ -1008,22 +1019,22 @@ input::placeholder { color: var(--text-muted); }
   filter: grayscale(0.35);
 }
 .idle-person-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 13px;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   display: inline-grid;
   place-items: center;
   background: linear-gradient(150deg, #1C2C58, #131A3A);
   border: 1px solid var(--pm-border-input);
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1;
 }
 .idle-person-dot {
   position: absolute;
-  top: 46px;
-  right: 30px;
-  width: 13px;
-  height: 13px;
+  top: 40px;
+  right: 26px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   border: 2.5px solid #0B1024;
   background: #2C3555;
@@ -1044,26 +1055,27 @@ input::placeholder { color: var(--text-muted); }
 .idle-person-sub {
   font-family: var(--font-mono);
   font-size: 10.5px;
-  letter-spacing: 0.10em;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--pm-text-muted-3);
+  color: var(--pm-text-2nd);
 }
 .idle-person.busy .idle-person-sub { color: var(--pm-accent-cyan); }
 
 /* Channel cards */
 .idle-channels {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
 }
 .idle-channel {
-  padding: 16px 18px;
+  padding: 12px 14px;
   background: var(--pm-surface-card);
   border: 1px solid var(--pm-border-card);
-  border-radius: 14px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   transition: transform 140ms ease, border-color 140ms ease;
 }
 .idle-channel.live {
@@ -1075,18 +1087,18 @@ input::placeholder { color: var(--text-muted); }
   gap: 10px;
 }
 .idle-channel-emoji {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   background: linear-gradient(150deg, #1C2C58, #131A3A);
   border: 1px solid var(--pm-border-input);
   display: inline-grid;
   place-items: center;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1;
 }
 .idle-channel-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   color: var(--pm-text-strong);
   flex: 1;
@@ -1143,15 +1155,16 @@ input::placeholder { color: var(--text-muted); }
 .idle-channel-empty {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--pm-text-faint-2);
-  letter-spacing: 0.10em;
+  font-weight: 600;
+  color: var(--pm-text-2nd);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 .idle-channel-join {
-  padding: 8px 16px;
-  border-radius: 10px;
+  padding: 6px 14px;
+  border-radius: 8px;
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
   background: var(--pm-primary);
   color: #fff;
@@ -2197,50 +2210,55 @@ input::placeholder { color: var(--text-muted); }
 .checkbox-row {
   display: flex !important;
   align-items: flex-start !important;
-  gap: 14px !important;
-  padding: 8px 0;
-  color: var(--pm-text-mid);
-  font-size: 13.5px;
+  gap: 22px !important;
+  padding: 14px 0;
+  color: var(--pm-text-body);
+  font-size: 14px;
   cursor: pointer;
 }
 .checkbox-row > input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
   position: relative;
-  width: 38px;
-  height: 22px;
+  width: 42px;
+  height: 24px;
   border-radius: 20px;
   background: #26355F;
   border: 0;
   cursor: pointer;
   transition: background 140ms ease;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 .checkbox-row > input[type="checkbox"]::after {
   content: '';
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  background: #9AA5BD;
+  background: #C7D0E5;
   transition: transform 160ms ease, background 140ms ease;
 }
 .checkbox-row > input[type="checkbox"]:checked {
   background: var(--pm-primary);
 }
 .checkbox-row > input[type="checkbox"]:checked::after {
-  transform: translateX(16px);
+  transform: translateX(18px);
   background: #fff;
 }
 .checkbox-row > span {
-  line-height: 1.35;
+  line-height: 1.45;
   flex: 1;
+  font-weight: 600;
+  color: var(--pm-text-strong);
 }
 .checkbox-row > span > span {
-  color: var(--pm-text-muted-3) !important;
+  color: var(--pm-text-2nd) !important;
+  font-weight: 400;
+  font-size: 12.5px !important;
+  margin-top: 4px !important;
 }
 
 /* Modal footer — fixed */

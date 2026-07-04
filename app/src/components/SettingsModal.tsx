@@ -132,15 +132,14 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
   return (
     <div className="settings-page">
       <div className="settings-page-header">
-        <button className="settings-back-btn" onClick={onClose} title="Back" aria-label="Back">
+        <button className="settings-back-btn" onClick={onClose} title="Discard and go back" aria-label="Back">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 6l-6 6 6 6" />
           </svg>
           Back
         </button>
         <h1 className="settings-page-title">Settings</h1>
-        <button className="btn-secondary settings-header-action" onClick={onClose}>Cancel</button>
-        <button className="btn-primary settings-header-action settings-save" onClick={save}>Save</button>
+        <button className="btn-primary settings-header-action settings-save" onClick={save}>Save changes</button>
       </div>
 
       <div className="settings-page-tabs">

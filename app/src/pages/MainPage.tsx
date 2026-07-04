@@ -652,8 +652,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           installing={installing}
           onInstallUpdate={installUpdate}
           onToggleSidebar={toggleSidebar}
-          onToggleFullscreen={() => void toggleFullscreen()}
-          isFullscreen={isFullscreen}
           chatVisible={chatVisible}
           chatUnread={chatUnread}
           onToggleChat={toggleChat}
@@ -685,6 +683,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
             onSettings={() => openSettingsAt('profile')}
             onOpenAdmin={() => setAdminOpen(true)}
             onEnterGameMode={() => void enterGameMode()}
+            onToggleFullscreen={() => void toggleFullscreen()}
+            isFullscreen={isFullscreen}
             onSignOut={handleSignOut}
             onAddChannel={() => openSettingsAt('channels')}
             onDeleteChannel={handleDeleteChannel}

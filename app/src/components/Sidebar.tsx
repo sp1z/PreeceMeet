@@ -20,6 +20,8 @@ interface Props {
   onSettings:      () => void;
   onOpenAdmin:     () => void;
   onEnterGameMode: () => void;
+  onToggleFullscreen: () => void;
+  isFullscreen:    boolean;
   onSignOut:       () => void;
   onAddChannel:    () => void;
   onDeleteChannel: (channelName: string) => void;
@@ -28,7 +30,7 @@ interface Props {
 
 interface ChannelMenu { name: string; x: number; y: number; }
 
-export default function Sidebar({ channels, rooms, activeRoom, email, displayName, avatarEmoji, users, online, inCall, isAdmin, onCall, onJoin, onSettings, onOpenAdmin, onEnterGameMode, onSignOut, onAddChannel, onDeleteChannel, visible }: Props) {
+export default function Sidebar({ channels, rooms, activeRoom, email, displayName, avatarEmoji, users, online, inCall, isAdmin, onCall, onJoin, onSettings, onOpenAdmin, onEnterGameMode, onToggleFullscreen, isFullscreen, onSignOut, onAddChannel, onDeleteChannel, visible }: Props) {
   const [callingEmail, setCallingEmail] = useState('');
   const [footerMenuOpen, setFooterMenuOpen] = useState(false);
   const [channelMenu,    setChannelMenu]    = useState<ChannelMenu | null>(null);
@@ -74,8 +76,10 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
     <aside className="sidebar" style={{ position: 'relative' }}>
       <div className="sidebar-header">
         <div className="sidebar-lockup">
-          <PreeceMeetMark size={32} variant="onDark" showDot={false} />
-          <PreeceMeetWordmark size={18} onDark />
+          <span className="sidebar-mark-glow">
+            <PreeceMeetMark size={38} variant="onDark" showDot={false} />
+          </span>
+          <PreeceMeetWordmark size={19} onDark />
         </div>
         <button className="icon-btn" onClick={onAddChannel} title="Add channel" style={{ width: 28, height: 28, fontSize: 20 }}>
           +
@@ -201,6 +205,9 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
             <button onClick={() => { setFooterMenuOpen(false); onEnterGameMode(); }}>
               <GameModeMenuIcon /> Game mode
             </button>
+            <button onClick={() => { setFooterMenuOpen(false); onToggleFullscreen(); }}>
+              <FullscreenMenuIcon exit={isFullscreen} /> {isFullscreen ? 'Exit full screen' : 'Full screen'}
+            </button>
             {isAdmin && (
               <button onClick={() => { setFooterMenuOpen(false); onOpenAdmin(); }}>
                 <AdminMenuIcon /> Admin panel
@@ -263,6 +270,18 @@ function AdminMenuIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="8" r="3.5"/>
       <path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/>
+    </svg>
+  );
+}
+
+function FullscreenMenuIcon({ exit }: { exit: boolean }) {
+  return exit ? (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+    </svg>
+  ) : (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
     </svg>
   );
 }
