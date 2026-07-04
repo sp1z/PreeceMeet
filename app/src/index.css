@@ -1847,65 +1847,49 @@ input::placeholder { color: var(--text-muted); }
   margin: 0;
 }
 
-/* ── Emoji picker ───────────────────────────────────────────────────────── */
+/* ── Emoji picker (emoji-mart wrapper) ───────────────────────────────────── */
 .emoji-picker-trigger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-main);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  transition: border-color 0.15s;
+  background: linear-gradient(150deg, #1C2C58, #131A3A);
+  border: 1px solid var(--pm-border-input);
+  border-radius: 10px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+  cursor: pointer;
 }
-.emoji-picker-trigger:hover { border-color: var(--accent); }
+.emoji-picker-trigger:hover {
+  border-color: rgba(56, 216, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(56, 216, 255, 0.14);
+}
 .emoji-picker-sm { width: 32px; height: 32px; font-size: 18px; }
-.emoji-picker-md { width: 44px; height: 44px; font-size: 22px; }
+.emoji-picker-md { width: 46px; height: 46px; font-size: 24px; }
+
 .emoji-picker-popover {
   position: fixed;
   z-index: 5000;
-  width: 360px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  border-radius: 14px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(56, 216, 255, 0.12);
   overflow: hidden;
 }
-.emoji-picker-tabs {
-  display: flex;
-  gap: 2px;
-  padding: 6px;
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
+
+/* Theme emoji-mart's <em-emoji-picker> web component to match our palette.
+   emoji-mart exposes these as CSS variables set via inline style attribute
+   on the picker element (see @emoji-mart source). We set them on the wrapper
+   so they cascade in. */
+.emoji-mart-wrap em-emoji-picker {
+  --rgb-background:   6, 9, 30;
+  --rgb-input:        11, 18, 48;
+  --rgb-color:        233, 237, 248;
+  --rgb-accent:       56, 216, 255;
+  --color-border:     rgba(255, 255, 255, 0.06);
+  --color-border-over:rgba(56, 216, 255, 0.28);
+  --font-family:      var(--font-ui);
+  --font-size:        14px;
+  height: 435px;
 }
-.emoji-picker-tab {
-  padding: 4px 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  border-radius: 4px;
-  white-space: nowrap;
-}
-.emoji-picker-tab:hover { background: var(--bg-sidebar-hover); color: var(--text-primary); }
-.emoji-picker-tab.active { background: var(--accent); color: #fff; }
-.emoji-picker-grid {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 2px;
-  padding: 8px;
-  /* No max-height / overflow — popover sized so each curated group fits. */
-}
-.emoji-picker-cell {
-  width: 100%;
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  border-radius: 6px;
-  transition: background 0.1s;
-}
-.emoji-picker-cell:hover { background: var(--bg-sidebar-hover); }
-.emoji-picker-cell.active { background: var(--accent); }
 
 /* ── Screen-share picker ─────────────────────────────────────────────────── */
 .share-picker {
