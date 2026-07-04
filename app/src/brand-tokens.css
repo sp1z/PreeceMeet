@@ -19,6 +19,53 @@
   --pm-paper:          #EEF2F8;
   --pm-signal:         #22C55E;
 
+  /* Presence — approved 2026-07-04. Distinct from cyan (which signals a live
+     call) so roster/permission "Granted" states can't be misread as "call here". */
+  --pm-presence-green:  #35C08A;
+  --pm-success-text:    #3FD08B;
+
+  /* Danger / accept — used for hangup, decline, sign-out, and accept-call. */
+  --pm-danger:          #E5484D;
+  --pm-danger-soft:     #E5686D;
+  --pm-accept:          #2FAE5F;
+
+  /* Extended dark-theme neutrals — used across the client screens.
+     Named tokens (not raw hex in components) so a future theme adjust is one edit. */
+  --pm-surface-window:    #06091E;
+  --pm-surface-sidebar:   #070B20;
+  --pm-surface-titlebar:  #080C22;
+  --pm-surface-call:      #04061A;
+  --pm-surface-card:      linear-gradient(165deg, #0C1430, #0A0E26);
+  --pm-surface-modal:     linear-gradient(180deg, #0C1330, #0A0F28);
+  --pm-surface-input:     #0B1230;
+  --pm-surface-control:   #141B34;
+  --pm-surface-active:    #10214A;
+
+  --pm-border-window:     #1B2444;
+  --pm-border-hairline:   #141C38;
+  --pm-border-hairline-2: #101830;
+  --pm-border-hairline-3: #0F1730;
+  --pm-border-card:       #1C2748;
+  --pm-border-modal:      #22314F;
+  --pm-border-input:      #26355F;
+  --pm-border-control:    #263258;
+
+  /* Text ramps (on dark) */
+  --pm-text-strong:    #F4F7FF;
+  --pm-text-body:      #E9EDF8;
+  --pm-text-mid:       #DBE2F2;
+  --pm-text-2nd:       #9AA5BD;
+  --pm-text-muted-2:   #7C86A0;
+  --pm-text-muted-3:   #6B7595;
+  --pm-text-faint-2:   #5F6A8A;
+  --pm-text-faint-3:   #4A5573;
+
+  /* Active-channel accents */
+  --pm-active-bg:       #10214A;
+  --pm-active-stripe:   #38D8FF;
+  --pm-count-pill-bg:   #16234A;
+  --pm-count-pill-fg:   #8FBFFF;
+
   /* Surfaces */
   --pm-surface-white:  #FFFFFF;
   --pm-surface-subtle: #F4F6FB;

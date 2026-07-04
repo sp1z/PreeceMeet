@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChatMessage } from '../types';
 import { openExternal } from '../runtime';
+import { CloseIcon, SendIcon } from './icons';
 
 interface Props {
   messages: ChatMessage[];
+  roomName?: string;
   onSend:   (text: string) => void;
   onClose:  () => void;
 }
@@ -42,11 +44,20 @@ function MessageBody({ text }: { text: string }) {
   );
 }
 
-export default function ChatPanel({ messages, onSend, onClose }: Props) {
+// Deterministic per-name pastel colour so remote senders are visually distinct
+// without a full user-colour palette. Cyan and blue reserved for own message /
+// URLs / active-speaker — remotes get warmer hues.
+const REMOTE_HUES = ['#8FBFFF', '#7FD6A8', '#F5C57A', '#E29ADB', '#9EB4FF', '#7FD9F4'];
+function colourFor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  return REMOTE_HUES[Math.abs(h) % REMOTE_HUES.length];
+}
+
+export default function ChatPanel({ messages, roomName, onSend, onClose }: Props) {
   const [draft, setDraft] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to the bottom when a new message arrives
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -62,23 +73,30 @@ export default function ChatPanel({ messages, onSend, onClose }: Props) {
   return (
     <div className="chat-panel">
       <div className="chat-header">
-        <span>Chat</span>
-        <button className="icon-btn" onClick={onClose} title="Close chat" style={{ fontSize: 14 }}>✕</button>
+        <span className="chat-header-title">Chat</span>
+        {roomName && <span className="chat-header-room mono">#{roomName}</span>}
+        <button className="chat-close" onClick={onClose} title="Close chat" aria-label="Close chat">
+          <CloseIcon size={16} />
+        </button>
       </div>
 
       <div className="chat-messages" ref={listRef}>
         {messages.length === 0 && (
           <p className="chat-empty">No messages yet — say hi.</p>
         )}
-        {messages.map(m => (
-          <div key={m.id} className={`chat-message${m.isLocal ? ' is-local' : ''}`}>
-            <div className="chat-meta">
-              <span className="chat-from">{m.isLocal ? 'You' : (m.fromName || m.from)}</span>
-              <span className="chat-time">{formatTime(m.timestamp)}</span>
+        {messages.map(m => {
+          const senderName = m.isLocal ? 'You' : (m.fromName || m.from);
+          const nameColor = m.isLocal ? '#8FDCFF' : colourFor(senderName);
+          return (
+            <div key={m.id} className={`chat-message${m.isLocal ? ' is-local' : ''}`}>
+              <div className="chat-meta">
+                <span className="chat-from" style={{ color: nameColor }}>{senderName}</span>
+                <span className="chat-time mono">{formatTime(m.timestamp)}</span>
+              </div>
+              <div className="chat-body"><MessageBody text={m.text} /></div>
             </div>
-            <div className="chat-body"><MessageBody text={m.text} /></div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="chat-input-row">
@@ -87,10 +105,18 @@ export default function ChatPanel({ messages, onSend, onClose }: Props) {
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="Type a message…"
+          placeholder={roomName ? `Message #${roomName}` : 'Type a message…'}
           autoFocus
         />
-        <button className="btn-primary chat-send" onClick={send} disabled={!draft.trim()}>Send</button>
+        <button
+          className="chat-send"
+          onClick={send}
+          disabled={!draft.trim()}
+          title="Send"
+          aria-label="Send message"
+        >
+          <SendIcon size={18} />
+        </button>
       </div>
     </div>
   );

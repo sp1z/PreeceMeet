@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import type { TotpState, Session } from '../types';
 import { saveSession } from '../settings';
 import { getMe, verifyTotp } from '../api';
+import { PreeceMeetMark, PreeceMeetWordmark } from '../components/Mark';
 
 interface Props {
   totpState: TotpState;
@@ -50,6 +51,12 @@ export default function TotpPage({ totpState, serverUrl, onDone, onBack }: Props
   return (
     <div className="auth-page">
       <div className="auth-card">
+        <div className="auth-lockup">
+          <span className="auth-mark-glow">
+            <PreeceMeetMark size={80} showDot={false} />
+          </span>
+          <PreeceMeetWordmark size={26} onDark />
+        </div>
         <h1>{isSetup ? 'Set up authenticator' : 'Two-factor authentication'}</h1>
         <p className="subtitle">
           {isSetup
@@ -62,8 +69,8 @@ export default function TotpPage({ totpState, serverUrl, onDone, onBack }: Props
             <QRCodeSVG
               value={totpState.otpUri}
               size={180}
-              bgColor="#252638"
-              fgColor="#e3e5e8"
+              bgColor="#0B1230"
+              fgColor="#E9EDF8"
               level="M"
             />
             {totpState.totpSecret && (
@@ -72,10 +79,11 @@ export default function TotpPage({ totpState, serverUrl, onDone, onBack }: Props
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form className="auth-form" onSubmit={handleSubmit}>
           <div className="field">
-            <label>Authenticator code</label>
+            <label htmlFor="totp-code">Authenticator code</label>
             <input
+              id="totp-code"
               type="text"
               inputMode="numeric"
               pattern="[0-9 ]*"
@@ -85,15 +93,18 @@ export default function TotpPage({ totpState, serverUrl, onDone, onBack }: Props
               placeholder="000 000"
               autoFocus={!isSetup}
               required
-              style={{ textAlign: 'center', fontSize: 24, letterSpacing: 8 }}
+              style={{ textAlign: 'center', fontSize: 22, letterSpacing: 8, fontFamily: 'var(--font-mono)' }}
             />
           </div>
           {error && <p className="error-msg">{error}</p>}
           <button className="btn-primary" type="submit" disabled={loading || code.replace(/\s/g, '').length < 6}>
+            {loading && <span className="btn-spinner" />}
             {loading ? 'Verifying…' : 'Verify'}
           </button>
           <button type="button" className="btn-link" onClick={onBack}>← Back</button>
         </form>
+
+        <div className="auth-footer">meet.russellpreece.com · v1.7.2</div>
       </div>
     </div>
   );

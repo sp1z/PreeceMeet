@@ -11,14 +11,21 @@ import Sidebar from '../components/Sidebar';
 import VideoGrid, { GAME_SIZES, type GameSize } from '../components/VideoGrid';
 import DeviceFallbackBanner from '../components/DeviceFallbackBanner';
 import ConnectingPanel from '../components/ConnectingPanel';
-import CallControls, { MicIcon, MicOffIcon, CamIcon, CamOffIcon } from '../components/CallControls';
+import CallControls from '../components/CallControls';
 import SettingsModal from '../components/SettingsModal';
 import AdminPanel from '../components/AdminPanel';
 import ChatPanel from '../components/ChatPanel';
 import ScreenSharePicker from '../components/ScreenSharePicker';
 import WindowControls from '../components/WindowControls';
+import TopBar from '../components/TopBar';
+import RoomStateReporter from '../components/RoomStateReporter';
+import IdlePanel from '../components/IdlePanel';
+import { CloseIcon } from '../components/icons';
+import { PreeceMeetMark } from '../components/Mark';
 import { IncomingCallModal, OutgoingCallModal } from '../components/CallRingModals';
 import { useDirectCalling } from '../calling';
+
+type Quality = 'excellent' | 'good' | 'poor' | 'unknown';
 
 const CHAT_URL_RE = /\bhttps?:\/\/[^\s<>"]+/gi;
 const CHAT_TOPIC = 'chat';
@@ -71,6 +78,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const [deviceFallbacks, setDeviceFallbacks] = useState<DeviceKind[]>([]);
   const [deviceRetryNonce, setDeviceRetryNonce] = useState(0);
   const [videoReady,       setVideoReady]       = useState(false);
+  const [callStartedAt,    setCallStartedAt]    = useState<number | null>(null);
+  const [connQuality,      setConnQuality]      = useState<Quality>('unknown');
 
   const calling = useDirectCalling(session);
 
@@ -314,6 +323,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       );
       setConnection({ key: `${channel.name}-${Date.now()}`, url: result.livekitUrl, token: result.livekitToken, roomName: channel.name });
       setConnectState('connected');
+      setCallStartedAt(Date.now());
       setMicMuted(false);
       setCamMuted(false);
       setScreenSharing(false);
@@ -341,6 +351,8 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
     setChatUnread(0);
     setChatVisible(false);
     setVideoReady(false);
+    setCallStartedAt(null);
+    setConnQuality('unknown');
     void pollRooms();
   }
 
@@ -352,6 +364,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
       setError('');
       setConnection({ key: `${roomName}-${Date.now()}`, url: livekitUrl, token: livekitToken, roomName });
       setConnectState('connected');
+      setCallStartedAt(Date.now());
       setMicMuted(false);
       setCamMuted(false);
       setScreenSharing(false);
@@ -617,7 +630,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   const sidebarOn = sidebarVisible && !gameMode;
   const contentColumns = gameMode
     ? '1fr'
-    : (sidebarOn ? `${sidebarWidth}px 6px 1fr` : '1fr') + (showChat ? ' 320px' : '');
+    : (sidebarOn ? `${sidebarWidth}px 6px 1fr` : '1fr') + (showChat ? ' 304px' : '');
 
   return (
     <div className={`app-layout${gameMode ? ' game-mode' : ''}`}>
@@ -627,64 +640,32 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
         <GameTitleBar
           gameSize={gameSize}
           onSizeChange={setGameSize}
-          showSelf={showSelf}
-          onToggleSelf={() => setShowSelf(v => !v)}
-          micMuted={micMuted}
-          camMuted={camMuted}
           hasConnection={!!connection}
-          onToggleMic={() => setMicMuted(m => !m)}
-          onToggleCam={() => setCamMuted(c => !c)}
           onRestore={() => void exitGameMode()}
           showWinControls={showWinControls}
         />
       ) : (
-        <div className="top-bar">
-          <button className="icon-btn nodrag" onClick={toggleSidebar} title="Toggle sidebar">
-            <BurgerIcon />
-          </button>
-          <span className="room-name">
-            {activeRoomName ? `#${activeRoomName}` : 'No active call'}
-          </span>
-          {error && <span className="top-error">{error}</span>}
-          {updateVersion && !error && (
-            <button
-              className="update-pill nodrag"
-              onClick={installUpdate}
-              disabled={installing}
-              title={`Update to v${updateVersion}`}
-            >
-              {installing ? 'Installing…' : `↑ v${updateVersion} available`}
-            </button>
-          )}
-          <button className="icon-btn nodrag" onClick={() => void enterGameMode()} title="Game Mode — overlay strip for streaming">
-            <GameModeIcon />
-          </button>
-          <button className={`icon-btn nodrag${isFullscreen ? ' active' : ''}`} onClick={() => void toggleFullscreen()} title={isFullscreen ? 'Exit fullscreen (F11)' : 'Fullscreen (F11)'}>
-            <FullscreenIcon exit={isFullscreen} />
-          </button>
-          {session.isAdmin && (
-            <button className="icon-btn nodrag" onClick={() => setAdminOpen(true)} title="Admin Panel">
-              <AdminIcon />
-            </button>
-          )}
-          {connection && (
-            <button
-              className={`icon-btn nodrag${chatVisible ? ' active' : ''}`}
-              onClick={toggleChat}
-              title="Chat"
-              style={{ position: 'relative' }}
-            >
-              <ChatIcon />
-              {chatUnread > 0 && !chatVisible && (
-                <span className="chat-unread-badge">{chatUnread > 9 ? '9+' : chatUnread}</span>
-              )}
-            </button>
-          )}
-          <button className="icon-btn nodrag" onClick={() => setSettingsOpen(true)} title="Settings">
-            <SettingsIcon />
-          </button>
-          {showWinControls && <WindowControls />}
-        </div>
+        <TopBar
+          roomName={activeRoomName}
+          inCall={!!connection}
+          error={error}
+          updateVersion={updateVersion}
+          installing={installing}
+          onInstallUpdate={installUpdate}
+          onToggleSidebar={toggleSidebar}
+          onEnterGameMode={() => void enterGameMode()}
+          onToggleFullscreen={() => void toggleFullscreen()}
+          isFullscreen={isFullscreen}
+          isAdmin={!!session.isAdmin}
+          onOpenAdmin={() => setAdminOpen(true)}
+          chatVisible={chatVisible}
+          chatUnread={chatUnread}
+          onToggleChat={toggleChat}
+          onOpenSettings={() => setSettingsOpen(true)}
+          showWinControls={showWinControls}
+          callStartedAt={callStartedAt}
+          connQuality={connQuality}
+        />
       )}
 
       {/* ── Content ──────────────────────────────────────────────── */}
@@ -725,16 +706,16 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
             />
           )}
           {!gameMode && connectState === 'idle' && !connection && (
-            <div className="empty-state">
-              <div className="big-icon">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--border)' }}>
-                  <polygon points="23 7 16 12 23 17 23 7"/>
-                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
-                </svg>
-              </div>
-              <h2>Select a channel to join</h2>
-              <p>Click a channel in the sidebar to start a call</p>
-            </div>
+            <IdlePanel
+              channels={effectiveChannels}
+              rooms={rooms}
+              users={users}
+              online={calling.online}
+              myEmail={session.email || ''}
+              displayName={settings.displayName || ''}
+              onJoin={joinChannel}
+              onCall={email => calling.call(email, settings.displayName || undefined)}
+            />
           )}
 
           {gameMode && connectState === 'idle' && !connection && (
@@ -776,6 +757,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
                 onPeerLeftDirect={handleHangup}
                 isDirect={isDirectRoomName(connection.roomName)}
               />
+              <RoomStateReporter onQuality={setConnQuality} />
               <MediaController
                 micMuted={micMuted}
                 camMuted={camMuted}
@@ -809,35 +791,36 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               />
             </LiveKitRoom>
           )}
+
+          {/* Floating call-control pill — overlays the video area, in-call only */}
+          {!gameMode && connection && (
+            <CallControls
+              connected={!!connection}
+              micMuted={micMuted}
+              camMuted={camMuted}
+              screenSharing={screenSharing}
+              screenShareDisabled={remoteSharing}
+              passThruActive={!!passThruStream}
+              showSelf={showSelf}
+              onToggleMic={() => setMicMuted(m => !m)}
+              onToggleCam={() => setCamMuted(c => !c)}
+              onToggleScreenShare={() => setScreenSharing(s => !s)}
+              onTogglePassThru={() => void handleTogglePassThru()}
+              onToggleSelf={() => setShowSelf(s => !s)}
+              onHangup={handleHangup}
+            />
+          )}
         </div>
 
         {showChat && (
           <ChatPanel
             messages={chatMessages}
+            roomName={connection?.roomName}
             onSend={handleSendChat}
             onClose={() => setChatVisible(false)}
           />
         )}
       </div>
-
-      {/* ── Bottom controls (normal mode only) ─────────────────────────────── */}
-      {!gameMode && (
-        <CallControls
-          connected={!!connection}
-          micMuted={micMuted}
-          camMuted={camMuted}
-          screenSharing={screenSharing}
-          screenShareDisabled={remoteSharing}
-          passThruActive={!!passThruStream}
-          showSelf={showSelf}
-          onToggleMic={() => setMicMuted(m => !m)}
-          onToggleCam={() => setCamMuted(c => !c)}
-          onToggleScreenShare={() => setScreenSharing(s => !s)}
-          onTogglePassThru={() => void handleTogglePassThru()}
-          onToggleSelf={() => setShowSelf(s => !s)}
-          onHangup={handleHangup}
-        />
-      )}
 
       {/* ── Modals ───────────────────────────────────────────────── */}
       {settingsOpen && (
@@ -893,18 +876,12 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
 interface GameTitleBarProps {
   gameSize:        GameSize;
   onSizeChange:    (s: GameSize) => void;
-  showSelf:        boolean;
-  onToggleSelf:    () => void;
-  micMuted:        boolean;
-  camMuted:        boolean;
   hasConnection:   boolean;
-  onToggleMic:     () => void;
-  onToggleCam:     () => void;
   onRestore:       () => void;
   showWinControls: boolean;
 }
 
-function GameTitleBar({ gameSize, onSizeChange, showSelf, onToggleSelf, micMuted, camMuted, hasConnection, onToggleMic, onToggleCam, onRestore, showWinControls }: GameTitleBarProps) {
+function GameTitleBar({ gameSize, onSizeChange, hasConnection, onRestore, showWinControls }: GameTitleBarProps) {
   const sizes: { key: GameSize; label: string }[] = [
     { key: 'small',  label: 'S' },
     { key: 'medium', label: 'M' },
@@ -912,11 +889,17 @@ function GameTitleBar({ gameSize, onSizeChange, showSelf, onToggleSelf, micMuted
   ];
   return (
     <div className="game-titlebar">
-      <div className="game-size-buttons">
+      <span className="game-mark" aria-hidden>
+        <PreeceMeetMark size={15} variant="onDark" showDot={false} />
+      </span>
+      <span className="game-titlebar-title">PreeceMeet</span>
+      {hasConnection && <span className="game-live-dot" aria-hidden />}
+      <div className="game-drag" />
+      <div className="game-size-buttons nodrag">
         {sizes.map(s => (
           <button
             key={s.key}
-            className={`game-size-btn nodrag${gameSize === s.key ? ' active' : ''}`}
+            className={`game-size-btn${gameSize === s.key ? ' active' : ''}`}
             onClick={() => onSizeChange(s.key)}
             title={`${s.label} — ${GAME_SIZES[s.key]}px tall`}
           >
@@ -924,32 +907,8 @@ function GameTitleBar({ gameSize, onSizeChange, showSelf, onToggleSelf, micMuted
           </button>
         ))}
       </div>
-      <button
-        className={`game-self-btn nodrag${showSelf ? ' active' : ''}`}
-        onClick={onToggleSelf}
-        title={showSelf ? 'Hide my own video' : 'Show my own video'}
-      >
-        <SelfIcon /> Self
-      </button>
-      <button
-        className={`game-av-btn nodrag${micMuted ? ' muted' : ''}`}
-        onClick={onToggleMic}
-        disabled={!hasConnection}
-        title={micMuted ? 'Unmute microphone' : 'Mute microphone'}
-      >
-        {micMuted ? <MicOffIcon /> : <MicIcon />}
-      </button>
-      <button
-        className={`game-av-btn nodrag${camMuted ? ' muted' : ''}`}
-        onClick={onToggleCam}
-        disabled={!hasConnection}
-        title={camMuted ? 'Turn camera on' : 'Turn camera off'}
-      >
-        {camMuted ? <CamOffIcon /> : <CamIcon />}
-      </button>
-      <span className="game-titlebar-title">PreeceMeet</span>
-      <button className="game-exit-btn nodrag" onClick={onRestore} title="Exit Game Mode">
-        ⊞ Restore
+      <button className="game-exit-btn nodrag" onClick={onRestore} title="Exit game mode" aria-label="Exit game mode">
+        <CloseIcon size={14} />
       </button>
       {showWinControls && <WindowControls />}
     </div>
@@ -1380,74 +1339,4 @@ function ChatBridge({ displayName, onMessage, sendRef }: ChatBridgeProps) {
   return null;
 }
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
-function FullscreenIcon({ exit }: { exit: boolean }) {
-  return exit ? (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-    </svg>
-  ) : (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-    </svg>
-  );
-}
-
-function BurgerIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <line x1="3" y1="6"  x2="21" y2="6"/>
-      <line x1="3" y1="12" x2="21" y2="12"/>
-      <line x1="3" y1="18" x2="21" y2="18"/>
-    </svg>
-  );
-}
-
-function GameModeIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-      <polyline points="8 21 12 17 16 21"/>
-      <line x1="12" y1="17" x2="12" y2="21"/>
-    </svg>
-  );
-}
-
-function AdminIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-      <circle cx="9" cy="7" r="4"/>
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-    </svg>
-  );
-}
-
-function ChatIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-    </svg>
-  );
-}
-
-function SelfIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-      <circle cx="12" cy="7" r="4"/>
-    </svg>
-  );
-}
 
