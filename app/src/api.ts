@@ -107,16 +107,19 @@ export async function getRoomToken(
 export interface ContactUser {
   email:        string;
   displayName:  string | null;
+  avatarEmoji:  string | null;
   online:       boolean;
 }
 
 export async function updateProfile(
-  serverUrl: string, sessionToken: string, displayName: string | null,
+  serverUrl: string, sessionToken: string,
+  displayName: string | null,
+  avatarEmoji: string | null,
 ): Promise<void> {
   const resp = await fetch(`${serverUrl}/api/auth/me`, {
     method:  'PATCH',
     headers: { Authorization: `Bearer ${sessionToken}`, 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ displayName }),
+    body:    JSON.stringify({ displayName, avatarEmoji }),
   });
   if (resp.status === 401) throw new UnauthorizedError();
   if (!resp.ok) throw new Error(`Failed to update profile (${resp.status})`);

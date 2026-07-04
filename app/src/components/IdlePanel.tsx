@@ -123,7 +123,7 @@ export default function IdlePanel({
                     disabled={!u.online || busy}
                     title={u.online ? `Call ${label}` : `${label} is offline`}
                   >
-                    <span className="idle-person-avatar emoji">🙂</span>
+                    <span className="idle-person-avatar emoji">{u.avatarEmoji || '🙂'}</span>
                     <span className={`idle-person-dot${u.online ? ' online' : ''}`} />
                     <span className="idle-person-name">{u.displayName?.trim() || u.email.split('@')[0]}</span>
                     <span className="idle-person-sub mono">

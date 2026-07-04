@@ -624,7 +624,16 @@ input::placeholder { color: var(--text-muted); }
   border-right: 1px solid var(--pm-border-hairline);
   overflow: hidden;
   min-width: 0;
+  transition: opacity 160ms ease;
 }
+/* Non-footer sidebar interactions are inert while Settings owns the pane.
+   The footer stays clickable so the user can still open the avatar menu. */
+.sidebar.locked > *:not(.sidebar-footer):not(.footer-menu) {
+  pointer-events: none;
+  opacity: 0.55;
+  filter: saturate(0.6);
+}
+.sidebar.locked .sidebar-footer { pointer-events: none; opacity: 0.6; }
 .sidebar-header {
   display: flex;
   align-items: center;
@@ -674,10 +683,10 @@ input::placeholder { color: var(--text-muted); }
 .user-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
 .user-row {
   display: grid;
-  grid-template-columns: 12px 1fr auto;
+  grid-template-columns: 12px 24px 1fr auto;
   align-items: center;
   gap: 10px;
-  padding: 7px 10px;
+  padding: 6px 10px;
   border: 0;
   background: transparent;
   color: var(--pm-text-muted-3);
@@ -686,9 +695,22 @@ input::placeholder { color: var(--text-muted); }
   text-align: left;
   border-radius: 9px;
   cursor: pointer;
-  min-height: 32px;
+  min-height: 34px;
   transition: background 120ms ease, color 120ms ease;
 }
+.user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: linear-gradient(150deg, #1C2C58, #131A3A);
+  border: 1px solid var(--pm-border-card);
+  display: inline-grid;
+  place-items: center;
+  font-size: 14px;
+  line-height: 1;
+  justify-self: center;
+}
+.user-row.disabled .user-avatar { filter: grayscale(0.4); opacity: 0.85; }
 .user-row.online { color: var(--pm-text-mid); }
 .user-row:hover:not(.disabled) { background: #111A38; }
 .user-row.disabled { cursor: default; opacity: 0.62; filter: grayscale(0.25); }
@@ -1555,6 +1577,15 @@ input::placeholder { color: var(--text-muted); }
   background: rgba(255, 255, 255, 0.10);
   margin: 0 4px;
 }
+.pill-btn { position: relative; }
+.pill-btn-dot {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--pm-accent-cyan);
+  box-shadow: 0 0 0 2px rgba(11,15,40,0.85), 0 0 8px rgba(56,216,255,0.7);
+}
 .pill-btn.hangup {
   background: var(--pm-danger);
   border-color: rgba(229, 72, 77, 0.85);
@@ -2206,59 +2237,76 @@ input::placeholder { color: var(--text-muted); }
   box-shadow: 0 0 0 3px rgba(56,216,255,0.14);
 }
 
-/* Toggle switches — style .checkbox-row's <input type="checkbox"> as a track+knob */
+/* Setting rows that pair a Switch with a label + description. Older code
+   still uses .checkbox-row wrapping <input type="checkbox">; the switch
+   component below replaces the input part while re-using the row layout. */
 .checkbox-row {
   display: flex !important;
-  align-items: flex-start !important;
-  gap: 22px !important;
-  padding: 14px 0;
+  align-items: center !important;
+  gap: 20px !important;
+  padding: 14px 4px;
   color: var(--pm-text-body);
   font-size: 14px;
-  cursor: pointer;
+  cursor: default;
+  border-bottom: 1px solid var(--pm-border-hairline);
 }
-.checkbox-row > input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  position: relative;
-  width: 42px;
-  height: 24px;
-  border-radius: 20px;
-  background: #26355F;
-  border: 0;
-  cursor: pointer;
-  transition: background 140ms ease;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-.checkbox-row > input[type="checkbox"]::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #C7D0E5;
-  transition: transform 160ms ease, background 140ms ease;
-}
-.checkbox-row > input[type="checkbox"]:checked {
-  background: var(--pm-primary);
-}
-.checkbox-row > input[type="checkbox"]:checked::after {
-  transform: translateX(18px);
-  background: #fff;
-}
+.checkbox-row:last-child { border-bottom: 0; }
 .checkbox-row > span {
   line-height: 1.45;
   flex: 1;
   font-weight: 600;
   color: var(--pm-text-strong);
+  min-width: 0;
 }
 .checkbox-row > span > span {
+  display: block !important;
   color: var(--pm-text-2nd) !important;
   font-weight: 400;
   font-size: 12.5px !important;
   margin-top: 4px !important;
+  line-height: 1.45;
+}
+
+/* PM Switch — canonical toggle control */
+.pm-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  background: #26355F;
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  display: inline-block;
+}
+.pm-switch:hover:not(.disabled) { background: #2E3E6E; }
+.pm-switch.on {
+  background: var(--pm-primary);
+  border-color: rgba(255,255,255,0.12);
+}
+.pm-switch.on:hover:not(.disabled) { background: #3856D6; }
+.pm-switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(56, 216, 255, 0.32);
+}
+.pm-switch.disabled { opacity: 0.5; cursor: default; }
+
+.pm-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #C7D0E5;
+  transition: transform 180ms cubic-bezier(0.4, 0, 0.2, 1), background 140ms ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.35);
+}
+.pm-switch.on .pm-switch-knob {
+  transform: translateX(20px);
+  background: #ffffff;
 }
 
 /* Modal footer — fixed */
@@ -2575,14 +2623,15 @@ input::placeholder { color: var(--text-muted); }
   flex-shrink: 0;
 }
 .chat-header-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--pm-text-strong);
 }
 .chat-header-room {
   font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--pm-text-muted-3);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pm-text-2nd);
   letter-spacing: 0.04em;
   flex: 1;
 }
@@ -2592,7 +2641,7 @@ input::placeholder { color: var(--text-muted); }
   border-radius: 7px;
   background: transparent;
   border: 0;
-  color: var(--pm-text-muted-3);
+  color: var(--pm-text-2nd);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2601,7 +2650,7 @@ input::placeholder { color: var(--text-muted); }
 }
 .chat-close:hover {
   background: rgba(56, 216, 255, 0.06);
-  color: var(--pm-text-body);
+  color: var(--pm-text-strong);
 }
 
 .chat-messages {
@@ -2614,8 +2663,8 @@ input::placeholder { color: var(--text-muted); }
   min-height: 0;
 }
 .chat-empty {
-  color: var(--pm-text-muted-3);
-  font-size: 12.5px;
+  color: var(--pm-text-2nd);
+  font-size: 13px;
   text-align: center;
   margin: 20px 0;
 }
@@ -2651,14 +2700,14 @@ input::placeholder { color: var(--text-muted); }
   font-size: 13px;
 }
 .chat-time {
-  color: var(--pm-text-muted-3);
+  color: var(--pm-text-2nd);
   font-size: 11px;
   font-family: var(--font-mono);
   letter-spacing: 0.02em;
 }
 .chat-body {
-  font-size: 13.5px;
-  color: var(--pm-text-mid);
+  font-size: 14px;
+  color: var(--pm-text-body);
   word-break: break-word;
   line-height: 1.5;
   white-space: pre-wrap;

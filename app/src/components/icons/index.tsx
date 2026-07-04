@@ -101,7 +101,11 @@ export function HangupIcon({ size = 20, ...p }: IconProps) {
   return (
     <svg {...base(size, p)}>
       <g transform="rotate(135 12 12)">
-        <path d="M4 12c4-4 12-4 16 0l-2 2c-1-1-3-1.5-4-1.5v3l-4 1-4-1v-3c-1 0-3 .5-4 1.5z" fill="currentColor" stroke="none" />
+        {/* Curved phone body (handset) with earpiece + mouthpiece bulbs.
+            Stroke-only so the icon reads as a phone at any color, unlike
+            the previous filled blob. */}
+        <path d="M5 11.5c3.5-3.5 10.5-3.5 14 0" />
+        <path d="M5 11.5v3.5a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-1.7c0-.4.2-.7.5-.9 1.9-1 4.1-1 6 0 .3.2.5.5.5.9v1.7a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3.5" />
       </g>
     </svg>
   );

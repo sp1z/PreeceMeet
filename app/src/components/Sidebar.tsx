@@ -22,6 +22,7 @@ interface Props {
   onEnterGameMode: () => void;
   onToggleFullscreen: () => void;
   isFullscreen:    boolean;
+  locked:          boolean;
   onSignOut:       () => void;
   onAddChannel:    () => void;
   onDeleteChannel: (channelName: string) => void;
@@ -30,7 +31,7 @@ interface Props {
 
 interface ChannelMenu { name: string; x: number; y: number; }
 
-export default function Sidebar({ channels, rooms, activeRoom, email, displayName, avatarEmoji, users, online, inCall, isAdmin, onCall, onJoin, onSettings, onOpenAdmin, onEnterGameMode, onToggleFullscreen, isFullscreen, onSignOut, onAddChannel, onDeleteChannel, visible }: Props) {
+export default function Sidebar({ channels, rooms, activeRoom, email, displayName, avatarEmoji, users, online, inCall, isAdmin, onCall, onJoin, onSettings, onOpenAdmin, onEnterGameMode, onToggleFullscreen, isFullscreen, locked, onSignOut, onAddChannel, onDeleteChannel, visible }: Props) {
   const [callingEmail, setCallingEmail] = useState('');
   const [footerMenuOpen, setFooterMenuOpen] = useState(false);
   const [channelMenu,    setChannelMenu]    = useState<ChannelMenu | null>(null);
@@ -73,7 +74,9 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
   }
 
   return (
-    <aside className="sidebar" style={{ position: 'relative' }}>
+    <aside className={`sidebar${locked ? ' locked' : ''}`} style={{ position: 'relative' }}
+      aria-disabled={locked || undefined}
+    >
       <div className="sidebar-header">
         <div className="sidebar-lockup">
           <span className="sidebar-mark-glow">
@@ -108,6 +111,7 @@ export default function Sidebar({ channels, rooms, activeRoom, email, displayNam
               title={title}
             >
               <span className={`user-dot${u.online ? ' online' : ''}`} />
+              <span className="user-avatar emoji">{u.avatarEmoji || '🙂'}</span>
               <span className="user-name">{label}</span>
               {busy && <span className="user-calling">calling…</span>}
             </button>

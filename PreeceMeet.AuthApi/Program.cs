@@ -84,6 +84,14 @@ using (var scope = app.Services.CreateScope())
     }
     catch { /* Column already exists — ignore. */ }
 
+    // Add AvatarEmoji column (nullable) — user-chosen emoji shown across all
+    // clients in roster + presence surfaces.
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN AvatarEmoji TEXT NULL");
+    }
+    catch { /* Column already exists — ignore. */ }
+
     // EnsureCreated only creates tables on a fresh DB; for pre-existing DBs
     // we need to create the new DeviceTokens table explicitly.
     try
@@ -222,10 +230,10 @@ app.MapGet("/api/auth/me", async (HttpContext ctx, SessionTokenService session, 
     var isAdmin = user.IsAdmin ||
                   email.EndsWith("@russellpreece.com", StringComparison.OrdinalIgnoreCase);
 
-    return Results.Ok(new { email, isAdmin, displayName = user.DisplayName });
+    return Results.Ok(new { email, isAdmin, displayName = user.DisplayName, avatarEmoji = user.AvatarEmoji });
 });
 
-// ── Profile: update display name ──────────────────────────────────────────────
+// ── Profile: update display name + avatar emoji ───────────────────────────────
 
 app.MapPatch("/api/auth/me", async (UpdateProfileRequest req, HttpContext ctx,
     AppDbContext db, SessionTokenService session) =>
@@ -243,8 +251,17 @@ app.MapPatch("/api/auth/me", async (UpdateProfileRequest req, HttpContext ctx,
         user.DisplayName = string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
 
+    if (req.AvatarEmoji is not null)
+    {
+        var trimmed = req.AvatarEmoji.Trim();
+        // Emoji + ZWJ sequences fit within ~24 UTF-16 code units even for the
+        // longest family-of-four flag; cap at 32 as a paranoia bound.
+        if (trimmed.Length > 32) trimmed = trimmed[..32];
+        user.AvatarEmoji = string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+    }
+
     await db.SaveChangesAsync();
-    return Results.Ok(new { email, displayName = user.DisplayName });
+    return Results.Ok(new { email, displayName = user.DisplayName, avatarEmoji = user.AvatarEmoji });
 });
 
 // ── Channels: canonical list shared across all clients ───────────────────────
@@ -480,13 +497,14 @@ app.MapGet("/api/users", async (HttpContext ctx, AppDbContext db,
     var users  = await db.Users
         .Where(u => u.Email != me)
         .OrderBy(u => u.Email)
-        .Select(u => new { u.Email, u.DisplayName })
+        .Select(u => new { u.Email, u.DisplayName, u.AvatarEmoji })
         .ToListAsync();
 
     return Results.Ok(users.Select(u => new
     {
         email       = u.Email,
         displayName = u.DisplayName,
+        avatarEmoji = u.AvatarEmoji,
         online      = online.Contains(u.Email),
     }));
 });
@@ -649,7 +667,7 @@ record ChangePasswordRequest(string Password);
 record SetAdminRequest(bool IsAdmin);
 record UploadLogRequest(List<string>? Lines, string? ClientVersion, string? Platform);
 record RegisterDeviceRequest(string Token, string Platform);
-record UpdateProfileRequest(string? DisplayName);
+record UpdateProfileRequest(string? DisplayName, string? AvatarEmoji);
 
 // ── String helper ─────────────────────────────────────────────────────────────
 

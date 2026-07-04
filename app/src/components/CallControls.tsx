@@ -10,6 +10,7 @@ import {
   ScreenShareIcon,
   PassThruIcon,
   SelfIcon,
+  ChatIcon,
   HangupIcon,
 } from './icons';
 
@@ -25,11 +26,14 @@ interface Props {
   screenShareDisabled: boolean;
   passThruActive:      boolean;
   showSelf:            boolean;
+  chatVisible:         boolean;
+  chatUnread:          number;
   onToggleMic:         () => void;
   onToggleCam:         () => void;
   onToggleScreenShare: () => void;
   onTogglePassThru:    () => void;
   onToggleSelf:        () => void;
+  onToggleChat:        () => void;
   onHangup:            () => void;
 }
 
@@ -41,11 +45,14 @@ export default function CallControls({
   screenShareDisabled,
   passThruActive,
   showSelf,
+  chatVisible,
+  chatUnread,
   onToggleMic,
   onToggleCam,
   onToggleScreenShare,
   onTogglePassThru,
   onToggleSelf,
+  onToggleChat,
   onHangup,
 }: Props) {
   const shareDisabled = !connected || (screenShareDisabled && !screenSharing);
@@ -101,6 +108,16 @@ export default function CallControls({
         aria-label="Toggle self preview"
       >
         <SelfIcon size={18} />
+      </button>
+      <button
+        className={`pill-btn chat${chatVisible ? ' active' : ''}`}
+        onClick={onToggleChat}
+        disabled={!connected}
+        title="Chat"
+        aria-label="Toggle chat"
+      >
+        <ChatIcon />
+        {chatUnread > 0 && !chatVisible && <span className="pill-btn-dot" aria-hidden />}
       </button>
       <span className="pill-sep" aria-hidden />
       <button

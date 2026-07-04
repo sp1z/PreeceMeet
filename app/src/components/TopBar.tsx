@@ -7,7 +7,6 @@
 import { useEffect, useState } from 'react';
 import {
   BurgerIcon,
-  ChatIcon,
   ConnQualityIcon,
 } from './icons';
 import WindowControls from './WindowControls';
@@ -23,10 +22,6 @@ interface Props {
   onInstallUpdate: () => void;
 
   onToggleSidebar: () => void;
-
-  chatVisible:     boolean;
-  chatUnread:      number;
-  onToggleChat:    () => void;
 
   showWinControls: boolean;
   callStartedAt:   number | null;
@@ -73,7 +68,6 @@ export default function TopBar({
   roomName, inCall, error,
   updateVersion, installing, onInstallUpdate,
   onToggleSidebar,
-  chatVisible, chatUnread, onToggleChat,
   showWinControls,
   callStartedAt, connQuality,
 }: Props) {
@@ -110,18 +104,6 @@ export default function TopBar({
           <ConnQualityIcon size={17} />
         </span>
       ) : null}
-
-      {inCall && (
-        <button
-          className={`tb-icon nodrag${chatVisible ? ' active' : ''}`}
-          onClick={onToggleChat}
-          title="Chat"
-          aria-label="Toggle chat"
-        >
-          <ChatIcon size={18} />
-          {chatUnread > 0 && !chatVisible && <span className="tb-unread" aria-hidden />}
-        </button>
-      )}
 
       {showWinControls && <WindowControls />}
     </div>

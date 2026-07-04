@@ -14,4 +14,6 @@ public class User
     public bool IsAdmin { get; set; } = false;
     /// <summary>User-chosen display name shown in contact lists and call tiles. Falls back to email.</summary>
     public string? DisplayName { get; set; }
+    /// <summary>User-chosen emoji avatar (single grapheme). Shown next to name across all clients.</summary>
+    public string? AvatarEmoji { get; set; }
 }

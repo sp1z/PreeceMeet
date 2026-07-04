@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Settings, Channel } from '../types';
 import EmojiPicker from './EmojiPicker';
+import Switch from './Switch';
 import { diagnostics } from '../runtime';
 import pkg from '../../package.json';
 
@@ -173,24 +174,20 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
                 <input value={serverUrl} onChange={e => setServerUrl(e.target.value)}
                   placeholder="https://meet.russellpreece.com" />
               </div>
-              <label className="checkbox-row" style={{ marginTop: 4 }}>
-                <input type="checkbox" checked={autoOpenUrls} onChange={e => setAutoOpenUrls(e.target.checked)} />
+              <div className="checkbox-row">
                 <span>
                   Auto-open links from chat
-                  <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                    When another participant pastes a URL, open it in your default browser. Your own messages are never auto-opened.
-                  </span>
+                  <span>When another participant pastes a URL, open it in your default browser. Your own messages are never auto-opened.</span>
                 </span>
-              </label>
-              <label className="checkbox-row" style={{ marginTop: 4 }}>
-                <input type="checkbox" checked={showSpeaking} onChange={e => setShowSpeaking(e.target.checked)} />
+                <Switch checked={autoOpenUrls} onChange={setAutoOpenUrls} ariaLabel="Auto-open links from chat" />
+              </div>
+              <div className="checkbox-row">
                 <span>
                   Show speaking indicator
-                  <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Draw a green ring around tiles of whoever is currently speaking.
-                  </span>
+                  <span>Draw a cyan ring around tiles of whoever is currently speaking.</span>
                 </span>
-              </label>
+                <Switch checked={showSpeaking} onChange={setShowSpeaking} ariaLabel="Show speaking indicator" />
+              </div>
             </>
           )}
 
@@ -349,24 +346,20 @@ export default function SettingsModal({ settings, onSave, onClose, initialTab }:
 
           {tab === 'debug' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <label className="checkbox-row">
-                <input type="checkbox" checked={localLog} onChange={e => setLocalLog(e.target.checked)} />
+              <div className="checkbox-row">
                 <span>
                   Local logging
-                  <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Keep a log of client events on this machine. Off by default — turn on when reproducing an issue.
-                  </span>
+                  <span>Keep a log of client events on this machine. Off by default — turn on when reproducing an issue.</span>
                 </span>
-              </label>
-              <label className="checkbox-row">
-                <input type="checkbox" checked={serverLog} onChange={e => setServerLog(e.target.checked)} />
+                <Switch checked={localLog} onChange={setLocalLog} ariaLabel="Local logging" />
+              </div>
+              <div className="checkbox-row">
                 <span>
                   Send logs to server
-                  <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Periodically upload your local logs to the server so they can be inspected remotely. Requires Local logging to be on to collect anything.
-                  </span>
+                  <span>Periodically upload your local logs to the server so they can be inspected remotely. Requires Local logging to be on to collect anything.</span>
                 </span>
-              </label>
+                <Switch checked={serverLog} onChange={setServerLog} ariaLabel="Send logs to server" />
+              </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
                 <button className="btn-secondary" onClick={() => void diagnostics.openLogFolder()}>
                   Open log folder

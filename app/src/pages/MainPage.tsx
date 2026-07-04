@@ -611,12 +611,15 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
   function handleSaveSettings(s: Settings) {
     onSettingsChange({ ...s, sidebarWidth: sidebarWidthRef.current });
     saveSettings({ ...s, sidebarWidth: sidebarWidthRef.current });
-    // Sync displayName to server so other clients (mobile, other desktops)
-    // see it in their contact lists. Best-effort — failure here doesn't
-    // block the local save.
-    if (s.displayName !== settingsRef.current.displayName) {
+    // Sync displayName + avatarEmoji to server so other clients (mobile,
+    // other desktops) see them in their contact lists. Best-effort —
+    // failure here doesn't block the local save.
+    const nameChanged   = s.displayName !== settingsRef.current.displayName;
+    const avatarChanged = s.avatarEmoji !== settingsRef.current.avatarEmoji;
+    if (nameChanged || avatarChanged) {
       void updateProfile(session.serverUrl, session.sessionToken,
-        s.displayName.trim() || null)
+        s.displayName.trim() || null,
+        (s.avatarEmoji || '').trim() || null)
         .catch(e => uiLog.warn('updateProfile failed', { error: String(e) }));
     }
   }
@@ -652,9 +655,6 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
           installing={installing}
           onInstallUpdate={installUpdate}
           onToggleSidebar={toggleSidebar}
-          chatVisible={chatVisible}
-          chatUnread={chatUnread}
-          onToggleChat={toggleChat}
           showWinControls={showWinControls}
           callStartedAt={callStartedAt}
           connQuality={connQuality}
@@ -685,6 +685,7 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
             onEnterGameMode={() => void enterGameMode()}
             onToggleFullscreen={() => void toggleFullscreen()}
             isFullscreen={isFullscreen}
+            locked={settingsOpen}
             onSignOut={handleSignOut}
             onAddChannel={() => openSettingsAt('channels')}
             onDeleteChannel={handleDeleteChannel}
@@ -798,8 +799,10 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
             </LiveKitRoom>
           )}
 
-          {/* Floating call-control pill — overlays the video area, in-call only */}
-          {!gameMode && connection && (
+          {/* Floating call-control pill — overlays the video area, in-call only,
+              and hidden while Settings owns the pane so it can't be clicked
+              through. */}
+          {!gameMode && connection && !settingsOpen && (
             <CallControls
               connected={!!connection}
               micMuted={micMuted}
@@ -808,11 +811,14 @@ export default function MainPage({ session, settings, onSettingsChange, onSignOu
               screenShareDisabled={remoteSharing}
               passThruActive={!!passThruStream}
               showSelf={showSelf}
+              chatVisible={chatVisible}
+              chatUnread={chatUnread}
               onToggleMic={() => setMicMuted(m => !m)}
               onToggleCam={() => setCamMuted(c => !c)}
               onToggleScreenShare={() => setScreenSharing(s => !s)}
               onTogglePassThru={() => void handleTogglePassThru()}
               onToggleSelf={() => setShowSelf(s => !s)}
+              onToggleChat={toggleChat}
               onHangup={handleHangup}
             />
           )}
