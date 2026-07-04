@@ -1,6 +1,20 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+
+// Self-hosted fonts — bundled via @fontsource so the app doesn't need to
+// reach Google Fonts at runtime. Ships identically on Windows, Mac, Linux
+// (and works fully offline). Import BEFORE index.css so the @font-face
+// declarations exist before our brand tokens reference them.
+import '@fontsource/manrope/400.css';
+import '@fontsource/manrope/500.css';
+import '@fontsource/manrope/600.css';
+import '@fontsource/manrope/700.css';
+import '@fontsource/manrope/800.css';
+import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource/ibm-plex-mono/500.css';
+import '@fontsource/ibm-plex-mono/600.css';
+
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

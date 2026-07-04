@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src 'self' https: wss:; media-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'"
+      content="default-src 'self'; connect-src 'self' https: wss:; media-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self' 'unsafe-inline'"
     />
     <title>PreeceMeet</title>
 
@@ -170,12 +170,10 @@
       }
     </style>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Color+Emoji&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Fonts (Manrope + IBM Plex Mono) are bundled locally via @fontsource
+         and imported from src/main.tsx — no Google Fonts fetch at runtime,
+         which means the app renders identically online and offline across
+         Windows/Mac/Linux. -->
   </head>
   <body>
     <!-- Splash sits ABOVE #root so React mounts and runs underneath it.

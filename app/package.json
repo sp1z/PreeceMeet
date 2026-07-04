@@ -1,6 +1,6 @@
 {
   "name": "preecemeet",
-  "version": "1.7.6",
+  "version": "1.7.7",
   "description": "PreeceMeet — desktop video conferencing client for meet.russellpreece.com.",
   "homepage": "https://github.com/sp1z/PreeceMeet",
   "repository": {
@@ -25,6 +25,8 @@
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/manrope": "^5.2.8",
     "@livekit/components-react": "^2.6.0",
     "@livekit/components-styles": "^1.1.0",
     "@microsoft/signalr": "^8.0.7",
@@ -127,6 +129,17 @@
         "StartupWMClass": "PreeceMeet"
       },
       "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "deb": {
+      "depends": [
+        "gconf2",
+        "gconf-service",
+        "libnotify4",
+        "libappindicator1",
+        "libxtst6",
+        "libnss3",
+        "fonts-noto-color-emoji"
+      ]
     }
   }
 }
