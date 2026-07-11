@@ -136,7 +136,7 @@ export default function LoginPage({ settings, onDone, onSettingsChange }: Props)
 
         <WebRtcDiagnostics />
 
-        <div className="auth-footer">meet.russellpreece.com · v1.7.2</div>
+        <div className="auth-footer">meet.russellpreece.com · v1.7.8</div>
       </div>
     </div>
   );

@@ -104,7 +104,7 @@ export default function TotpPage({ totpState, serverUrl, onDone, onBack }: Props
           <button type="button" className="btn-link" onClick={onBack}>← Back</button>
         </form>
 
-        <div className="auth-footer">meet.russellpreece.com · v1.7.2</div>
+        <div className="auth-footer">meet.russellpreece.com · v1.7.8</div>
       </div>
     </div>
   );
