@@ -30,16 +30,26 @@ interface Props {
 export default function CallScreen({ url, token, roomName, onLeave }: Props) {
   const [error, setError] = useState<string>('');
 
-  // Start a proper AVAudioSession (playAndRecord + voiceChat mode via
-  // useIOSAudioManagement below) so iOS turns on hardware echo cancellation
-  // when audio routes through the loudspeaker. Without this, the speaker
-  // feeds back into the mic.
+  // Force AVAudioSession into playAndRecord + videoChat mode BEFORE the room
+  // connects. videoChat mode routes capture through Apple's voice-processing
+  // I/O unit, which is the only thing that gives us hardware AEC + noise
+  // suppression + AGC. If we let LiveKit's peer connection wire up the audio
+  // unit first with the default mode, hardware AEC never engages — that's the
+  // "echoey" iOS bug. useIOSAudioManagement below keeps this in sync per
+  // room state; this initial call is what stops the race.
   useEffect(() => {
     reportError(`callscreen mount room=${roomName}`);
     let cancelled = false;
     (async () => {
       try {
-        await AudioSession.configureAudio({ ios: { defaultOutput: 'speaker' } });
+        await AudioSession.configureAudio({
+          ios: {
+            defaultOutput:        'speaker',
+            audioCategory:        'playAndRecord',
+            audioMode:            'videoChat',
+            audioCategoryOptions: ['allowBluetooth', 'allowBluetoothA2DP', 'defaultToSpeaker'],
+          },
+        });
         if (cancelled) return;
         await AudioSession.startAudioSession();
       } catch (e) {
@@ -60,6 +70,13 @@ export default function CallScreen({ url, token, roomName, onLeave }: Props) {
       connect
       audio
       video
+      options={{
+        audioCaptureDefaults: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl:  true,
+        },
+      }}
       onError={err => {
         const msg = err instanceof Error ? err.message : String(err);
         console.warn('[livekit]', err);
